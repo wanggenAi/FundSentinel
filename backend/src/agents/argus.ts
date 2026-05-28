@@ -224,6 +224,8 @@ export class ArgusAgent extends BaseAgent {
     const navConsistencyReport = this.buildNavConsistencyReport(successful);
     const missingAuxiliaryFields = [
       !merged.portfolio_holdings?.length ? "holdings" : null,
+      sourceComposition.official_core_coverage.current_nav ? null : "official_current_nav",
+      sourceComposition.official_core_coverage.nav_history ? null : "official_nav_history",
       hasFundReportSource ? null : "fund_reports",
       hasAuthoritativeFundReportSource ? null : "official_fund_reports",
       !merged.policy_signals?.length ? "policy_evidence" : null,
@@ -251,7 +253,11 @@ export class ArgusAgent extends BaseAgent {
       allowDownstreamAnalysis = false;
       allowStrongConclusion = false;
       blockingIssues.push(`核心数据缺失：${missingCoreFields.join(", ")}。`);
-    } else if (missingAuxiliaryFields.some((field) => ["holdings", "fund_reports", "official_fund_reports", "policy_evidence"].includes(field))) {
+    } else if (
+      missingAuxiliaryFields.some((field) =>
+        ["holdings", "official_current_nav", "official_nav_history", "fund_reports", "official_fund_reports", "policy_evidence"].includes(field)
+      )
+    ) {
       dataStatus = "partial";
       allowStrongConclusion = false;
       warnings.push(`辅助证据不完整：${missingAuxiliaryFields.join(", ")}。Logos 必须降级，Atlas 不允许强结论。`);

@@ -44,3 +44,4 @@
 42. Argus must keep `source_composition` current; aggregator and manual sources must not be counted as official core coverage.
 43. Official disclosure providers must use precise fund identifiers where possible; broad keyword searches must not be used when they can mis-match another fund.
 44. Official fund-company pages may be parsed for SSR-embedded NAV rows, but signed/encrypted business APIs must not be bypassed; if signature requirements block direct API use, record the limitation as a provider gap.
+45. Aggregator or manual NAV may support weak analysis, but strong conclusions require official or authorized current NAV and NAV history coverage.

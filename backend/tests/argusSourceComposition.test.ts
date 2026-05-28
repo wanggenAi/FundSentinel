@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { ArgusAgent } from "../src/agents/index.js";
 import {
+  CmfChinaFundOfficialProvider,
   EastMoneyFundProvider,
   EastMoneyNavHistoryProvider,
   GovCnPolicyProvider,
@@ -49,6 +50,20 @@ const worldBankJson = JSON.stringify([
     }
   ]
 ]);
+
+const cmfFundDetailHtml = `
+<div class="pro_name"><div class="title"><h5>招商信用增强债券C</h5><a class="type_switch"></a></div>
+<div class="info"><span class="fund_code">007951</span><span class="fund_tag">中低风险(R2)</span><span class="fund_tag">债券型</span></div></div>
+<div class="num"><strong>1.0799</strong></div><p>单位净值(2026-05-28)</p>
+<div class="color_green num"><strong>-0.02%</strong></div><p>日涨幅</p>
+<script>
+fw.pageNum=1;fw.pageSize=10;fw.total=2;fw.pages=1;fw.list=[
+  {valueId:2337093,productId:342717,relatePrice:E,cumulativeNet:F,navDate:j,dayRate:U,productCode:d},
+  {valueId:2336333,productId:342717,relatePrice:"1.0801",cumulativeNet:"1.3283",navDate:"2026-05-27",dayRate:"-0.194",productCode:d}
+];return {data:{"fundNavPage-007951-[object Object]":fw}};
+</script>
+<a class="item" href="/web/noticedetails/223506/index.html" target="_blank"><p>招商基金管理有限公司旗下基金2026年第1季度报告提示性公告</p><span class="date">2026-04-22</span></a>
+`;
 
 test("Argus source composition separates authoritative, aggregator, manual, and macro sources", async () => {
   const registry = new SourceRegistry({
@@ -101,9 +116,43 @@ test("Argus source composition separates authoritative, aggregator, manual, and 
   assert.ok(composition.macro.includes("world-bank-api"));
   assert.equal(composition.official_core_coverage.current_nav, false);
   assert.equal(composition.official_core_coverage.nav_history, false);
+  assert.equal(dataPack.data_quality_report.data_status, "partial");
+  assert.equal(dataPack.allow_strong_conclusion, false);
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_current_nav"));
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_nav_history"));
   assert.equal(dataPack.data_quality_report.aggregator_source_count, 2);
   assert.equal(dataPack.data_quality_report.macro_source_count, 1);
   assert.ok(result.evidence.some((item) => item.source_name.includes("EastMoney") && item.source_type === "industry_data"));
+});
+
+test("Argus recognizes official fund-company NAV coverage for core NAV fields", async () => {
+  const registry = new SourceRegistry({
+    providers: [
+      new CmfChinaFundOfficialProvider(
+        (async () =>
+          new Response(cmfFundDetailHtml, {
+            status: 200,
+            headers: { "content-type": "text/html" }
+          })) as typeof fetch,
+        1000,
+        0
+      )
+    ],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("official-nav-composition", "007951");
+  const composition = dataPack.data_quality_report.source_composition;
+
+  assert.ok(composition.authoritative.includes("cmfchina-fund-official"));
+  assert.equal(composition.official_core_coverage.fund_meta, true);
+  assert.equal(composition.official_core_coverage.current_nav, true);
+  assert.equal(composition.official_core_coverage.nav_history, true);
+  assert.equal(dataPack.current_nav, 1.0799);
+  assert.deepEqual(dataPack.nav_history_dates, ["2026-05-27", "2026-05-28"]);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_current_nav"), false);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_nav_history"), false);
 });
 
 test("Argus source composition recognizes manual import separately from aggregator sources", async () => {

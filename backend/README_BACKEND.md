@@ -70,6 +70,8 @@ Argus deliberately separates `missing_core_fields` from `missing_auxiliary_field
 
 Argus also separates source composition into `authoritative`, `aggregator`, `manual`, `macro`, `demo`, and `failed` buckets. Aggregator NAV/history sources can help bootstrap and cross-check data, but they do not count as official core coverage. Manual CSV imports are tracked separately with audit metadata and must not be presented as official automated data.
 
+Strong conclusions also require official core NAV coverage. If `current_nav` and `nav_history` are available only from aggregator or manual sources, Argus keeps the analysis at `partial`, adds `official_current_nav` / `official_nav_history` gaps, and sets `allow_strong_conclusion=false` until an official fund-company, regulatory, or authorized source confirms the core NAV data.
+
 `DataStatus` values:
 
 - `ready`: real data is sufficient for downstream Agent analysis.
