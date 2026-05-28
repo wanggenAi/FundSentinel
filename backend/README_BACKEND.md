@@ -97,7 +97,7 @@ Data providers live under `src/dataSources/`:
 - `CninfoReportProvider`: intended backup official report source.
 - `PolicyNewsProvider`: intended provider for policy and industry news evidence.
 - `GovCnPolicyProvider`: implemented official Gov.cn latest-policy JSON provider. It uses fund context collected by earlier providers, such as real fund name, themes, and holdings, to map broad official policy background. It must not infer themes from stale mock fund-code mappings.
-- `ManualCsvProvider`: fallback real-data workaround for manually imported CSV; not the default path.
+- `ManualCsvProvider`: implemented fallback real-data workaround for manually imported CSV. It is enabled only when `FUNDSENTINEL_MANUAL_CSV_DIR` points to an operator/user verified directory, reads `{fund_code}.csv`, and requires `fund_code,date,nav`.
 - `DemoFixtureProvider`: local demo fixture, enabled only when `FUNDSENTINEL_DEMO_MODE=true`.
 
 Real providers are listed before demo fixtures. Provider failures are recorded and surfaced in gap reports. Demo fixture data is never treated as real business data.
@@ -258,6 +258,28 @@ FUNDSENTINEL_DEMO_MODE=true npm run dev
 ```
 
 Without demo mode, if real providers cannot supply core data, business APIs return data-unavailable states instead of fake strategy triggers or fake opportunity candidates.
+
+## Manual CSV Fallback
+
+Manual CSV import is now a real fallback provider, but it is not the default acquisition path. Enable it explicitly:
+
+```bash
+export FUNDSENTINEL_MANUAL_CSV_DIR="/absolute/path/to/verified-fund-csv"
+```
+
+Each file is named `{fund_code}.csv`, for example `007951.csv`. Required columns:
+
+```text
+fund_code,date,nav
+```
+
+Optional columns:
+
+```text
+fund_name,fund_type,daily_return,holding,theme
+```
+
+Manual CSV data is marked as `source_type=manual_import`, `is_demo=false`, and includes the file path in `raw_reference`. It must be treated as operator/user verified data with audit requirements, not as automatic internet acquisition.
 
 ## Reliability Rules
 

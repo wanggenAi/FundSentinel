@@ -156,10 +156,10 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     access_method: "user/operator upload",
     requires_auth: false,
     is_demo: false,
-    integration_status: "manual",
+    integration_status: "implemented",
     legal_note: "Requires audit trail, file checksum, source declaration, and import timestamp.",
     priority: 20,
-    notes: "Best short-term way to validate real-data flow without scraping."
+    notes: "Implemented as explicit local CSV directory fallback via FUNDSENTINEL_MANUAL_CSV_DIR. Best short-term way to validate real-data flow without scraping."
   },
   {
     source_id: "gov-cn-policy",

@@ -60,15 +60,19 @@ export class DataSourceService {
 
   manualImportPlan(): { solutions: DataAcquisitionSolution[]; required_csv_columns: string[]; warnings: string[] } {
     return {
-      required_csv_columns: ["fund_code", "date", "current_nav 或 nav", "fund_name 可选", "daily_return 可选"],
-      warnings: ["手动导入是真实数据 workaround，但必须记录来源、导入时间和用户确认。", "CSV 数据不得标记为自动抓取。"],
+      required_csv_columns: ["fund_code", "date", "nav"],
+      warnings: [
+        "手动导入是真实数据 workaround，但必须记录来源、导入时间和用户确认。",
+        "CSV 数据不得标记为自动抓取。",
+        "V0.1 可通过 FUNDSENTINEL_MANUAL_CSV_DIR 指向本地审核目录，文件名为 {fund_code}.csv。"
+      ],
       solutions: [
         {
           problem: "自动 provider 尚未获取真实基金核心数据。",
           severity: "high",
-          proposed_actions: ["支持用户上传历史净值 CSV。", "支持基金元数据 CSV。", "导入后由 Argus 校验日期、缺失值和异常波动。"],
-          engineering_tasks: ["实现 CSV 上传接口。", "实现 CSV schema 校验。", "将导入记录写入审计日志。", "把 ManualCsvProvider 接入 SourceRegistry。"],
-          manual_workaround: ["先由运营或用户提供经核验的 CSV 文件。", "导入前展示字段映射预览。"],
+          proposed_actions: ["把审核后的历史净值 CSV 放入 FUNDSENTINEL_MANUAL_CSV_DIR。", "可选增加 fund_name、fund_type、daily_return、holding、theme 列。", "导入后由 Argus 校验日期、缺失值和异常净值。"],
+          engineering_tasks: ["实现前端/后台 CSV 上传接口。", "增加文件 checksum、导入人、来源声明和审计日志。", "为 ManualCsvProvider 增加持久导入记录和回滚。"],
+          manual_workaround: ["先由运营或用户提供经核验的 CSV 文件。", "文件名使用 {fund_code}.csv，例如 007951.csv。"],
           owner_agent: "Argus"
         }
       ]

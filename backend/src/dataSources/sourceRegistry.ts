@@ -211,6 +211,7 @@ export class SourceRegistry {
 
   private enabledFor(info: DataSourceInfo): boolean {
     if (info.is_demo) return this.demoMode;
+    if (info.source_type === "manual_import") return info.enabled;
     if (!this.usesCustomProviders && !this.enableLiveProviders) return false;
     return info.enabled;
   }

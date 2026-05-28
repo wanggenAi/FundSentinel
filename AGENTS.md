@@ -34,3 +34,4 @@
 32. Use `/api/data-sources/coverage` to expose which data requirements are covered, partial, licensed-only, or missing.
 33. Public provider calls should go through `SourceRegistry` reliability controls so cache, retry, latency, attempt count, and provider health metadata stay consistent.
 34. Repeated provider failures should trigger SourceRegistry cooldown/circuit-breaker behavior rather than hammering blocked public sources on every API request.
+35. Manual CSV data may be used only as explicit verified fallback via `FUNDSENTINEL_MANUAL_CSV_DIR`; it must keep `source_type=manual_import`, file provenance, and audit warnings.
