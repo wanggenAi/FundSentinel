@@ -82,6 +82,23 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     notes: "Useful cross-check source; requires many adapters."
   },
   {
+    source_id: "fund-company-report",
+    source_name: "基金公司官方报告证据协调器",
+    source_type: "fund_report",
+    quality_tier: "authoritative",
+    stability: "high",
+    coverage: ["fund_reports", "official_fund_reports", "official_pdf_metadata"],
+    recommended_for: ["fund_reports", "official_fund_reports", "official_evidence", "holdings_cross_check"],
+    access_method: "context coordinator over official fund-company/regulatory report documents",
+    requires_auth: false,
+    is_demo: false,
+    integration_status: "implemented",
+    legal_note: "Coordinates already collected official metadata only; does not fabricate reports or bypass source-site rules.",
+    priority: 8,
+    notes:
+      "Consumes official report documents collected by concrete fund-company/regulatory providers and succeeds only when a verified official periodic-report PDF is already present."
+  },
+  {
     source_id: "cmfchina-fund-official",
     source_name: "招商基金官网官方公告与产品详情",
     source_type: "fund_report",
