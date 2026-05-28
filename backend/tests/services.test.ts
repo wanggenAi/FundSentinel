@@ -57,6 +57,7 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   const navHistory = coverage.find((item) => item.requirement === "nav_history");
   const macroData = coverage.find((item) => item.requirement === "macro_data");
   const social = coverage.find((item) => item.requirement === "social_sentiment");
+  const industryNews = coverage.find((item) => item.requirement === "industry_news");
 
   assert.ok(officialReports?.source_ids.includes("csrc-fund-disclosure"));
   assert.ok(officialReports?.implemented_source_ids.includes("csrc-fund-disclosure"));
@@ -78,6 +79,8 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(macroData?.implemented_source_ids.includes("imf-data-api"));
   assert.ok(macroData?.implemented_source_ids.includes("eurostat-api"));
   assert.equal(macroData?.gap_level, "covered");
+  assert.ok(industryNews?.implemented_source_ids.includes("policy-news"));
+  assert.equal(industryNews?.gap_level, "covered");
   assert.equal(social?.gap_level, "missing");
 });
 

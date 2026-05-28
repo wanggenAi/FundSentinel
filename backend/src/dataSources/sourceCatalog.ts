@@ -227,6 +227,22 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     notes: "Maps latest official national policy titles to broad fund themes as weak policy background evidence."
   },
   {
+    source_id: "policy-news",
+    source_name: "官方政策与行业新闻",
+    source_type: "policy",
+    quality_tier: "authoritative",
+    stability: "medium",
+    coverage: ["policy_evidence", "industry_news", "industry_policy"],
+    recommended_for: ["policy_evidence", "industry_news", "industry_logic", "Logos_policy_background"],
+    access_method: "official NDRC news page: https://www.ndrc.gov.cn/xwdt/xwfb/",
+    requires_auth: false,
+    is_demo: false,
+    integration_status: "implemented",
+    legal_note: "Use official public releases with source URL and publication date; treat as supporting evidence only.",
+    priority: 30,
+    notes: "Implemented for the NDRC official news-release list. If official sites return WAF/403 responses, provider failures are surfaced in DataGapReport."
+  },
+  {
     source_id: "csi-index",
     source_name: "中证指数有限公司",
     source_type: "index_data",
