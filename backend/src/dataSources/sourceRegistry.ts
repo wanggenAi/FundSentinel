@@ -115,7 +115,7 @@ export class SourceRegistry {
   }
 
   coverageMatrix(): Array<{
-    requirement: DataRequirement | "official_fund_reports" | "benchmark";
+    requirement: DataRequirement | "official_current_nav" | "official_nav_history" | "official_fund_reports" | "benchmark";
     source_ids: string[];
     implemented_source_ids: string[];
     authoritative_source_ids: string[];
@@ -124,10 +124,12 @@ export class SourceRegistry {
     notes: string;
   }> {
     const catalog = this.catalog();
-    const requirements: Array<DataRequirement | "official_fund_reports" | "benchmark"> = [
+    const requirements: Array<DataRequirement | "official_current_nav" | "official_nav_history" | "official_fund_reports" | "benchmark"> = [
       "fund_meta",
       "current_nav",
+      "official_current_nav",
       "nav_history",
+      "official_nav_history",
       "holdings",
       "fund_reports",
       "official_fund_reports",
@@ -143,6 +145,12 @@ export class SourceRegistry {
         (source) =>
           source.recommended_for.includes(requirement) ||
           source.coverage.includes(requirement) ||
+          (requirement === "official_current_nav" &&
+            (source.recommended_for.includes("current_nav") || source.coverage.includes("current_nav")) &&
+            source.quality_tier === "authoritative") ||
+          (requirement === "official_nav_history" &&
+            (source.recommended_for.includes("nav_history") || source.coverage.includes("nav_history")) &&
+            source.quality_tier === "authoritative") ||
           (requirement === "macro_data" && (source.source_type === "macro_data" || source.recommended_for.includes("macro_context")))
       );
       const implemented = matching.filter(
@@ -466,9 +474,15 @@ export class SourceRegistry {
   }
 
   private coverageNoteFor(
-    requirement: DataRequirement | "official_fund_reports" | "benchmark",
+    requirement: DataRequirement | "official_current_nav" | "official_nav_history" | "official_fund_reports" | "benchmark",
     gapLevel: "covered" | "partial" | "missing" | "requires_license"
   ): string {
+    if (requirement === "official_current_nav") {
+      return "强结论需要基金公司官网、监管披露、授权 API 或其他官方/授权来源确认当前净值；聚合源和人工导入只能支持弱结论。";
+    }
+    if (requirement === "official_nav_history") {
+      return "强结论需要官方/授权历史净值序列支撑低位和拐点判断；聚合历史净值只能作为交叉校验或弱分析输入。";
+    }
     if (requirement === "official_fund_reports") {
       return "强结论需要官方披露的定期报告正文或官方 PDF 元数据；聚合索引和报告提示公告只能支持 partial。";
     }

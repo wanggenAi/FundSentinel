@@ -329,6 +329,12 @@ export class ArgusAgent extends BaseAgent {
         : "不能支持真实基金分析，后续 Agent 不应输出买卖或仓位结论。",
       blocking_downstream_agents: quality.allow_downstream_analysis ? ["Logos"] : ["Logos", "Nadir", "Vega", "Aegis"],
       recommended_solutions: [
+        ...(quality.missing_auxiliary_fields.includes("official_current_nav")
+          ? ["接入基金公司官网、监管披露或授权数据 API 的官方当前净值 provider，补齐 official_current_nav。"]
+          : []),
+        ...(quality.missing_auxiliary_fields.includes("official_nav_history")
+          ? ["接入基金公司官网、监管披露或授权数据 API 的官方历史净值 provider，补齐 official_nav_history。"]
+          : []),
         "接入基金公司官网公告/定期报告 provider，补齐官方 fund_reports。",
         "接入官方政策与行业数据 provider，补齐 policy_evidence。",
         "为已实现的真实 provider 增加缓存、限流、重试和第二来源交叉校验。",
@@ -349,12 +355,14 @@ export class ArgusAgent extends BaseAgent {
         problem: `当前数据状态为 ${quality.data_status}，缺少 ${gapReport.missing_data.join(", ")}。`,
         severity: quality.allow_downstream_analysis ? "high" : "blocking",
         proposed_actions: [
+          "优先补齐 official_current_nav 和 official_nav_history，避免聚合净值驱动强结论。",
           "优先接入基金公司官网、证监会披露、巨潮资讯等官方报告 provider。",
           "接入官方政策和行业数据 provider，为 Logos 提供可追溯硬证据。",
           "实现 ManualCsvProvider 作为短期真实数据导入和交叉验证方案。",
           "在真实数据可用前，禁止对用户展示为真实自动分析。"
         ],
         engineering_tasks: [
+          "为头部基金公司实现官方当前净值/历史净值 provider，并将结果纳入 official_core_coverage。",
           "为 EastMoneyFundProvider、EastMoneyFundArchiveProvider 和 CsrcFundDisclosureProvider 增加持久缓存、限流和失败重试。",
           "完成证监会基金电子披露官方报告检索 endpoint 适配，若站点防护阻断则改走官方 PDF 人工导入和授权数据 API。",
           "实现基金公司公告/巨潮资讯报告检索、下载、解析和来源归档。",

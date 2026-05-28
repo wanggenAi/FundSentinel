@@ -129,6 +129,8 @@ The catalog is a living source universe. A source marked `planned` or `requires_
 
 `GET /api/data-sources/coverage` exposes Argus's coverage matrix by requirement. It separates implemented providers from planned or licensed sources, so the backend can answer which high-quality data needs are covered now, which are partial, and which remain gaps. This is the concrete route toward the broad internet-data goal without pretending unimplemented sources are already integrated.
 
+The coverage matrix includes `official_current_nav` and `official_nav_history` as separate strong-conclusion gates. `current_nav` or `nav_history` may be partially covered by aggregator sources, while the official gates only count authoritative fund-company, regulatory, or authorized sources.
+
 ## Shared Blackboard
 
 `SharedBlackboard` stores the complete state of one analysis task:

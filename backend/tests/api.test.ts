@@ -78,6 +78,8 @@ test("data source APIs are available", async () => {
   assert.ok(catalogResponse.json().sources.some((source: { source_id: string }) => source.source_id === "commercial-terminal-api"));
   assert.equal(coverageResponse.statusCode, 200);
   assert.ok(coverageResponse.json().coverage.some((item: { requirement: string }) => item.requirement === "official_fund_reports"));
+  assert.ok(coverageResponse.json().coverage.some((item: { requirement: string }) => item.requirement === "official_current_nav"));
+  assert.ok(coverageResponse.json().coverage.some((item: { requirement: string }) => item.requirement === "official_nav_history"));
   assert.equal(healthResponse.statusCode, 200);
   assert.ok(
     healthResponse
@@ -86,6 +88,7 @@ test("data source APIs are available", async () => {
   );
   assert.equal(gapsResponse.statusCode, 200);
   assert.ok(gapsResponse.json().recommended_solutions.length > 0);
+  assert.ok(gapsResponse.json().recommended_solutions.some((solution: string) => solution.includes("official_current_nav")));
   assert.equal(manualPlanResponse.statusCode, 200);
   assert.ok(manualPlanResponse.json().solutions[0].engineering_tasks.length > 0);
 });

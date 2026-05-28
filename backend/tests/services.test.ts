@@ -52,6 +52,8 @@ test("SourceRegistry lists real providers and demo fixture provider", () => {
 test("SourceRegistry coverage matrix distinguishes implemented and gap requirements", () => {
   const coverage = new SourceRegistry({ enableLiveProviders: false }).coverageMatrix();
   const officialReports = coverage.find((item) => item.requirement === "official_fund_reports");
+  const officialCurrentNav = coverage.find((item) => item.requirement === "official_current_nav");
+  const officialNavHistory = coverage.find((item) => item.requirement === "official_nav_history");
   const navHistory = coverage.find((item) => item.requirement === "nav_history");
   const macroData = coverage.find((item) => item.requirement === "macro_data");
   const social = coverage.find((item) => item.requirement === "social_sentiment");
@@ -59,6 +61,10 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(officialReports?.source_ids.includes("csrc-fund-disclosure"));
   assert.ok(officialReports?.implemented_source_ids.includes("csrc-fund-disclosure"));
   assert.equal(officialReports?.gap_level, "partial");
+  assert.ok(officialCurrentNav?.source_ids.includes("cmfchina-fund-official"));
+  assert.equal(officialCurrentNav?.gap_level, "covered");
+  assert.ok(officialNavHistory?.source_ids.includes("cmfchina-fund-official"));
+  assert.equal(officialNavHistory?.gap_level, "covered");
   assert.ok(navHistory?.implemented_source_ids.includes("eastmoney-fund"));
   assert.ok(navHistory?.implemented_source_ids.includes("eastmoney-nav-history"));
   assert.ok(macroData?.source_ids.includes("stats-gov-cn"));
