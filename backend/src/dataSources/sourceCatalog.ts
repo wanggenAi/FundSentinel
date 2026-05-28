@@ -87,15 +87,15 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     source_type: "fund_report",
     quality_tier: "authoritative",
     stability: "medium",
-    coverage: ["fund_meta", "current_nav", "official_company_notices", "report_notice_refs"],
-    recommended_for: ["fund_reports", "official_fund_reports", "fund_meta", "official_evidence"],
+    coverage: ["fund_meta", "current_nav", "nav_history", "official_company_notices", "report_notice_refs"],
+    recommended_for: ["current_nav", "nav_history", "fund_reports", "official_fund_reports", "fund_meta", "official_evidence"],
     access_method: "official website adapter: https://www.cmfchina.com/web/fundDetail/{fund_code}/index.html",
     requires_auth: false,
     is_demo: false,
     integration_status: "implemented",
     legal_note: "Use public official company pages respectfully; cache and rate-limit. Report prompt notices are not report bodies.",
     priority: 6,
-    notes: "Implemented first per-company adapter. It records official notices/report prompts and points to CSRC fund e-disclosure when referenced."
+    notes: "Implemented first per-company adapter. It records official notices/report prompts, parses SSR page NAV history for official-company cross-checking, and points to CSRC fund e-disclosure when referenced."
   },
   {
     source_id: "eastmoney-fund",

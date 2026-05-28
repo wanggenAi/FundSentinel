@@ -96,6 +96,8 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
           fund_type: parsed.fundType,
           current_nav: parsed.currentNav,
           daily_return: parsed.dailyReturn,
+          nav_history: parsed.navHistory,
+          nav_history_dates: parsed.navHistoryDates,
           fund_report_refs: documents.map((document) => this.reportRefFor(document)),
           fund_report_documents: documents,
           news_summaries: documents.slice(0, 5).map((document) => `招商基金官网公告：${document.title}（${document.published_at ?? "日期未知"}）`)
@@ -121,7 +123,10 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
     fundName?: string;
     fundType?: string;
     currentNav?: number;
+    currentNavDate?: string;
     dailyReturn?: number;
+    navHistory?: number[];
+    navHistoryDates?: string[];
     notices: CmfChinaNotice[];
   } {
     if (!html.includes(fundCode)) return { notices: [] };
@@ -129,14 +134,22 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
     const fundName = this.firstMatch(html, /<h5>([^<]+)<\/h5>\s*<a class="type_switch"/u);
     const tagMatches = [...html.matchAll(/<span class="fund_tag(?: hover)?">([^<\s]+)[\s\S]*?<\/span>/gu)].map((match) => this.stripHtml(match[1] ?? ""));
     const fundType = tagMatches.find((tag) => /型$/u.test(tag) && !/风险/u.test(tag));
-    const navText = this.firstMatch(html, /<div class="num"><strong>([\d.]+)<\/strong><\/div><p>单位净值/u);
+    const navBlock = /<div class="num"><strong>([\d.]+)<\/strong><\/div><p>单位净值(?:\((\d{4}-\d{2}-\d{2})\))?/u.exec(html);
+    const navText = navBlock?.[1];
+    const currentNavDate = navBlock?.[2];
     const dailyReturnText = this.firstMatch(html, /<div class="color_(?:green|red) num"><strong>([-+]?\d+(?:\.\d+)?)%<\/strong><\/div><p>日涨幅/u);
+    const currentNav = this.numberOrUndefined(navText);
+    const dailyReturn = this.numberOrUndefined(dailyReturnText);
+    const navHistoryRows = this.parseSsrNavHistory(html, fundCode, currentNav, currentNavDate);
 
     return {
       fundName,
       fundType,
-      currentNav: this.numberOrUndefined(navText),
-      dailyReturn: this.numberOrUndefined(dailyReturnText),
+      currentNav,
+      currentNavDate,
+      dailyReturn,
+      navHistory: navHistoryRows.map((row) => row.nav),
+      navHistoryDates: navHistoryRows.map((row) => row.date),
       notices: this.parseNoticeList(html)
     };
   }
@@ -172,6 +185,40 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
       mentionsCsrcEid: /eid\.csrc\.gov\.cn\/fund/u.test(html),
       mentionsCompanyWebsite: /cmfchina\.com/u.test(html) || /本公司网站/u.test(html)
     };
+  }
+
+  static parseSsrNavHistory(
+    html: string,
+    fundCode: string,
+    currentNav?: number,
+    currentNavDate?: string
+  ): Array<{ date: string; nav: number }> {
+    const keyIndex = html.indexOf(`"fundNavPage-${fundCode}`);
+    if (keyIndex < 0) return currentNav !== undefined && currentNavDate ? [{ date: currentNavDate, nav: currentNav }] : [];
+
+    const beforeKey = html.slice(0, keyIndex);
+    const listStart = beforeKey.lastIndexOf(".list=[");
+    if (listStart < 0) return currentNav !== undefined && currentNavDate ? [{ date: currentNavDate, nav: currentNav }] : [];
+
+    const arrayStart = listStart + ".list=".length;
+    const arrayEnd = beforeKey.indexOf("];", arrayStart);
+    if (arrayEnd < 0) return currentNav !== undefined && currentNavDate ? [{ date: currentNavDate, nav: currentNav }] : [];
+
+    const rows = new Map<string, number>();
+    if (currentNav !== undefined && currentNavDate) rows.set(currentNavDate, currentNav);
+
+    const arrayText = beforeKey.slice(arrayStart, arrayEnd + 1);
+    const objectPattern = /\{valueId:[\s\S]*?\}/gu;
+    for (const match of arrayText.matchAll(objectPattern)) {
+      const objectText = match[0] ?? "";
+      const date = this.navDateFor(objectText, currentNavDate);
+      const nav = this.navValueFor(objectText, currentNav);
+      if (date && nav !== undefined) rows.set(date, nav);
+    }
+
+    return [...rows.entries()]
+      .map(([date, nav]) => ({ date, nav }))
+      .sort((left, right) => left.date.localeCompare(right.date));
   }
 
   private async fetchNoticeDetails(
@@ -290,5 +337,19 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
     if (!value) return undefined;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  private static navDateFor(objectText: string, currentNavDate?: string): string | undefined {
+    const literal = /navDate:"(\d{4}-\d{2}-\d{2})"/u.exec(objectText)?.[1];
+    if (literal) return literal;
+    if (/navDate:j(?:,|\})/u.test(objectText)) return currentNavDate;
+    return undefined;
+  }
+
+  private static navValueFor(objectText: string, currentNav?: number): number | undefined {
+    const literal = /relatePrice:"([\d.]+)"/u.exec(objectText)?.[1];
+    if (literal) return this.numberOrUndefined(literal);
+    if (/relatePrice:E(?:,|\})/u.test(objectText)) return currentNav;
+    return undefined;
   }
 }

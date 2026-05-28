@@ -96,7 +96,7 @@ Data providers live under `src/dataSources/`:
 - `EastMoneyNavHistoryProvider`: implemented second real public-web NAV provider using the EastMoney/Tiantian F10 historical NAV endpoint. It supplies dated NAV rows for cross-checking core NAV freshness and history.
 - `EastMoneyFundArchiveProvider`: implemented real public-web provider for public stock/bond holding tables and disclosed holding dates from Tiantian Fund archive pages.
 - `EastMoneyFundAnnouncementProvider`: implemented real public-web provider for periodic fund report announcement indexes, detail URLs, PDF attachment URLs, and HEAD-based PDF availability metadata. This is a report discovery/source-reference provider, not a replacement for official report PDF parsing.
-- `CmfChinaFundOfficialProvider`: implemented first fund-company official-site adapter. It parses CMF China official fund detail pages, product notices, current NAV snippets, and report-prompt notices. It records official provenance, but report-prompt notices are not treated as full report bodies.
+- `CmfChinaFundOfficialProvider`: implemented first fund-company official-site adapter. It parses CMF China official fund detail pages, product notices, current NAV snippets, SSR-embedded recent NAV history, and report-prompt notices. It records official provenance, but report-prompt notices are not treated as full report bodies.
 - `CsrcFundDisclosureProvider`: implemented first official disclosure probe for the CSRC fund e-disclosure site. It parses official periodic-report links when reachable and records site-protection or endpoint failures as explicit `DataGapReport` evidence.
 - `CninfoReportProvider`: implemented official CNInfo/巨潮 fund disclosure adapter for listed funds covered by `fund_stock.json`, such as ETF/LOF/closed-end funds. It performs precise fund code + orgId matching, queries `hisAnnouncement/query`, records official PDF metadata, and avoids broad keyword searches that could mis-match another fund.
 - `FundCompanyReportProvider`: intended real provider for holdings and official fund reports.
@@ -201,7 +201,7 @@ The live public provider set currently includes:
 - `https://fundf10.eastmoney.com/FundArchivesDatas.aspx` for disclosed stock/bond holding archive tables.
 - `https://api.fund.eastmoney.com/f10/JJGG` for periodic fund report announcement indexes, with the F10 referer required by the public endpoint.
 - `https://pdf.dfcfw.com/pdf/H2_{announcement_id}_1.pdf` for report PDF attachment availability checks. Argus currently records whether the latest report PDFs respond as `application/pdf` and stores content length when available.
-- `https://www.cmfchina.com/web/fundDetail/{fund_code}/index.html` for CMF China official fund-company product details and official notice/report-prompt references.
+- `https://www.cmfchina.com/web/fundDetail/{fund_code}/index.html` for CMF China official fund-company product details, SSR-embedded recent NAV rows, and official notice/report-prompt references.
 - `http://eid.csrc.gov.cn/fund` for the CSRC fund e-disclosure official entrypoint. The provider records official-site blocking or endpoint failures rather than silently ignoring them.
 - `https://www.cninfo.com.cn/new/data/fund_stock.json` plus `https://www.cninfo.com.cn/new/hisAnnouncement/query` for CNInfo official listed-fund disclosure lookup and PDF metadata.
 - `https://www.gov.cn/zhengce/zuixin/ZUIXINZHENGCE.json` for official latest national policy metadata. Argus treats this as macro policy context only; it does not make single-fund conclusions from policy titles.

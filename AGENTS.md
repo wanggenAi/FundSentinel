@@ -43,3 +43,4 @@
 41. Same-date NAV conflicts across real providers must be recorded in `nav_consistency_report` and must block strong conclusions until resolved.
 42. Argus must keep `source_composition` current; aggregator and manual sources must not be counted as official core coverage.
 43. Official disclosure providers must use precise fund identifiers where possible; broad keyword searches must not be used when they can mis-match another fund.
+44. Official fund-company pages may be parsed for SSR-embedded NAV rows, but signed/encrypted business APIs must not be bypassed; if signature requirements block direct API use, record the limitation as a provider gap.

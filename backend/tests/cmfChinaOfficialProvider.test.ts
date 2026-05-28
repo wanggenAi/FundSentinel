@@ -7,6 +7,13 @@ const fundDetailHtml = `
 <div class="info"><span class="fund_code">007951</span><span class="fund_tag">中低风险(R2)</span><span class="fund_tag">债券型</span></div></div>
 <div class="num"><strong>1.0799</strong></div><p>单位净值(2026-05-28)</p>
 <div class="color_green num"><strong>-0.02%</strong></div><p>日涨幅</p>
+<script>
+fw.pageNum=1;fw.pageSize=10;fw.total=3;fw.pages=1;fw.list=[
+  {valueId:2337093,productId:342717,relatePrice:E,cumulativeNet:F,navDate:j,dayRate:U,productCode:d},
+  {valueId:2336333,productId:342717,relatePrice:"1.0801",cumulativeNet:"1.3283",navDate:"2026-05-27",dayRate:"-0.194",productCode:d},
+  {valueId:2335416,productId:342717,relatePrice:"1.0822",cumulativeNet:"1.3304",navDate:"2026-05-26",dayRate:"0.064",productCode:d}
+];return {data:{"fundNavPage-007951-[object Object]":fw}};
+</script>
 <a class="item" href="/web/noticedetails/223506/index.html" target="_blank"><p>招商基金管理有限公司旗下基金2026年第1季度报告提示性公告</p><span class="date">2026-04-22</span></a>
 <a class="item" href="/web/noticedetails/224074/index.html" target="_blank"><p>关于暂停招商信用增强债券型证券投资基金大额申购业务的公告</p><span class="date">2026-05-19</span></a>
 `;
@@ -22,7 +29,10 @@ test("CMF China parser extracts official fund detail notices conservatively", ()
   assert.equal(parsed.fundName, "招商信用增强债券C");
   assert.equal(parsed.fundType, "债券型");
   assert.equal(parsed.currentNav, 1.0799);
+  assert.equal(parsed.currentNavDate, "2026-05-28");
   assert.equal(parsed.dailyReturn, -0.02);
+  assert.deepEqual(parsed.navHistory, [1.0822, 1.0801, 1.0799]);
+  assert.deepEqual(parsed.navHistoryDates, ["2026-05-26", "2026-05-27", "2026-05-28"]);
   assert.equal(parsed.notices.length, 2);
   assert.equal(parsed.notices[0]?.adId, "223506");
 });
@@ -54,6 +64,8 @@ test("CMF China provider records official report notice without pretending it is
   assert.equal(result.trust_level, "A");
   assert.equal(result.is_demo, false);
   assert.equal(result.data?.fund_name, "招商信用增强债券C");
+  assert.deepEqual(result.data?.nav_history, [1.0822, 1.0801, 1.0799]);
+  assert.deepEqual(result.data?.nav_history_dates, ["2026-05-26", "2026-05-27", "2026-05-28"]);
   assert.equal(result.data?.fund_report_documents?.length, 2);
   assert.equal(result.data?.fund_report_documents?.[0]?.source_type, "official_disclosure");
   assert.equal(result.data?.fund_report_documents?.[0]?.document_kind, "report_notice");
