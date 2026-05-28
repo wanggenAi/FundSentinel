@@ -62,11 +62,13 @@ Argus now produces:
 
 - `DataAcquisitionPlan`: what data Atlas requested, what is required, which providers are candidates, and what fallback path should be used.
 - `FundDataPack`: the normalized fund data package, only complete when data is ready or partial.
-- `DataQualityReport`: data status, source counts, missing fields, stale sources, provider failures, and downstream permissions.
+- `DataQualityReport`: data status, source counts, source composition, missing fields, stale sources, provider failures, and downstream permissions.
 - `DataGapReport`: what is missing, which providers failed, which downstream Agents are blocked, and what solutions are recommended.
 - `DataAcquisitionSolution`: proposed engineering and manual workaround tasks.
 
 Argus deliberately separates `missing_core_fields` from `missing_auxiliary_fields`. Core fields decide whether the DAG may continue at all. Auxiliary fields decide whether Logos/Atlas must downgrade and whether strong conclusions are forbidden.
+
+Argus also separates source composition into `authoritative`, `aggregator`, `manual`, `macro`, `demo`, and `failed` buckets. Aggregator NAV/history sources can help bootstrap and cross-check data, but they do not count as official core coverage. Manual CSV imports are tracked separately with audit metadata and must not be presented as official automated data.
 
 `DataStatus` values:
 

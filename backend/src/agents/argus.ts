@@ -58,8 +58,13 @@ export class ArgusAgent extends BaseAgent {
           data_quality_score: quality.score,
           real_source_count: quality.real_source_count,
           demo_source_count: quality.demo_source_count,
+          authoritative_source_count: quality.authoritative_source_count,
+          aggregator_source_count: quality.aggregator_source_count,
+          manual_source_count: quality.manual_source_count,
+          macro_source_count: quality.macro_source_count,
           successful_source_count: quality.successful_source_count,
           failed_source_count: quality.failed_source_count,
+          source_composition: quality.source_composition,
           missing_core_fields: quality.missing_core_fields,
           missing_auxiliary_fields: quality.missing_auxiliary_fields,
           allow_downstream_analysis: quality.allow_downstream_analysis,
@@ -208,6 +213,7 @@ export class ArgusAgent extends BaseAgent {
     const failed = providerResults.filter((result) => !result.success);
     const demoSuccess = successful.filter((result) => result.is_demo);
     const realSuccess = successful.filter((result) => !result.is_demo);
+    const sourceComposition = this.buildSourceComposition(successful, failed);
     const missingCoreFields = [
       !merged.fund_code || !merged.fund_name ? "fund_meta" : null,
       merged.current_nav === undefined ? "current_nav" : null,
@@ -279,8 +285,13 @@ export class ArgusAgent extends BaseAgent {
       score,
       real_source_count: realSuccess.length,
       demo_source_count: demoSuccess.length,
+      authoritative_source_count: sourceComposition.authoritative.length,
+      aggregator_source_count: sourceComposition.aggregator.length,
+      manual_source_count: sourceComposition.manual.length,
+      macro_source_count: sourceComposition.macro.length,
       successful_source_count: successful.length,
       failed_source_count: failed.length,
+      source_composition: sourceComposition,
       missing_core_fields: missingCoreFields,
       missing_auxiliary_fields:
         navConsistencyReport.status === "conflict" ? [...new Set([...missingAuxiliaryFields, "nav_consistency"])] : missingAuxiliaryFields,
@@ -431,6 +442,37 @@ export class ArgusAgent extends BaseAgent {
     };
   }
 
+  private buildSourceComposition(
+    successful: Array<DataProviderResult<ProviderFundPayload>>,
+    failed: Array<DataProviderResult<ProviderFundPayload>>
+  ): DataQualityReport["source_composition"] {
+    const authoritative = successful
+      .filter((result) => !result.is_demo && (result.trust_level === "A" || ["regulatory_disclosure", "fund_company"].includes(result.source_type)))
+      .map((result) => result.source_id);
+    const aggregator = successful
+      .filter((result) => !result.is_demo && ["nav_history", "holdings", "fund_report"].includes(result.source_type) && result.trust_level !== "A")
+      .map((result) => result.source_id);
+    const manual = successful.filter((result) => result.source_type === "manual_import").map((result) => result.source_id);
+    const macro = successful.filter((result) => result.source_type === "macro_data").map((result) => result.source_id);
+    const demo = successful.filter((result) => result.is_demo).map((result) => result.source_id);
+
+    return {
+      authoritative: [...new Set(authoritative)],
+      aggregator: [...new Set(aggregator)],
+      manual: [...new Set(manual)],
+      macro: [...new Set(macro)],
+      demo: [...new Set(demo)],
+      failed: [...new Set(failed.map((result) => result.source_id))],
+      official_core_coverage: {
+        fund_meta: this.hasAuthoritativeField(successful, "fund_code") || this.hasAuthoritativeField(successful, "fund_name"),
+        current_nav: this.hasAuthoritativeField(successful, "current_nav"),
+        nav_history: successful.some((result) => this.isAuthoritative(result) && Boolean(result.data?.nav_history?.length)),
+        holdings: successful.some((result) => this.isAuthoritative(result) && Boolean(result.data?.portfolio_holdings?.length)),
+        fund_reports: this.hasAuthoritativeFundReportDocument(successful)
+      }
+    };
+  }
+
   private mergeReportDocuments(
     left: ProviderFundPayload["fund_report_documents"] | undefined,
     right: ProviderFundPayload["fund_report_documents"] | undefined
@@ -475,7 +517,7 @@ export class ArgusAgent extends BaseAgent {
     return providerResults.map((result) => ({
       title: `${result.source_name} 数据获取${result.success ? "成功" : "失败"}`,
       source_name: result.source_name,
-      source_type: result.is_demo ? "demo" : "official",
+      source_type: this.evidenceSourceTypeFor(result),
       trust_level: result.trust_level,
       summary: result.success
         ? `数据状态 ${result.data_status}，freshness=${result.freshness}。`
@@ -486,6 +528,24 @@ export class ArgusAgent extends BaseAgent {
       url: result.raw_reference,
       is_mock: result.is_demo
     }));
+  }
+
+  private hasAuthoritativeField<K extends keyof ProviderFundPayload>(results: Array<DataProviderResult<ProviderFundPayload>>, field: K): boolean {
+    return results.some((result) => this.isAuthoritative(result) && result.data?.[field] !== undefined && result.data?.[field] !== null);
+  }
+
+  private isAuthoritative(result: DataProviderResult<ProviderFundPayload>): boolean {
+    return !result.is_demo && (result.trust_level === "A" || ["regulatory_disclosure", "fund_company"].includes(result.source_type));
+  }
+
+  private evidenceSourceTypeFor(result: DataProviderResult<ProviderFundPayload>): EvidenceItem["source_type"] {
+    if (result.is_demo) return "demo";
+    if (result.source_type === "policy") return "policy";
+    if (result.source_type === "fund_report" || result.source_type === "regulatory_disclosure" || result.source_type === "fund_company") return "fund_report";
+    if (result.source_type === "news") return "news";
+    if (result.source_type === "social") return "social";
+    if (result.source_type === "manual_import") return "industry_data";
+    return "industry_data";
   }
 
   private scoreFor(

@@ -28,8 +28,13 @@ export interface DataQualityReport {
   score: number;
   real_source_count: number;
   demo_source_count: number;
+  authoritative_source_count: number;
+  aggregator_source_count: number;
+  manual_source_count: number;
+  macro_source_count: number;
   successful_source_count: number;
   failed_source_count: number;
+  source_composition: SourceComposition;
   missing_core_fields: string[];
   missing_auxiliary_fields: string[];
   stale_sources: string[];
@@ -40,6 +45,22 @@ export interface DataQualityReport {
   allow_strong_conclusion: boolean;
   generated_by: "Argus";
   generated_at: string;
+}
+
+export interface SourceComposition {
+  authoritative: string[];
+  aggregator: string[];
+  manual: string[];
+  macro: string[];
+  demo: string[];
+  failed: string[];
+  official_core_coverage: {
+    fund_meta: boolean;
+    current_nav: boolean;
+    nav_history: boolean;
+    holdings: boolean;
+    fund_reports: boolean;
+  };
 }
 
 export interface NavConsistencyReport {

@@ -198,8 +198,27 @@ export class MockDataService {
       score: 35,
       real_source_count: 0,
       demo_source_count: 1,
+      authoritative_source_count: 0,
+      aggregator_source_count: 0,
+      manual_source_count: 0,
+      macro_source_count: 0,
       successful_source_count: 1,
       failed_source_count: 0,
+      source_composition: {
+        authoritative: [],
+        aggregator: [],
+        manual: [],
+        macro: [],
+        demo: ["demo-fixture"],
+        failed: [],
+        official_core_coverage: {
+          fund_meta: false,
+          current_nav: false,
+          nav_history: false,
+          holdings: false,
+          fund_reports: false
+        }
+      },
       missing_core_fields: [],
       missing_auxiliary_fields: [],
       stale_sources: [],
