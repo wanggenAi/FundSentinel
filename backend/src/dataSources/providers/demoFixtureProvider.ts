@@ -20,10 +20,13 @@ export class DemoFixtureProvider implements DataProvider<FundDataSourceInput, Pr
       last_success_at: null,
       last_failed_at: null,
       failure_count: 0,
+      consecutive_failure_count: 0,
       last_latency_ms: null,
       last_attempt_count: 0,
       cache_hit_count: 0,
       last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
       freshness_policy: "demo fixture has no market freshness guarantee",
       notes: "Only enabled when FUNDSENTINEL_DEMO_MODE=true. Never use as real business data."
     };

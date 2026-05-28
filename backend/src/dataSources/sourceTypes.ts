@@ -32,10 +32,13 @@ export interface DataSourceInfo {
   last_success_at: string | null;
   last_failed_at: string | null;
   failure_count: number;
+  consecutive_failure_count: number;
   last_latency_ms: number | null;
   last_attempt_count: number;
   cache_hit_count: number;
   last_cache_hit_at: string | null;
+  circuit_open_until: string | null;
+  circuit_open_count: number;
   freshness_policy: string;
   notes: string;
 }
@@ -75,6 +78,7 @@ export interface DataProviderResult<TOutput> {
   latency_ms?: number;
   cache_hit?: boolean;
   cache_expires_at?: string | null;
+  skipped_by_circuit_breaker?: boolean;
 }
 
 export interface FundDataSourceInput {

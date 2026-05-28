@@ -20,6 +20,9 @@ export interface SourceRegistryOptions {
   enableLiveProviders?: boolean;
   cacheTtlMs?: number;
   retryCount?: number;
+  failureCooldownMs?: number;
+  failureThreshold?: number;
+  shareState?: boolean;
   providers?: Array<DataProvider<FundDataSourceInput, ProviderFundPayload>>;
 }
 
@@ -28,15 +31,28 @@ interface CachedProviderResult {
   expiresAt: number;
 }
 
+interface SharedRegistryState {
+  sourceStates: Map<string, DataSourceInfo>;
+  resultCache: Map<string, CachedProviderResult>;
+}
+
+const defaultSharedState: SharedRegistryState = {
+  sourceStates: new Map<string, DataSourceInfo>(),
+  resultCache: new Map<string, CachedProviderResult>()
+};
+
 export class SourceRegistry {
   private readonly providers: Array<DataProvider<FundDataSourceInput, ProviderFundPayload>>;
-  private readonly sourceStates = new Map<string, DataSourceInfo>();
+  private readonly sourceStates: Map<string, DataSourceInfo>;
   private readonly demoMode: boolean;
   private readonly enableLiveProviders: boolean;
   private readonly usesCustomProviders: boolean;
   private readonly cacheTtlMs: number;
   private readonly retryCount: number;
-  private readonly resultCache = new Map<string, CachedProviderResult>();
+  private readonly failureCooldownMs: number;
+  private readonly failureThreshold: number;
+  private readonly resultCache: Map<string, CachedProviderResult>;
+  private readonly sharedState: SharedRegistryState;
 
   constructor(options: boolean | SourceRegistryOptions = {}) {
     const normalized: SourceRegistryOptions = typeof options === "boolean" ? { demoMode: options } : options;
@@ -46,6 +62,14 @@ export class SourceRegistry {
     this.usesCustomProviders = Boolean(normalized.providers);
     this.cacheTtlMs = normalized.cacheTtlMs ?? Number(process.env.FUNDSENTINEL_PROVIDER_CACHE_TTL_MS ?? 300_000);
     this.retryCount = normalized.retryCount ?? Number(process.env.FUNDSENTINEL_PROVIDER_RETRY_COUNT ?? 1);
+    this.failureCooldownMs = normalized.failureCooldownMs ?? Number(process.env.FUNDSENTINEL_PROVIDER_FAILURE_COOLDOWN_MS ?? 120_000);
+    this.failureThreshold = normalized.failureThreshold ?? Number(process.env.FUNDSENTINEL_PROVIDER_FAILURE_THRESHOLD ?? 2);
+    this.sharedState =
+      normalized.shareState ?? !this.usesCustomProviders
+        ? defaultSharedState
+        : { sourceStates: new Map<string, DataSourceInfo>(), resultCache: new Map<string, CachedProviderResult>() };
+    this.sourceStates = this.sharedState.sourceStates;
+    this.resultCache = this.sharedState.resultCache;
     this.providers = normalized.providers ?? [
       new CsrcFundDisclosureProvider(),
       new EastMoneyFundProvider(),
@@ -61,14 +85,7 @@ export class SourceRegistry {
     ];
     for (const provider of this.providers) {
       const info = provider.sourceInfo();
-      this.sourceStates.set(info.source_id, {
-        ...info,
-        enabled: this.enabledFor(info),
-        last_latency_ms: info.last_latency_ms ?? null,
-        last_attempt_count: info.last_attempt_count ?? 0,
-        cache_hit_count: info.cache_hit_count ?? 0,
-        last_cache_hit_at: info.last_cache_hit_at ?? null
-      });
+      this.sourceStates.set(info.source_id, this.initialSourceState(info, this.sourceStates.get(info.source_id)));
     }
   }
 
@@ -76,11 +93,14 @@ export class SourceRegistry {
     return [...this.sourceStates.values()].sort((a, b) => a.priority - b.priority);
   }
 
-  health(): Array<DataSourceInfo & { health_status: "healthy" | "disabled" | "failing" | "demo_only"; cache_entries: number }> {
+  health(): Array<
+    DataSourceInfo & { health_status: "healthy" | "disabled" | "failing" | "demo_only" | "cooldown"; cache_entries: number; cooldown_remaining_ms: number }
+  > {
     return this.listSources().map((source) => ({
       ...source,
-      health_status: source.is_demo ? "demo_only" : source.enabled ? (source.failure_count > 0 ? "failing" : "healthy") : "disabled",
-      cache_entries: this.cacheEntryCountFor(source.source_id)
+      health_status: this.healthStatusFor(source),
+      cache_entries: this.cacheEntryCountFor(source.source_id),
+      cooldown_remaining_ms: this.cooldownRemainingMs(source)
     }));
   }
 
@@ -169,15 +189,19 @@ export class SourceRegistry {
   recordResult(result: DataProviderResult<ProviderFundPayload>): void {
     const current = this.sourceStates.get(result.source_id);
     if (!current) return;
+    const countsAsFailure = !result.success && !result.skipped_by_circuit_breaker;
     this.sourceStates.set(result.source_id, {
       ...current,
       last_success_at: result.success ? nowIso() : current.last_success_at,
-      last_failed_at: result.success ? current.last_failed_at : nowIso(),
-      failure_count: result.success ? current.failure_count : current.failure_count + 1,
+      last_failed_at: countsAsFailure ? nowIso() : current.last_failed_at,
+      failure_count: countsAsFailure ? current.failure_count + 1 : current.failure_count,
+      consecutive_failure_count: result.success ? 0 : countsAsFailure ? current.consecutive_failure_count + 1 : current.consecutive_failure_count,
       last_latency_ms: result.latency_ms ?? current.last_latency_ms,
       last_attempt_count: result.attempt_count ?? current.last_attempt_count,
       cache_hit_count: result.cache_hit ? current.cache_hit_count + 1 : current.cache_hit_count,
-      last_cache_hit_at: result.cache_hit ? nowIso() : current.last_cache_hit_at
+      last_cache_hit_at: result.cache_hit ? nowIso() : current.last_cache_hit_at,
+      circuit_open_until: this.circuitOpenUntilFor(current, result),
+      circuit_open_count: countsAsFailure && this.shouldOpenCircuit(current) ? current.circuit_open_count + 1 : current.circuit_open_count
     });
   }
 
@@ -191,6 +215,23 @@ export class SourceRegistry {
     return info.enabled;
   }
 
+  private initialSourceState(info: DataSourceInfo, existing: DataSourceInfo | undefined): DataSourceInfo {
+    return {
+      ...info,
+      enabled: this.enabledFor(info),
+      last_success_at: existing?.last_success_at ?? info.last_success_at,
+      last_failed_at: existing?.last_failed_at ?? info.last_failed_at,
+      failure_count: existing?.failure_count ?? info.failure_count,
+      consecutive_failure_count: existing?.consecutive_failure_count ?? info.consecutive_failure_count ?? 0,
+      last_latency_ms: existing?.last_latency_ms ?? info.last_latency_ms ?? null,
+      last_attempt_count: existing?.last_attempt_count ?? info.last_attempt_count ?? 0,
+      cache_hit_count: existing?.cache_hit_count ?? info.cache_hit_count ?? 0,
+      last_cache_hit_at: existing?.last_cache_hit_at ?? info.last_cache_hit_at ?? null,
+      circuit_open_until: existing?.circuit_open_until ?? info.circuit_open_until ?? null,
+      circuit_open_count: existing?.circuit_open_count ?? info.circuit_open_count ?? 0
+    };
+  }
+
   private async fetchProvider(
     provider: DataProvider<FundDataSourceInput, ProviderFundPayload>,
     input: FundDataSourceInput
@@ -201,6 +242,9 @@ export class SourceRegistry {
     if (cached) return cached;
 
     const startedAt = Date.now();
+    const circuitResult = this.circuitResultFor(info, startedAt);
+    if (circuitResult) return circuitResult;
+
     const maxAttempts = Math.max(1, this.retryCount + 1);
     let lastResult: DataProviderResult<ProviderFundPayload> | null = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -256,7 +300,8 @@ export class SourceRegistry {
       fetched_at: nowIso(),
       cache_hit: true,
       cache_expires_at: new Date(cached.expiresAt).toISOString(),
-      latency_ms: 0
+      latency_ms: 0,
+      skipped_by_circuit_breaker: false
     };
   }
 
@@ -281,7 +326,33 @@ export class SourceRegistry {
       attempt_count: attemptCount,
       latency_ms: Date.now() - startedAt,
       cache_hit: cacheHit,
-      cache_expires_at: cacheExpiresAt
+      cache_expires_at: cacheExpiresAt,
+      skipped_by_circuit_breaker: false
+    };
+  }
+
+  private circuitResultFor(info: DataSourceInfo, startedAt: number): DataProviderResult<ProviderFundPayload> | null {
+    const current = this.sourceStates.get(info.source_id);
+    if (!current || this.cooldownRemainingMs(current) <= 0) return null;
+    return {
+      source_id: current.source_id,
+      source_name: current.source_name,
+      source_type: current.source_type,
+      trust_level: current.trust_level,
+      data_status: "unavailable",
+      success: false,
+      data: null,
+      raw_reference: null,
+      fetched_at: nowIso(),
+      freshness: "unknown",
+      warnings: [`SourceRegistry circuit breaker is open until ${current.circuit_open_until}; provider call skipped.`],
+      error: "Provider skipped by circuit breaker after repeated failures.",
+      is_demo: current.is_demo,
+      attempt_count: 0,
+      latency_ms: Date.now() - startedAt,
+      cache_hit: false,
+      cache_expires_at: null,
+      skipped_by_circuit_breaker: true
     };
   }
 
@@ -348,8 +419,33 @@ export class SourceRegistry {
       attempt_count: attemptCount,
       latency_ms: Date.now() - startedAt,
       cache_hit: false,
-      cache_expires_at: null
+      cache_expires_at: null,
+      skipped_by_circuit_breaker: false
     };
+  }
+
+  private shouldOpenCircuit(current: DataSourceInfo): boolean {
+    if (this.failureCooldownMs <= 0 || this.failureThreshold <= 0) return false;
+    return current.consecutive_failure_count + 1 >= this.failureThreshold;
+  }
+
+  private circuitOpenUntilFor(current: DataSourceInfo, result: DataProviderResult<ProviderFundPayload>): string | null {
+    if (result.success) return null;
+    if (result.skipped_by_circuit_breaker) return current.circuit_open_until;
+    if (!this.shouldOpenCircuit(current)) return current.circuit_open_until;
+    return new Date(Date.now() + this.failureCooldownMs).toISOString();
+  }
+
+  private cooldownRemainingMs(source: DataSourceInfo): number {
+    if (!source.circuit_open_until) return 0;
+    return Math.max(0, new Date(source.circuit_open_until).getTime() - Date.now());
+  }
+
+  private healthStatusFor(source: DataSourceInfo): "healthy" | "disabled" | "failing" | "demo_only" | "cooldown" {
+    if (source.is_demo) return "demo_only";
+    if (!source.enabled) return "disabled";
+    if (this.cooldownRemainingMs(source) > 0) return "cooldown";
+    return source.failure_count > 0 ? "failing" : "healthy";
   }
 
   private coverageNoteFor(

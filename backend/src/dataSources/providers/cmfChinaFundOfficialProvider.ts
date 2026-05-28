@@ -35,10 +35,13 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
       last_success_at: null,
       last_failed_at: null,
       failure_count: 0,
+      consecutive_failure_count: 0,
       last_latency_ms: null,
       last_attempt_count: 0,
       cache_hit_count: 0,
       last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
       freshness_policy: "official company notices are fresh within 150 days and acceptable within 240 days",
       notes: "Parses CMF China official fund detail pages for product notices and report-notice evidence. It records provenance but does not pretend prompt notices are full report bodies."
     };

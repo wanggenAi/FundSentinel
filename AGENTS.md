@@ -33,3 +33,4 @@
 31. Official disclosure providers that are blocked by site protection must surface that failure in `DataGapReport`; do not bypass site protections or mark blocked sources as successful.
 32. Use `/api/data-sources/coverage` to expose which data requirements are covered, partial, licensed-only, or missing.
 33. Public provider calls should go through `SourceRegistry` reliability controls so cache, retry, latency, attempt count, and provider health metadata stay consistent.
+34. Repeated provider failures should trigger SourceRegistry cooldown/circuit-breaker behavior rather than hammering blocked public sources on every API request.

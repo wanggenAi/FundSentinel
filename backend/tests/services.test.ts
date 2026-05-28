@@ -76,6 +76,20 @@ test("SourceRegistry caches successful real provider results and exposes cache h
   assert.equal(health?.cache_entries, 1);
 });
 
+test("SourceRegistry keeps default provider cache across registry instances", async () => {
+  const provider = new CountingProvider("shared-counting-provider");
+  const firstRegistry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0, shareState: true });
+  const secondRegistry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0, shareState: true });
+
+  const first = await firstRegistry.fetchAll({ fund_code: "007951", required_data: ["fund_meta"], demo_mode: false });
+  const second = await secondRegistry.fetchAll({ fund_code: "007951", required_data: ["fund_meta"], demo_mode: false });
+
+  assert.equal(provider.callCount, 1);
+  assert.equal(first[0].success, true);
+  assert.equal(second[0].success, true);
+  assert.equal(second[0].cache_hit, true);
+});
+
 test("SourceRegistry retries transient provider failures but does not cache failures", async () => {
   const provider = new FlakyProvider();
   const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 1 });
@@ -99,6 +113,25 @@ test("SourceRegistry converts uncaught provider exceptions into failed results",
   assert.match(result.error ?? "", /network timeout/);
   assert.ok(result.warnings.some((warning) => warning.includes("未捕获异常")));
   assert.equal(health?.failure_count, 1);
+});
+
+test("SourceRegistry opens circuit breaker after repeated provider failures", async () => {
+  const provider = new AlwaysFailProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 0, retryCount: 0, failureThreshold: 2, failureCooldownMs: 60_000 });
+  const input = { fund_code: "007951", required_data: ["fund_meta"], demo_mode: false };
+
+  const first = (await registry.fetchAll(input))[0];
+  const second = (await registry.fetchAll(input))[0];
+  const third = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "always-fail-provider");
+
+  assert.equal(first.skipped_by_circuit_breaker, false);
+  assert.equal(second.skipped_by_circuit_breaker, false);
+  assert.equal(third.skipped_by_circuit_breaker, true);
+  assert.equal(third.attempt_count, 0);
+  assert.equal(provider.callCount, 2);
+  assert.equal(health?.health_status, "cooldown");
+  assert.ok((health?.cooldown_remaining_ms ?? 0) > 0);
 });
 
 test("DataSourceService returns gap and manual import plan", async () => {
@@ -125,10 +158,13 @@ function sourceInfo(sourceId: string): DataSourceInfo {
     last_success_at: null,
     last_failed_at: null,
     failure_count: 0,
+    consecutive_failure_count: 0,
     last_latency_ms: null,
     last_attempt_count: 0,
     cache_hit_count: 0,
     last_cache_hit_at: null,
+    circuit_open_until: null,
+    circuit_open_count: 0,
     freshness_policy: "test",
     notes: "test provider"
   };
@@ -163,8 +199,10 @@ function providerResult(sourceId: string, success: boolean): DataProviderResult<
 class CountingProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   callCount = 0;
 
+  constructor(private readonly sourceId = "counting-provider") {}
+
   sourceInfo(): DataSourceInfo {
-    return sourceInfo("counting-provider");
+    return sourceInfo(this.sourceId);
   }
 
   canHandle(): boolean {
@@ -173,7 +211,7 @@ class CountingProvider implements DataProvider<FundDataSourceInput, ProviderFund
 
   async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
     this.callCount += 1;
-    return providerResult("counting-provider", true);
+    return providerResult(this.sourceId, true);
   }
 }
 
@@ -205,5 +243,22 @@ class ThrowingProvider implements DataProvider<FundDataSourceInput, ProviderFund
 
   async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
     throw new Error("network timeout");
+  }
+}
+
+class AlwaysFailProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return sourceInfo("always-fail-provider");
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return providerResult("always-fail-provider", false);
   }
 }
