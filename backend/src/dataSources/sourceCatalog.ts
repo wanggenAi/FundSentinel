@@ -455,15 +455,15 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     source_type: "macro_data",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["eu_macro", "inflation", "industry_statistics", "labor_market"],
+    coverage: ["macro_data", "eu_macro", "growth", "labor_market", "official_statistics"],
     recommended_for: ["macro_context", "qdii_context", "country_context"],
-    access_method: "official Eurostat data API",
+    access_method: "official Eurostat Statistics API: https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Keep dataset code, filters, release date, and query URL.",
     priority: 57,
-    notes: "Important for Europe exposure and global allocation context."
+    notes: "Implemented for selected stable annual JSON-stat series such as EU real GDP growth and euro-area unemployment. Inflation remains a planned extension until the latest HICP dimension mapping is added."
   },
   {
     source_id: "nasdaq-data-link",

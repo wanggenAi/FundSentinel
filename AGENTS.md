@@ -47,3 +47,4 @@
 45. Aggregator or manual NAV may support weak analysis, but strong conclusions require official or authorized current NAV and NAV history coverage.
 46. Authenticated official providers such as FRED must read credentials only from environment configuration, fail explicitly when missing, and never return secrets in source URLs, logs, or API responses.
 47. Broad macro providers such as IMF DataMapper must filter returned country/region series to the requested scope; do not let broad API payloads pollute a fund analysis context.
+48. JSON-stat providers such as Eurostat must parse dimension indexes deliberately and keep changed or discontinued datasets out of business output until their dimensions are verified with tests.
