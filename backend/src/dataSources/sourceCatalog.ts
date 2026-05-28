@@ -391,15 +391,15 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     source_type: "macro_data",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["us_rates", "inflation", "employment", "liquidity", "macro_time_series"],
+    coverage: ["macro_data", "us_rates", "inflation", "employment", "liquidity", "macro_time_series"],
     recommended_for: ["macro_context", "qdii_context", "bond_fund_context", "risk_context"],
-    access_method: "official FRED API",
+    access_method: "official FRED API: https://api.stlouisfed.org/fred/series/observations",
     requires_auth: true,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Use official API key via environment configuration only; keep series IDs and observation dates.",
     priority: 53,
-    notes: "High-quality macro source for USD rates, inflation, and global risk context."
+    notes: "Implemented as a credentialed official macro provider. Missing FRED_API_KEY or FUNDSENTINEL_FRED_API_KEY is surfaced as an explicit provider failure, never replaced with fabricated data."
   },
   {
     source_id: "world-bank-api",

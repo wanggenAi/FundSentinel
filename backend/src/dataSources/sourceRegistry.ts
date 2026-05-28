@@ -6,6 +6,7 @@ import { EastMoneyFundAnnouncementProvider } from "./providers/eastMoneyFundAnno
 import { EastMoneyFundArchiveProvider } from "./providers/eastMoneyFundArchiveProvider.js";
 import { EastMoneyFundProvider } from "./providers/eastMoneyFundProvider.js";
 import { EastMoneyNavHistoryProvider } from "./providers/eastMoneyNavHistoryProvider.js";
+import { FredMacroProvider } from "./providers/fredMacroProvider.js";
 import { FundCompanyReportProvider } from "./providers/fundCompanyReportProvider.js";
 import { GovCnPolicyProvider } from "./providers/govCnPolicyProvider.js";
 import { ManualCsvProvider } from "./providers/manualCsvProvider.js";
@@ -84,6 +85,7 @@ export class SourceRegistry {
       new CninfoReportProvider(),
       new GovCnPolicyProvider(),
       new StatsGovMacroProvider(),
+      new FredMacroProvider(),
       new WorldBankMacroProvider(),
       new PolicyNewsProvider(),
       new ManualCsvProvider(),

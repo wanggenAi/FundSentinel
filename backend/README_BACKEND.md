@@ -105,6 +105,7 @@ Data providers live under `src/dataSources/`:
 - `PolicyNewsProvider`: intended provider for policy and industry news evidence.
 - `GovCnPolicyProvider`: implemented official Gov.cn latest-policy JSON provider. It uses fund context collected by earlier providers, such as real fund name, themes, and holdings, to map broad official policy background. It must not infer themes from stale mock fund-code mappings.
 - `StatsGovMacroProvider`: implemented official National Bureau of Statistics endpoint probe/parser for China macro and industry indicators. If the official site blocks automated access, Argus surfaces the failure as a data gap and does not bypass site protection.
+- `FredMacroProvider`: implemented official FRED Federal Reserve Economic Data provider for US rates, Treasury yields, CPI, and unemployment context. It requires `FRED_API_KEY` or `FUNDSENTINEL_FRED_API_KEY`; if the key is missing, Argus records an explicit provider failure and does not fabricate macro data.
 - `WorldBankMacroProvider`: implemented official World Bank Open Data API provider for low-frequency macro context such as GDP growth, CPI inflation, and real interest rates. It writes structured `macro_indicators` and must not be treated as fund NAV, holdings, or trading evidence.
 - `ManualCsvProvider`: implemented fallback real-data workaround for manually imported CSV. It is enabled only when `FUNDSENTINEL_MANUAL_CSV_DIR` points to an operator/user verified directory, reads `{fund_code}.csv`, requires `fund_code,date,nav`, and records file checksum, size, mtime, row count, date range, latest date, and import timestamp.
 - `DemoFixtureProvider`: local demo fixture, enabled only when `FUNDSENTINEL_DEMO_MODE=true`.
@@ -209,6 +210,15 @@ The live public provider set currently includes:
 - `http://eid.csrc.gov.cn/fund` for the CSRC fund e-disclosure official entrypoint. The provider records official-site blocking or endpoint failures rather than silently ignoring them.
 - `https://www.cninfo.com.cn/new/data/fund_stock.json` plus `https://www.cninfo.com.cn/new/hisAnnouncement/query` for CNInfo official listed-fund disclosure lookup and PDF metadata.
 - `https://www.gov.cn/zhengce/zuixin/ZUIXINZHENGCE.json` for official latest national policy metadata. Argus treats this as macro policy context only; it does not make single-fund conclusions from policy titles.
+- `https://api.stlouisfed.org/fred/series/observations` for official FRED macro series when `FRED_API_KEY` or `FUNDSENTINEL_FRED_API_KEY` is configured. The provider sanitizes returned source URLs and never returns the API key.
+
+Optional official macro API configuration:
+
+```bash
+export FRED_API_KEY="..."
+# or
+export FUNDSENTINEL_FRED_API_KEY="..."
+```
 
 These providers parse public responses without `eval`, record `raw_reference`, apply timeout/freshness checks, and mark results as real provider data (`is_demo=false`). Aggregator sources can support partial analysis, but strong conclusions require official, identifiable report bodies and complete core data. Official report-prompt notices, such as "quarterly report prompt announcement", are recorded as `report_notice`; they do not clear the `official_fund_reports` gap by themselves.
 
