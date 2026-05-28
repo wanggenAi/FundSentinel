@@ -141,6 +141,56 @@ class UnverifiedOfficialReportProvider implements DataProvider<FundDataSourceInp
   }
 }
 
+class FailingOfficialReportProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "failing-official-report-test",
+      source_name: "Failing Official Report Test Provider",
+      source_type: "regulatory_disclosure",
+      trust_level: "A",
+      enabled: true,
+      priority: 1,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "failing-official-report-test",
+      source_name: "Failing Official Report Test Provider",
+      source_type: "regulatory_disclosure",
+      trust_level: "A",
+      data_status: "unavailable",
+      success: false,
+      data: null,
+      raw_reference: "https://official.example.test/reports",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "unknown",
+      warnings: ["官方站点防护阻断自动访问"],
+      error: "HTTP 403 from official disclosure endpoint",
+      is_demo: false
+    };
+  }
+}
+
 test("Argus source composition separates authoritative, aggregator, manual, and macro sources", async () => {
   const registry = new SourceRegistry({
     providers: [
@@ -199,6 +249,41 @@ test("Argus source composition separates authoritative, aggregator, manual, and 
   assert.equal(dataPack.data_quality_report.aggregator_source_count, 2);
   assert.equal(dataPack.data_quality_report.macro_source_count, 1);
   assert.ok(result.evidence.some((item) => item.source_name.includes("EastMoney") && item.source_type === "industry_data"));
+});
+
+test("Argus records structured failed provider details in DataGapReport", async () => {
+  const registry = new SourceRegistry({
+    providers: [new FailingOfficialReportProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("failed-provider-gap-details", "007951");
+  const gapReport = dataPack.data_gap_report;
+
+  assert.ok(gapReport);
+  assert.deepEqual(gapReport.failed_sources, ["Failing Official Report Test Provider"]);
+  assert.equal(gapReport.failed_source_details.length, 1);
+  assert.deepEqual(gapReport.failed_source_details[0], {
+    source_id: "failing-official-report-test",
+    source_name: "Failing Official Report Test Provider",
+    source_type: "regulatory_disclosure",
+    trust_level: "A",
+    data_status: "unavailable",
+    freshness: "unknown",
+    fetched_at: "2026-05-28T00:00:00.000Z",
+    raw_reference: "https://official.example.test/reports",
+    error: "HTTP 403 from official disclosure endpoint",
+    warnings: ["官方站点防护阻断自动访问"],
+    attempt_count: 1,
+    latency_ms: gapReport.failed_source_details[0]?.latency_ms ?? null,
+    cache_hit: false,
+    skipped_by_circuit_breaker: false
+  });
+  assert.equal(typeof gapReport.failed_source_details[0]?.latency_ms, "number");
+  assert.ok(gapReport.missing_data.includes("fund_meta"));
+  assert.equal(dataPack.data_quality_report.failed_source_count, 1);
+  assert.ok(dataPack.data_quality_report.source_composition.failed.includes("failing-official-report-test"));
 });
 
 test("Argus recognizes official fund-company NAV coverage for core NAV fields", async () => {

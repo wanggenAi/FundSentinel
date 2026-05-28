@@ -83,11 +83,29 @@ export interface DataGapReport {
   fund_code: string;
   missing_data: string[];
   failed_sources: string[];
+  failed_source_details: FailedSourceDetail[];
   impact: string;
   blocking_downstream_agents: string[];
   recommended_solutions: string[];
   created_by: "Argus";
   created_at: string;
+}
+
+export interface FailedSourceDetail {
+  source_id: string;
+  source_name: string;
+  source_type: string;
+  trust_level: string;
+  data_status: DataStatus;
+  freshness: string;
+  fetched_at: string;
+  raw_reference: string | null;
+  error: string | null;
+  warnings: string[];
+  attempt_count: number;
+  latency_ms: number | null;
+  cache_hit: boolean;
+  skipped_by_circuit_breaker: boolean;
 }
 
 export interface DataAcquisitionSolution {

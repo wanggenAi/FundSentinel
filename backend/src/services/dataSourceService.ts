@@ -49,6 +49,7 @@ export class DataSourceService {
         fund_code: fundCode,
         missing_data: [],
         failed_sources: [],
+        failed_source_details: [],
         impact: "当前未发现数据缺口。",
         blocking_downstream_agents: [],
         recommended_solutions: [],

@@ -63,7 +63,7 @@ Argus now produces:
 - `DataAcquisitionPlan`: what data Atlas requested, what is required, which providers are candidates, and what fallback path should be used.
 - `FundDataPack`: the normalized fund data package, only complete when data is ready or partial.
 - `DataQualityReport`: data status, source counts, source composition, missing fields, stale sources, provider failures, and downstream permissions.
-- `DataGapReport`: what is missing, which providers failed, which downstream Agents are blocked, and what solutions are recommended.
+- `DataGapReport`: what is missing, which providers failed, structured failure details for each failed provider, which downstream Agents are blocked, and what solutions are recommended.
 - `DataAcquisitionSolution`: proposed engineering and manual workaround tasks.
 
 Argus deliberately separates `missing_core_fields` from `missing_auxiliary_fields`. Core fields decide whether the DAG may continue at all. Auxiliary fields decide whether Logos/Atlas must downgrade and whether strong conclusions are forbidden.

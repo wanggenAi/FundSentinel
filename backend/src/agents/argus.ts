@@ -321,7 +321,24 @@ export class ArgusAgent extends BaseAgent {
     quality: DataQualityReport,
     providerResults: Array<DataProviderResult<ProviderFundPayload>>
   ): DataGapReport | null {
-    const failedSources = providerResults.filter((result) => !result.success).map((result) => result.source_name);
+    const failedResults = providerResults.filter((result) => !result.success);
+    const failedSources = failedResults.map((result) => result.source_name);
+    const failedSourceDetails = failedResults.map((result) => ({
+      source_id: result.source_id,
+      source_name: result.source_name,
+      source_type: result.source_type,
+      trust_level: result.trust_level,
+      data_status: result.data_status,
+      freshness: result.freshness,
+      fetched_at: result.fetched_at,
+      raw_reference: result.raw_reference,
+      error: result.error,
+      warnings: result.warnings,
+      attempt_count: result.attempt_count ?? 1,
+      latency_ms: result.latency_ms ?? null,
+      cache_hit: result.cache_hit ?? false,
+      skipped_by_circuit_breaker: result.skipped_by_circuit_breaker ?? false
+    }));
     const missingData = [...quality.missing_core_fields, ...quality.missing_auxiliary_fields];
     const reportGapSolutions = quality.missing_auxiliary_fields.includes("official_fund_reports")
       ? [
@@ -335,6 +352,7 @@ export class ArgusAgent extends BaseAgent {
       fund_code: fundCode,
       missing_data: [...new Set(missingData)],
       failed_sources: failedSources,
+      failed_source_details: failedSourceDetails,
       impact: quality.allow_downstream_analysis
         ? "只能支持弱结论，后续 Agent 必须降级。"
         : "不能支持真实基金分析，后续 Agent 不应输出买卖或仓位结论。",

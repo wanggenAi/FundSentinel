@@ -242,6 +242,7 @@ export class MockDataService {
       fund_code: raw.fund_code,
       missing_data: [],
       failed_sources: [],
+      failed_source_details: [],
       impact: "仅 demo，不允许真实强结论。",
       blocking_downstream_agents: [],
       recommended_solutions: ["接入真实基金净值 provider。", "实现 ManualCsvProvider。"],
