@@ -110,6 +110,7 @@ export interface FundReportDocument {
   pdf_verified: boolean;
   pdf_content_type: string | null;
   pdf_content_length: number | null;
+  pdf_sha256?: string | null;
   source_name: string;
   source_type: "aggregator_index" | "official_disclosure" | "manual_import";
   trust_level: "A" | "B" | "C" | "D" | "E" | "DEMO";

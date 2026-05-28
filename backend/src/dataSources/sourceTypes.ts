@@ -108,6 +108,7 @@ export interface ProviderFundPayload {
   news_summaries?: string[];
   social_sentiment_score?: number;
   manual_import_audit?: ManualImportAudit;
+  manual_report_import_audit?: ManualReportImportAudit;
   macro_indicators?: MacroIndicator[];
 }
 
@@ -121,4 +122,22 @@ export interface ManualImportAudit {
   date_end: string;
   latest_date: string;
   imported_at: string;
+}
+
+export interface ManualReportImportAudit {
+  manifest_path: string;
+  manifest_sha256: string;
+  manifest_size_bytes: number;
+  manifest_mtime: string;
+  report_count: number;
+  verified_pdf_count: number;
+  latest_report_date: string;
+  imported_at: string;
+  reports: Array<{
+    announcement_id: string;
+    source_url: string;
+    pdf_path: string;
+    pdf_sha256: string;
+    pdf_size_bytes: number;
+  }>;
 }

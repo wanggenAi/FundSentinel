@@ -19,6 +19,17 @@ interface ManualOfficialReportManifest {
   category?: string | null;
 }
 
+interface VerifiedManualReport {
+  document: FundReportDocument;
+  audit: {
+    announcement_id: string;
+    source_url: string;
+    pdf_path: string;
+    pdf_sha256: string;
+    pdf_size_bytes: number;
+  };
+}
+
 export class ManualOfficialReportProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   constructor(private readonly dataDir = process.env.FUNDSENTINEL_MANUAL_REPORT_DIR) {}
 
@@ -66,13 +77,14 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
     const manifestPath = path.join(this.dataDir, `${input.fund_code}.reports.json`);
     try {
       await access(manifestPath);
-      const manifestBuffer = await readFile(manifestPath);
+      const [manifestBuffer, manifestStats] = await Promise.all([readFile(manifestPath), stat(manifestPath)]);
       const manifests = ManualOfficialReportProvider.parseManifest(manifestBuffer.toString("utf8"), input.fund_code);
       if (!manifests.length) {
         return this.failure(info, `No official report manifest entries found for fund ${input.fund_code}`, ["官方报告 manifest 存在，但没有匹配该基金代码的记录。"], manifestPath);
       }
 
-      const documents = await Promise.all(manifests.map((manifest) => this.documentForManifest(manifest)));
+      const verifiedReports = await Promise.all(manifests.map((manifest) => this.documentForManifest(manifest)));
+      const documents = verifiedReports.map((report) => report.document);
       const periodicDocuments = documents.filter((document) => document.document_kind === "periodic_report");
       if (!periodicDocuments.length) {
         return this.failure(info, "Manifest did not include any periodic_report document", ["官方报告 manifest 未包含定期报告，不能补齐 official_fund_reports。"], manifestPath);
@@ -81,6 +93,18 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
       const latestDate = documents.map((document) => document.published_at).filter(Boolean).sort().at(-1);
       const freshness = this.freshnessFor(latestDate ?? undefined);
       const fetchedAt = nowIso();
+      const manifestSha256 = createHash("sha256").update(manifestBuffer).digest("hex");
+      const reportAudit = {
+        manifest_path: manifestPath,
+        manifest_sha256: manifestSha256,
+        manifest_size_bytes: manifestStats.size,
+        manifest_mtime: manifestStats.mtime.toISOString(),
+        report_count: documents.length,
+        verified_pdf_count: documents.filter((document) => document.pdf_verified).length,
+        latest_report_date: latestDate ?? "unknown",
+        imported_at: fetchedAt,
+        reports: verifiedReports.map((report) => report.audit)
+      };
       const warnings = [
         "手动官方报告导入是经人工声明/导入的真实数据 workaround；Argus 必须展示来源 URL、PDF 路径、文件校验和导入时间，不得标记为自动抓取。",
         "该 provider 只校验 PDF 文件存在、PDF 文件头和 manifest SHA256，不解析 PDF 正文；投资结论仍需下游引用报告段落或继续接入全文解析。"
@@ -98,7 +122,8 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
           fund_code: input.fund_code,
           fund_report_refs: documents.map((document) => this.reportRefFor(document)),
           fund_report_documents: documents,
-          news_summaries: documents.slice(0, 5).map((document) => `人工导入官方报告：${document.title}（${document.published_at ?? "日期未知"}）`)
+          news_summaries: documents.slice(0, 5).map((document) => `人工导入官方报告：${document.title}（${document.published_at ?? "日期未知"}）`),
+          manual_report_import_audit: reportAudit
         },
         raw_reference: manifestPath,
         fetched_at: fetchedAt,
@@ -123,7 +148,7 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
     return rows.map((row, index) => this.normalizeManifestRow(row, index)).filter((row) => row.fund_code === fundCode);
   }
 
-  private async documentForManifest(manifest: ManualOfficialReportManifest): Promise<FundReportDocument> {
+  private async documentForManifest(manifest: ManualOfficialReportManifest): Promise<VerifiedManualReport> {
     const pdfPath = path.isAbsolute(manifest.pdf_path) ? manifest.pdf_path : path.join(this.dataDir ?? "", manifest.pdf_path);
     const [pdfBuffer, pdfStats] = await Promise.all([readFile(pdfPath), stat(pdfPath)]);
     if (!pdfBuffer.subarray(0, 5).equals(Buffer.from("%PDF-"))) throw new Error(`Official report PDF is not a PDF file: ${pdfPath}`);
@@ -131,24 +156,34 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
     if (actualSha256 !== manifest.pdf_sha256.toLowerCase()) throw new Error(`Official report PDF SHA256 mismatch for ${manifest.announcement_id}`);
 
     return {
-      title: manifest.title,
-      announcement_id: manifest.announcement_id,
-      published_at: manifest.published_at,
-      category: manifest.category ?? null,
-      document_kind: manifest.document_kind,
-      detail_url: manifest.source_url,
-      pdf_url: pdfPath,
-      pdf_verified: true,
-      pdf_content_type: "application/pdf",
-      pdf_content_length: pdfStats.size,
-      source_name: manifest.source_name,
-      source_type: "official_disclosure",
-      trust_level: "A"
+      document: {
+        title: manifest.title,
+        announcement_id: manifest.announcement_id,
+        published_at: manifest.published_at,
+        category: manifest.category ?? null,
+        document_kind: manifest.document_kind,
+        detail_url: manifest.source_url,
+        pdf_url: pdfPath,
+        pdf_verified: true,
+        pdf_content_type: "application/pdf",
+        pdf_content_length: pdfStats.size,
+        pdf_sha256: actualSha256,
+        source_name: manifest.source_name,
+        source_type: "official_disclosure",
+        trust_level: "A"
+      },
+      audit: {
+        announcement_id: manifest.announcement_id,
+        source_url: manifest.source_url,
+        pdf_path: pdfPath,
+        pdf_sha256: actualSha256,
+        pdf_size_bytes: pdfStats.size
+      }
     };
   }
 
   private reportRefFor(document: FundReportDocument): string {
-    return `${document.published_at ?? "unknown-date"} ${document.title} id=${document.announcement_id} kind=${document.document_kind} source=${document.detail_url ?? ""} pdf=${document.pdf_url ?? ""} pdf_verified=${document.pdf_verified}`;
+    return `${document.published_at ?? "unknown-date"} ${document.title} id=${document.announcement_id} kind=${document.document_kind} source=${document.detail_url ?? ""} pdf=${document.pdf_url ?? ""} pdf_verified=${document.pdf_verified} sha256=${document.pdf_sha256 ?? ""}`;
   }
 
   private freshnessFor(date?: string): "fresh" | "acceptable" | "stale" | "unknown" {

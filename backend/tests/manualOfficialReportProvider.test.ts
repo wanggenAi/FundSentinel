@@ -50,8 +50,17 @@ test("ManualOfficialReportProvider imports verified official report PDF metadata
     assert.equal(document?.pdf_verified, true);
     assert.equal(document?.pdf_content_type, "application/pdf");
     assert.equal(document?.pdf_content_length, pdfBytes.length);
+    assert.equal(document?.pdf_sha256, sha256);
     assert.equal(document?.pdf_url, path.join(dir, "007951-2026q1.pdf"));
     assert.ok(result.data?.fund_report_refs?.[0]?.includes("pdf_verified=true"));
+    assert.ok(result.data?.fund_report_refs?.[0]?.includes(`sha256=${sha256}`));
+    assert.equal(result.data?.manual_report_import_audit?.manifest_path, path.join(dir, "007951.reports.json"));
+    assert.equal(result.data?.manual_report_import_audit?.report_count, 1);
+    assert.equal(result.data?.manual_report_import_audit?.verified_pdf_count, 1);
+    assert.equal(result.data?.manual_report_import_audit?.latest_report_date, "2026-04-22");
+    assert.equal(result.data?.manual_report_import_audit?.reports[0]?.pdf_sha256, sha256);
+    assert.equal(result.data?.manual_report_import_audit?.reports[0]?.pdf_size_bytes, pdfBytes.length);
+    assert.equal(result.data?.manual_report_import_audit?.manifest_sha256.length, 64);
     assert.ok(result.warnings.some((warning) => warning.includes("不得标记为自动抓取")));
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -98,7 +107,10 @@ test("Argus accepts manual official report import as verified official report co
     assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.fund_reports, true);
     assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("fund_reports"), false);
     assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), false);
-    assert.ok(dataPack.data_sources.some((source) => source.source_id === "manual-official-report-import" && source.success === true));
+    const manualSource = dataPack.data_sources.find((source) => source.source_id === "manual-official-report-import");
+    assert.equal(manualSource?.success, true);
+    assert.equal((manualSource?.manual_report_import_audit as { verified_pdf_count?: number } | undefined)?.verified_pdf_count, 1);
+    assert.equal((manualSource?.manual_report_import_audit as { reports?: Array<{ pdf_sha256?: string }> } | undefined)?.reports?.[0]?.pdf_sha256, sha256);
     assert.equal(dataPack.allow_downstream_analysis, false);
   } finally {
     await rm(dir, { recursive: true, force: true });
