@@ -215,6 +215,7 @@ export class ArgusAgent extends BaseAgent {
     ].filter(Boolean) as string[];
     const hasFundReportSource = successful.some((result) => result.source_type === "fund_report" || Boolean(result.data?.fund_report_refs?.length));
     const hasAuthoritativeFundReportSource = this.hasAuthoritativeFundReportDocument(successful);
+    const navConsistencyReport = this.buildNavConsistencyReport(successful);
     const missingAuxiliaryFields = [
       !merged.portfolio_holdings?.length ? "holdings" : null,
       hasFundReportSource ? null : "fund_reports",
@@ -255,11 +256,23 @@ export class ArgusAgent extends BaseAgent {
       warnings.push(`存在过期数据源：${staleSources.join(", ")}。`);
       if (dataStatus === "ready") dataStatus = "partial";
     }
+    if (navConsistencyReport.status === "conflict") {
+      dataStatus = dataStatus === "ready" ? "partial" : dataStatus;
+      allowStrongConclusion = false;
+      warnings.push(`核心净值跨源校验冲突：${navConsistencyReport.conflicts.join("；")}。`);
+    }
     if (missingAuxiliaryFields.includes("industry_news")) warnings.push("industry_news 缺失，不影响核心数据但会降低解释完整性。");
     if (missingAuxiliaryFields.includes("macro_data")) warnings.push("macro_data 缺失，不影响基金核心净值分析，但会降低跨市场/宏观解释能力。");
     if (missingAuxiliaryFields.includes("social_sentiment")) warnings.push("social_sentiment 缺失，不影响核心分析，只能作为弱可选信号。");
 
-    const score = this.scoreFor(dataStatus, missingCoreFields.length, realSuccess.length, demoSuccess.length, failed.length);
+    const score = this.scoreFor(
+      dataStatus,
+      missingCoreFields.length,
+      realSuccess.length,
+      demoSuccess.length,
+      failed.length,
+      navConsistencyReport.status === "conflict"
+    );
     return {
       data_status: dataStatus,
       level: score >= 75 ? "high" : score >= 45 ? "medium" : "low",
@@ -269,10 +282,12 @@ export class ArgusAgent extends BaseAgent {
       successful_source_count: successful.length,
       failed_source_count: failed.length,
       missing_core_fields: missingCoreFields,
-      missing_auxiliary_fields: missingAuxiliaryFields,
+      missing_auxiliary_fields:
+        navConsistencyReport.status === "conflict" ? [...new Set([...missingAuxiliaryFields, "nav_consistency"])] : missingAuxiliaryFields,
       stale_sources: staleSources,
       warnings,
       blocking_issues: blockingIssues,
+      nav_consistency_report: navConsistencyReport,
       allow_downstream_analysis: allowDownstreamAnalysis,
       allow_strong_conclusion: allowStrongConclusion,
       generated_by: "Argus",
@@ -361,6 +376,61 @@ export class ArgusAgent extends BaseAgent {
     return candidate.nav_history.length > current.nav_history.length;
   }
 
+  private buildNavConsistencyReport(results: Array<DataProviderResult<ProviderFundPayload>>): DataQualityReport["nav_consistency_report"] {
+    const comparedSources = results
+      .filter((result) => !result.is_demo && (result.data?.current_nav !== undefined || result.data?.nav_history?.length))
+      .map((result) => ({
+        source_id: result.source_id,
+        source_name: result.source_name,
+        current_nav: result.data?.current_nav ?? null,
+        latest_date: result.data?.nav_history_dates?.at(-1) ?? null,
+        nav_points: result.data?.nav_history?.length ?? 0
+      }));
+
+    const navSources = comparedSources.filter((source) => source.current_nav !== null);
+    const latestDate = this.latestDateFor(comparedSources.map((source) => source.latest_date));
+    const comparableNavSources = latestDate ? navSources.filter((source) => source.latest_date === latestDate) : navSources;
+    if (comparableNavSources.length < 2) {
+      return {
+        checked_source_count: comparedSources.length,
+        max_current_nav_delta: null,
+        max_current_nav_delta_ratio: null,
+        latest_nav_date: latestDate,
+        compared_sources: comparedSources,
+        conflicts: [],
+        status: comparedSources.length ? "consistent" : "not_checked"
+      };
+    }
+
+    let maxDelta = 0;
+    let maxDeltaRatio = 0;
+    const conflicts: string[] = [];
+    for (let leftIndex = 0; leftIndex < comparableNavSources.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < comparableNavSources.length; rightIndex += 1) {
+        const left = comparableNavSources[leftIndex]!;
+        const right = comparableNavSources[rightIndex]!;
+        const delta = Math.abs((left.current_nav ?? 0) - (right.current_nav ?? 0));
+        const baseline = Math.max(Math.abs(left.current_nav ?? 0), Math.abs(right.current_nav ?? 0), 1);
+        const ratio = delta / baseline;
+        maxDelta = Math.max(maxDelta, delta);
+        maxDeltaRatio = Math.max(maxDeltaRatio, ratio);
+        if (delta > 0.002 && ratio > 0.001) {
+          conflicts.push(`${left.source_id} current_nav=${left.current_nav} 与 ${right.source_id} current_nav=${right.current_nav} 偏差 ${delta.toFixed(6)} (${(ratio * 100).toFixed(3)}%)`);
+        }
+      }
+    }
+
+    return {
+      checked_source_count: comparedSources.length,
+      max_current_nav_delta: Number(maxDelta.toFixed(6)),
+      max_current_nav_delta_ratio: Number(maxDeltaRatio.toFixed(6)),
+      latest_nav_date: latestDate,
+      compared_sources: comparedSources,
+      conflicts,
+      status: conflicts.length ? "conflict" : "consistent"
+    };
+  }
+
   private mergeReportDocuments(
     left: ProviderFundPayload["fund_report_documents"] | undefined,
     right: ProviderFundPayload["fund_report_documents"] | undefined
@@ -397,6 +467,10 @@ export class ArgusAgent extends BaseAgent {
     return null;
   }
 
+  private latestDateFor(dates: Array<string | null>): string | null {
+    return dates.filter((date): date is string => Boolean(date)).sort().at(-1) ?? null;
+  }
+
   private buildEvidence(providerResults: Array<DataProviderResult<ProviderFundPayload>>): EvidenceItem[] {
     return providerResults.map((result) => ({
       title: `${result.source_name} 数据获取${result.success ? "成功" : "失败"}`,
@@ -414,12 +488,19 @@ export class ArgusAgent extends BaseAgent {
     }));
   }
 
-  private scoreFor(dataStatus: DataStatus, missingCoreCount: number, realSuccessCount: number, demoSuccessCount: number, failedCount: number): number {
+  private scoreFor(
+    dataStatus: DataStatus,
+    missingCoreCount: number,
+    realSuccessCount: number,
+    demoSuccessCount: number,
+    failedCount: number,
+    hasNavConflict = false
+  ): number {
     if (dataStatus === "demo") return 35;
     if (dataStatus === "unavailable") return 0;
     if (dataStatus === "insufficient") return Math.max(10, 40 - missingCoreCount * 10 - failedCount * 3);
-    if (dataStatus === "partial") return Math.min(72, 50 + realSuccessCount * 8 - failedCount * 2);
-    return Math.min(95, 78 + realSuccessCount * 5 - failedCount);
+    if (dataStatus === "partial") return Math.min(72, 50 + realSuccessCount * 8 - failedCount * 2 - (hasNavConflict ? 18 : 0));
+    return Math.min(95, 78 + realSuccessCount * 5 - failedCount - (hasNavConflict ? 18 : 0));
   }
 
   private confidenceFor(dataStatus: DataStatus, score: number): number {

@@ -205,6 +205,15 @@ export class MockDataService {
       stale_sources: [],
       warnings: ["Demo fixture 数据不能用于真实投资判断。", ...raw.quality_warnings],
       blocking_issues: [],
+      nav_consistency_report: {
+        checked_source_count: 0,
+        max_current_nav_delta: null,
+        max_current_nav_delta_ratio: null,
+        latest_nav_date: null,
+        compared_sources: [],
+        conflicts: [],
+        status: "not_checked"
+      },
       allow_downstream_analysis: true,
       allow_strong_conclusion: false,
       generated_by: "Argus",

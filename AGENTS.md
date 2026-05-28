@@ -40,3 +40,4 @@
 38. Macro providers such as World Bank/FRED/IMF/OECD/Eurostat may support Logos context, but they must not be treated as fund NAV, holdings, trading, or position evidence.
 39. Official macro/statistics providers that are blocked by site protection must surface that failure in DataGapReport; do not bypass protections or mark blocked official sources as successful.
 40. Core NAV data should prefer multiple independent real providers when available; aggregator NAV sources are useful for cross-checking but still need official fund-company or authorized data confirmation before strong conclusions.
+41. Same-date NAV conflicts across real providers must be recorded in `nav_consistency_report` and must block strong conclusions until resolved.

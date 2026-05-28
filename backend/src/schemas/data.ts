@@ -35,10 +35,27 @@ export interface DataQualityReport {
   stale_sources: string[];
   warnings: string[];
   blocking_issues: string[];
+  nav_consistency_report: NavConsistencyReport;
   allow_downstream_analysis: boolean;
   allow_strong_conclusion: boolean;
   generated_by: "Argus";
   generated_at: string;
+}
+
+export interface NavConsistencyReport {
+  checked_source_count: number;
+  max_current_nav_delta: number | null;
+  max_current_nav_delta_ratio: number | null;
+  latest_nav_date: string | null;
+  compared_sources: Array<{
+    source_id: string;
+    source_name: string;
+    current_nav: number | null;
+    latest_date: string | null;
+    nav_points: number;
+  }>;
+  conflicts: string[];
+  status: "not_checked" | "consistent" | "conflict";
 }
 
 export interface DataGapReport {

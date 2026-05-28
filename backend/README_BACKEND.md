@@ -84,6 +84,8 @@ Core required data:
 
 If any core data is missing, Argus returns `insufficient` or `unavailable`. If only demo data is present, `allow_strong_conclusion=false` and confidence is capped.
 
+Argus also produces a structured `nav_consistency_report` inside `DataQualityReport`. When multiple real NAV providers return comparable same-date current NAV values, Argus checks their absolute and relative differences. A material conflict adds `nav_consistency` to auxiliary gaps, sets `allow_strong_conclusion=false`, and forces downstream Agents to treat the fund analysis as degraded until the discrepancy is resolved or confirmed by an official/authorized source.
+
 ## Data Sources
 
 Data providers live under `src/dataSources/`:

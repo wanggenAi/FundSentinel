@@ -87,4 +87,46 @@ test("Argus prefers fresher detailed NAV rows over older page JavaScript rows", 
   assert.deepEqual(dataPack.nav_history, [1.0822, 1.0801, 1.0799]);
   assert.deepEqual(dataPack.nav_history_dates, ["2026-05-26", "2026-05-27", "2026-05-28"]);
   assert.ok(dataPack.data_sources.some((source) => source.source_id === "eastmoney-nav-history" && source.record_count === 3));
+  assert.equal(dataPack.data_quality_report.nav_consistency_report.status, "consistent");
+  assert.equal(dataPack.data_quality_report.nav_consistency_report.checked_source_count, 2);
+});
+
+test("Argus downgrades strong conclusion when NAV providers conflict", async () => {
+  const conflictingPingzhongText = `
+var fS_name = "招商信用增强债券C";var fS_code = "007951";
+var Data_netWorthTrend = [
+  {"x":1779840000000,"y":1.0500,"equityReturn":0.10,"unitMoney":""},
+  {"x":1779926400000,"y":1.0500,"equityReturn":0.10,"unitMoney":""}
+];
+`;
+  const registry = new SourceRegistry({
+    providers: [
+      new EastMoneyFundProvider(
+        (async () =>
+          new Response(conflictingPingzhongText, {
+            status: 200,
+            headers: { "content-type": "application/javascript" }
+          })) as typeof fetch,
+        1000
+      ),
+      new EastMoneyNavHistoryProvider(
+        (async () =>
+          new Response(navHistoryJson, {
+            status: 200,
+            headers: { "content-type": "application/json" }
+          })) as typeof fetch,
+        1000
+      )
+    ],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("nav-conflict", "007951");
+
+  assert.equal(dataPack.data_quality_report.nav_consistency_report.status, "conflict");
+  assert.ok(dataPack.data_quality_report.nav_consistency_report.conflicts.some((conflict) => conflict.includes("eastmoney-fund")));
+  assert.equal(dataPack.allow_strong_conclusion, false);
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("nav_consistency"));
+  assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("核心净值跨源校验冲突")));
 });
