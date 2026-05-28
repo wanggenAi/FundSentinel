@@ -37,3 +37,4 @@
 35. Manual CSV data may be used only as explicit verified fallback via `FUNDSENTINEL_MANUAL_CSV_DIR`; it must keep `source_type=manual_import`, file provenance, and audit warnings.
 36. Manual CSV outputs must include checksum, file size, file mtime, row count, date range, latest date, and import timestamp in Argus audit metadata.
 37. Argus may maintain a broad internet source universe, including overseas official macro/disclosure sources, but planned or licensed sources must stay labeled until a real provider and tests exist.
+38. Macro providers such as World Bank/FRED/IMF/OECD/Eurostat may support Logos context, but they must not be treated as fund NAV, holdings, trading, or position evidence.

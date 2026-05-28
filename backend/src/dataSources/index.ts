@@ -13,3 +13,4 @@ export * from "./providers/fundCompanyReportProvider.js";
 export * from "./providers/govCnPolicyProvider.js";
 export * from "./providers/manualCsvProvider.js";
 export * from "./providers/policyNewsProvider.js";
+export * from "./providers/worldBankMacroProvider.js";

@@ -76,3 +76,16 @@ export interface FundReportDocument {
   source_type: "aggregator_index" | "official_disclosure" | "manual_import";
   trust_level: "A" | "B" | "C" | "D" | "E" | "DEMO";
 }
+
+export interface MacroIndicator {
+  country_code: string;
+  country_name: string;
+  indicator_id: string;
+  indicator_name: string;
+  value: number;
+  date: string;
+  unit: string | null;
+  source_url: string;
+  source_name: string;
+  fetched_at: string;
+}

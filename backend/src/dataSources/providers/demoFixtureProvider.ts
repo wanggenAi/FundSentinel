@@ -74,6 +74,7 @@ export class DemoFixtureProvider implements DataProvider<FundDataSourceInput, Pr
         portfolio_holdings: fixture.portfolio_holdings,
         themes: fixture.themes,
         policy_signals: fixture.policy_signals,
+        macro_indicators: fixture.macro_indicators,
         news_summaries: fixture.news_summaries,
         social_sentiment_score: fixture.social_sentiment_score
       },
@@ -86,4 +87,3 @@ export class DemoFixtureProvider implements DataProvider<FundDataSourceInput, Pr
     };
   }
 }
-

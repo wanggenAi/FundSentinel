@@ -1,6 +1,6 @@
 import type { AgentResult } from "./agent.js";
 import type { DataQuality, DataStatus } from "./common.js";
-import type { DataAcquisitionPlan, DataAcquisitionSolution, DataGapReport, DataQualityReport, FundReportDocument } from "./data.js";
+import type { DataAcquisitionPlan, DataAcquisitionSolution, DataGapReport, DataQualityReport, FundReportDocument, MacroIndicator } from "./data.js";
 import type { FinalDecision } from "./decision.js";
 
 export interface FundDataPack {
@@ -16,6 +16,7 @@ export interface FundDataPack {
   fund_report_refs: string[];
   fund_report_documents: FundReportDocument[];
   policy_signals: string[];
+  macro_indicators: MacroIndicator[];
   news_summaries: string[];
   social_sentiment_score: number;
   evidence_items: AgentResult["evidence"];

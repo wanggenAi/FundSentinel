@@ -391,15 +391,15 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     source_type: "macro_data",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["country_macro", "growth", "population", "development_indicators"],
+    coverage: ["macro_data", "country_macro", "growth", "population", "development_indicators"],
     recommended_for: ["macro_context", "country_context", "industry_logic"],
     access_method: "official World Bank API",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Keep indicator IDs, country codes, and source timestamps.",
     priority: 54,
-    notes: "Useful for global allocation and long-cycle macro context."
+    notes: "Implemented for a small official macro baseline: GDP growth, CPI inflation, and real interest rate for configured countries."
   },
   {
     source_id: "imf-data-api",

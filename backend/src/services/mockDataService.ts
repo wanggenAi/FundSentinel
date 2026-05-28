@@ -233,6 +233,7 @@ export class MockDataService {
       fund_report_refs: [],
       fund_report_documents: [],
       policy_signals: raw.policy_signals,
+      macro_indicators: [],
       news_summaries: raw.news_summaries,
       social_sentiment_score: raw.social_sentiment_score,
       evidence_items: [],

@@ -15,6 +15,7 @@ export type DataRequirement =
   | "holdings"
   | "fund_reports"
   | "policy_evidence"
+  | "macro_data"
   | "industry_news"
   | "social_sentiment";
 

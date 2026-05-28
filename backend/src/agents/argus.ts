@@ -84,7 +84,7 @@ export class ArgusAgent extends BaseAgent {
       fund_code: fundCode,
       requested_by: "Atlas",
       required_data: ["fund_meta", "current_nav", "nav_history"],
-      optional_data: ["holdings", "fund_reports", "policy_evidence", "industry_news", "social_sentiment"],
+      optional_data: ["holdings", "fund_reports", "policy_evidence", "macro_data", "industry_news", "social_sentiment"],
       provider_candidates: this.sourceRegistry.providerCandidates(),
       acquisition_strategy: "优先使用真实 provider 获取基金元数据、当前净值和历史净值；再补充持仓、报告、政策和新闻证据。",
       fallback_strategy: "主数据源失败后尝试备用真实 provider；自动源全部失败时提出 CSV/第三方 API/定时同步等解决方案。Demo fixture 仅在显式 demo mode 下启用。",
@@ -116,6 +116,7 @@ export class ArgusAgent extends BaseAgent {
       fund_report_refs: merged.fund_report_refs ?? [],
       fund_report_documents: merged.fund_report_documents ?? [],
       policy_signals: merged.policy_signals ?? [],
+      macro_indicators: merged.macro_indicators ?? [],
       news_summaries: merged.news_summaries ?? [],
       social_sentiment_score: merged.social_sentiment_score ?? 0,
       evidence_items: this.buildEvidence(providerResults),
@@ -184,6 +185,7 @@ export class ArgusAgent extends BaseAgent {
       merged.fund_report_documents = this.mergeReportDocuments(merged.fund_report_documents, payload.fund_report_documents);
       merged.themes = this.mergeUnique(merged.themes, payload.themes);
       merged.policy_signals = this.mergeUnique(merged.policy_signals, payload.policy_signals);
+      merged.macro_indicators = this.mergeMacroIndicators(merged.macro_indicators, payload.macro_indicators);
       merged.news_summaries = this.mergeUnique(merged.news_summaries, payload.news_summaries);
 
       if (payload.holdings_as_of && (!merged.holdings_as_of || payload.holdings_as_of > merged.holdings_as_of)) {
@@ -214,6 +216,7 @@ export class ArgusAgent extends BaseAgent {
       hasFundReportSource ? null : "fund_reports",
       hasAuthoritativeFundReportSource ? null : "official_fund_reports",
       !merged.policy_signals?.length ? "policy_evidence" : null,
+      !merged.macro_indicators?.length ? "macro_data" : null,
       !merged.news_summaries?.length ? "industry_news" : null,
       merged.social_sentiment_score === undefined ? "social_sentiment" : null
     ].filter(Boolean) as string[];
@@ -249,6 +252,7 @@ export class ArgusAgent extends BaseAgent {
       if (dataStatus === "ready") dataStatus = "partial";
     }
     if (missingAuxiliaryFields.includes("industry_news")) warnings.push("industry_news 缺失，不影响核心数据但会降低解释完整性。");
+    if (missingAuxiliaryFields.includes("macro_data")) warnings.push("macro_data 缺失，不影响基金核心净值分析，但会降低跨市场/宏观解释能力。");
     if (missingAuxiliaryFields.includes("social_sentiment")) warnings.push("social_sentiment 缺失，不影响核心分析，只能作为弱可选信号。");
 
     const score = this.scoreFor(dataStatus, missingCoreFields.length, realSuccess.length, demoSuccess.length, failed.length);
@@ -354,9 +358,22 @@ export class ArgusAgent extends BaseAgent {
     return [...merged.values()];
   }
 
+  private mergeMacroIndicators(
+    left: ProviderFundPayload["macro_indicators"] | undefined,
+    right: ProviderFundPayload["macro_indicators"] | undefined
+  ): ProviderFundPayload["macro_indicators"] | undefined {
+    if (!left?.length && !right?.length) return left ?? right;
+    const merged = new Map<string, NonNullable<ProviderFundPayload["macro_indicators"]>[number]>();
+    for (const indicator of [...(left ?? []), ...(right ?? [])]) {
+      merged.set(`${indicator.country_code}:${indicator.indicator_id}:${indicator.date}`, indicator);
+    }
+    return [...merged.values()];
+  }
+
   private recordCountFor(data: ProviderFundPayload | null): number | null {
     if (!data) return null;
     if (data.nav_history?.length) return data.nav_history.length;
+    if (data.macro_indicators?.length) return data.macro_indicators.length;
     if (data.portfolio_holdings?.length) return data.portfolio_holdings.length;
     if (data.fund_report_documents?.length) return data.fund_report_documents.length;
     if (data.fund_report_refs?.length) return data.fund_report_refs.length;

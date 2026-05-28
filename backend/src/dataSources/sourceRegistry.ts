@@ -9,6 +9,7 @@ import { FundCompanyReportProvider } from "./providers/fundCompanyReportProvider
 import { GovCnPolicyProvider } from "./providers/govCnPolicyProvider.js";
 import { ManualCsvProvider } from "./providers/manualCsvProvider.js";
 import { PolicyNewsProvider } from "./providers/policyNewsProvider.js";
+import { WorldBankMacroProvider } from "./providers/worldBankMacroProvider.js";
 import type { DataProvider } from "./providers/baseProvider.js";
 import type { DataProviderResult, DataSourceInfo, FundDataSourceInput, ProviderFundPayload } from "./sourceTypes.js";
 import { listDataSourceCatalog } from "./sourceCatalog.js";
@@ -79,6 +80,7 @@ export class SourceRegistry {
       new FundCompanyReportProvider(),
       new CninfoReportProvider(),
       new GovCnPolicyProvider(),
+      new WorldBankMacroProvider(),
       new PolicyNewsProvider(),
       new ManualCsvProvider(),
       new DemoFixtureProvider()
@@ -109,7 +111,7 @@ export class SourceRegistry {
   }
 
   coverageMatrix(): Array<{
-    requirement: DataRequirement | "official_fund_reports" | "benchmark" | "macro_data";
+    requirement: DataRequirement | "official_fund_reports" | "benchmark";
     source_ids: string[];
     implemented_source_ids: string[];
     authoritative_source_ids: string[];
@@ -118,7 +120,7 @@ export class SourceRegistry {
     notes: string;
   }> {
     const catalog = this.catalog();
-    const requirements: Array<DataRequirement | "official_fund_reports" | "benchmark" | "macro_data"> = [
+    const requirements: Array<DataRequirement | "official_fund_reports" | "benchmark"> = [
       "fund_meta",
       "current_nav",
       "nav_history",
@@ -460,7 +462,7 @@ export class SourceRegistry {
   }
 
   private coverageNoteFor(
-    requirement: DataRequirement | "official_fund_reports" | "benchmark" | "macro_data",
+    requirement: DataRequirement | "official_fund_reports" | "benchmark",
     gapLevel: "covered" | "partial" | "missing" | "requires_license"
   ): string {
     if (requirement === "official_fund_reports") {
@@ -482,8 +484,21 @@ export class SourceRegistry {
       fund_report_documents: [...(left.fund_report_documents ?? []), ...(right.fund_report_documents ?? [])],
       themes: [...new Set([...(left.themes ?? []), ...(right.themes ?? [])])],
       policy_signals: [...new Set([...(left.policy_signals ?? []), ...(right.policy_signals ?? [])])],
+      macro_indicators: this.mergeMacroIndicators(left.macro_indicators, right.macro_indicators),
       news_summaries: [...new Set([...(left.news_summaries ?? []), ...(right.news_summaries ?? [])])],
       stage_returns: { ...(left.stage_returns ?? {}), ...(right.stage_returns ?? {}) }
     };
+  }
+
+  private mergeMacroIndicators(
+    left: ProviderFundPayload["macro_indicators"] | undefined,
+    right: ProviderFundPayload["macro_indicators"] | undefined
+  ): ProviderFundPayload["macro_indicators"] | undefined {
+    if (!left?.length && !right?.length) return left ?? right;
+    const merged = new Map<string, NonNullable<ProviderFundPayload["macro_indicators"]>[number]>();
+    for (const indicator of [...(left ?? []), ...(right ?? [])]) {
+      merged.set(`${indicator.country_code}:${indicator.indicator_id}:${indicator.date}`, indicator);
+    }
+    return [...merged.values()];
   }
 }

@@ -19,6 +19,7 @@ export class LogosAgent extends BaseAgent {
       context: {
         themes: dataPack.themes,
         policy_signals: dataPack.policy_signals,
+        macro_indicators: dataPack.macro_indicators,
         portfolio_holdings: dataPack.portfolio_holdings,
         news_summaries: dataPack.news_summaries,
         data_quality: dataPack.data_quality
@@ -72,6 +73,7 @@ export class LogosAgent extends BaseAgent {
       evidence,
       metrics: {
         policy_signal_count: dataPack.policy_signals.length,
+        macro_indicator_count: dataPack.macro_indicators.length,
         holding_match_count: dataPack.portfolio_holdings.length,
         social_sentiment_score: dataPack.social_sentiment_score,
         ai_gateway_available: aiResponse.available,
@@ -82,4 +84,3 @@ export class LogosAgent extends BaseAgent {
     });
   }
 }
-

@@ -1,4 +1,4 @@
-import type { DataStatus, FundReportDocument } from "../schemas/index.js";
+import type { DataStatus, FundReportDocument, MacroIndicator } from "../schemas/index.js";
 
 export type DataSourceType =
   | "fund_meta"
@@ -107,6 +107,7 @@ export interface ProviderFundPayload {
   news_summaries?: string[];
   social_sentiment_score?: number;
   manual_import_audit?: ManualImportAudit;
+  macro_indicators?: MacroIndicator[];
 }
 
 export interface ManualImportAudit {

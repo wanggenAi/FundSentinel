@@ -60,7 +60,8 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(macroData?.source_ids.includes("fred-official"));
   assert.ok(macroData?.source_ids.includes("world-bank-api"));
   assert.ok(macroData?.source_ids.includes("imf-data-api"));
-  assert.equal(macroData?.gap_level, "missing");
+  assert.ok(macroData?.implemented_source_ids.includes("world-bank-api"));
+  assert.equal(macroData?.gap_level, "covered");
   assert.equal(social?.gap_level, "missing");
 });
 
