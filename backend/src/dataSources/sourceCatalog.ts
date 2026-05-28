@@ -423,15 +423,15 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     source_type: "macro_data",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["global_macro", "balance_of_payments", "rates", "financial_statistics"],
+    coverage: ["macro_data", "global_macro", "world_economic_outlook", "growth", "inflation", "employment"],
     recommended_for: ["macro_context", "qdii_context", "country_context"],
-    access_method: "official IMF data services",
+    access_method: "official IMF DataMapper API: https://www.imf.org/external/datamapper/api/v2",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Use public datasets with dataset code, series key, and observation date.",
     priority: 55,
-    notes: "Authoritative international macro source for cross-border fund context."
+    notes: "Implemented for selected DataMapper/WEO macro series such as real GDP growth, CPI inflation, and unemployment. It is macro context only, not fund NAV or holdings evidence."
   },
   {
     source_id: "oecd-data-api",

@@ -46,3 +46,4 @@
 44. Official fund-company pages may be parsed for SSR-embedded NAV rows, but signed/encrypted business APIs must not be bypassed; if signature requirements block direct API use, record the limitation as a provider gap.
 45. Aggregator or manual NAV may support weak analysis, but strong conclusions require official or authorized current NAV and NAV history coverage.
 46. Authenticated official providers such as FRED must read credentials only from environment configuration, fail explicitly when missing, and never return secrets in source URLs, logs, or API responses.
+47. Broad macro providers such as IMF DataMapper must filter returned country/region series to the requested scope; do not let broad API payloads pollute a fund analysis context.

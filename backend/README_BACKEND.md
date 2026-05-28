@@ -107,6 +107,7 @@ Data providers live under `src/dataSources/`:
 - `StatsGovMacroProvider`: implemented official National Bureau of Statistics endpoint probe/parser for China macro and industry indicators. If the official site blocks automated access, Argus surfaces the failure as a data gap and does not bypass site protection.
 - `FredMacroProvider`: implemented official FRED Federal Reserve Economic Data provider for US rates, Treasury yields, CPI, and unemployment context. It requires `FRED_API_KEY` or `FUNDSENTINEL_FRED_API_KEY`; if the key is missing, Argus records an explicit provider failure and does not fabricate macro data.
 - `WorldBankMacroProvider`: implemented official World Bank Open Data API provider for low-frequency macro context such as GDP growth, CPI inflation, and real interest rates. It writes structured `macro_indicators` and must not be treated as fund NAV, holdings, or trading evidence.
+- `ImfDataMapperProvider`: implemented official IMF DataMapper API provider for selected WEO macro series such as real GDP growth, inflation, and unemployment. It filters requested country/region codes explicitly and provides global/QDII context only.
 - `ManualCsvProvider`: implemented fallback real-data workaround for manually imported CSV. It is enabled only when `FUNDSENTINEL_MANUAL_CSV_DIR` points to an operator/user verified directory, reads `{fund_code}.csv`, requires `fund_code,date,nav`, and records file checksum, size, mtime, row count, date range, latest date, and import timestamp.
 - `DemoFixtureProvider`: local demo fixture, enabled only when `FUNDSENTINEL_DEMO_MODE=true`.
 
@@ -211,6 +212,7 @@ The live public provider set currently includes:
 - `https://www.cninfo.com.cn/new/data/fund_stock.json` plus `https://www.cninfo.com.cn/new/hisAnnouncement/query` for CNInfo official listed-fund disclosure lookup and PDF metadata.
 - `https://www.gov.cn/zhengce/zuixin/ZUIXINZHENGCE.json` for official latest national policy metadata. Argus treats this as macro policy context only; it does not make single-fund conclusions from policy titles.
 - `https://api.stlouisfed.org/fred/series/observations` for official FRED macro series when `FRED_API_KEY` or `FUNDSENTINEL_FRED_API_KEY` is configured. The provider sanitizes returned source URLs and never returns the API key.
+- `https://www.imf.org/external/datamapper/api/v2` for official IMF DataMapper/WEO macro series. Argus filters the returned country/region codes to the configured request set and treats this as macro context only.
 
 Optional official macro API configuration:
 
