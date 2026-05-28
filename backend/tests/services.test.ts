@@ -42,9 +42,21 @@ test("demo mode can return demo analysis but forbids strong conclusions", async 
 test("SourceRegistry lists real providers and demo fixture provider", () => {
   const sources = new SourceRegistry(false).listSources();
 
+  assert.ok(sources.some((source) => source.source_id === "csrc-fund-disclosure" && source.trust_level === "A" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "eastmoney-fund" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "cmfchina-fund-official" && source.trust_level === "A" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "demo-fixture" && source.is_demo && !source.enabled));
+});
+
+test("SourceRegistry coverage matrix distinguishes implemented and gap requirements", () => {
+  const coverage = new SourceRegistry({ enableLiveProviders: false }).coverageMatrix();
+  const officialReports = coverage.find((item) => item.requirement === "official_fund_reports");
+  const social = coverage.find((item) => item.requirement === "social_sentiment");
+
+  assert.ok(officialReports?.source_ids.includes("csrc-fund-disclosure"));
+  assert.ok(officialReports?.implemented_source_ids.includes("csrc-fund-disclosure"));
+  assert.equal(officialReports?.gap_level, "partial");
+  assert.equal(social?.gap_level, "missing");
 });
 
 test("DataSourceService returns gap and manual import plan", async () => {

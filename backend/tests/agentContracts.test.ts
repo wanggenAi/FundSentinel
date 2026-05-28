@@ -12,6 +12,7 @@ test("Argus returns AgentResult with unavailable data by default", async () => {
   assert.equal(argusResult.agent_name, "Argus");
   assert.equal(argusResult.task_id, "contract-task");
   assert.equal(argusResult.status, "failed");
+  assert.equal(argusResult.is_mock, false);
   assert.equal(dataPack.data_status, "unavailable");
   assert.equal(dataPack.allow_downstream_analysis, false);
   assert.equal(dataPack.allow_strong_conclusion, false);

@@ -65,6 +65,7 @@ test("data source APIs are available", async () => {
   const app = await buildApp();
   const sourcesResponse = await app.inject({ method: "GET", url: "/api/data-sources" });
   const catalogResponse = await app.inject({ method: "GET", url: "/api/data-sources/catalog" });
+  const coverageResponse = await app.inject({ method: "GET", url: "/api/data-sources/coverage" });
   const healthResponse = await app.inject({ method: "GET", url: "/api/data-sources/health" });
   const gapsResponse = await app.inject({ method: "GET", url: "/api/data-sources/gaps/007951" });
   const manualPlanResponse = await app.inject({ method: "POST", url: "/api/data-sources/manual-import/plan" });
@@ -75,6 +76,8 @@ test("data source APIs are available", async () => {
   assert.equal(catalogResponse.statusCode, 200);
   assert.ok(catalogResponse.json().sources.some((source: { source_id: string }) => source.source_id === "csrc-fund-disclosure"));
   assert.ok(catalogResponse.json().sources.some((source: { source_id: string }) => source.source_id === "commercial-terminal-api"));
+  assert.equal(coverageResponse.statusCode, 200);
+  assert.ok(coverageResponse.json().coverage.some((item: { requirement: string }) => item.requirement === "official_fund_reports"));
   assert.equal(healthResponse.statusCode, 200);
   assert.ok(healthResponse.json().sources.length > 0);
   assert.equal(gapsResponse.statusCode, 200);

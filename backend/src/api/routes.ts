@@ -24,6 +24,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/api/data-sources/catalog", async () => new DataSourceService().catalog());
 
+  app.get("/api/data-sources/coverage", async () => new DataSourceService().coverage());
+
   app.get("/api/data-sources/health", async () => new DataSourceService().health());
 
   app.get<{ Params: { fund_code: string } }>("/api/data-sources/gaps/:fund_code", async (request) =>

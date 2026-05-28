@@ -30,6 +30,7 @@ export abstract class BaseAgent {
     metrics?: Record<string, unknown>;
     warnings?: string[];
     nextSuggestions?: string[];
+    isMock?: boolean;
   }): AgentResult {
     return {
       agent_name: this.name,
@@ -46,7 +47,7 @@ export abstract class BaseAgent {
       warnings: input.warnings ?? [],
       next_suggestions: input.nextSuggestions ?? [],
       created_at: nowIso(),
-      is_mock: true
+      is_mock: input.isMock ?? true
     };
   }
 

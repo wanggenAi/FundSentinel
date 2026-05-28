@@ -29,3 +29,6 @@
 27. Official report-prompt notices are useful provenance, but they must not be treated as full report bodies.
 28. `official_fund_reports` should require official disclosure documents, not merely aggregator indexes or generic company notices.
 29. New public-web providers must classify document kind conservatively, especially `periodic_report`, `report_notice`, `business_notice`, and `sales_document`.
+30. Argus's source universe should be broad, but each provider must be truthful about legal access, implementation status, quality tier, freshness, and coverage gaps.
+31. Official disclosure providers that are blocked by site protection must surface that failure in `DataGapReport`; do not bypass site protections or mark blocked sources as successful.
+32. Use `/api/data-sources/coverage` to expose which data requirements are covered, partial, licensed-only, or missing.

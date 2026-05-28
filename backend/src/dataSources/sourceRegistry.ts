@@ -1,5 +1,6 @@
 import { CninfoReportProvider } from "./providers/cninfoReportProvider.js";
 import { CmfChinaFundOfficialProvider } from "./providers/cmfChinaFundOfficialProvider.js";
+import { CsrcFundDisclosureProvider } from "./providers/csrcFundDisclosureProvider.js";
 import { DemoFixtureProvider } from "./providers/demoFixtureProvider.js";
 import { EastMoneyFundAnnouncementProvider } from "./providers/eastMoneyFundAnnouncementProvider.js";
 import { EastMoneyFundArchiveProvider } from "./providers/eastMoneyFundArchiveProvider.js";
@@ -12,6 +13,7 @@ import type { DataProvider } from "./providers/baseProvider.js";
 import type { DataProviderResult, DataSourceInfo, FundDataSourceInput, ProviderFundPayload } from "./sourceTypes.js";
 import { listDataSourceCatalog } from "./sourceCatalog.js";
 import { nowIso } from "../schemas/index.js";
+import type { DataRequirement } from "../schemas/index.js";
 
 export interface SourceRegistryOptions {
   demoMode?: boolean;
@@ -33,6 +35,7 @@ export class SourceRegistry {
       normalized.enableLiveProviders ?? (process.env.FUNDSENTINEL_DISABLE_LIVE_PROVIDERS !== "true" && process.env.NODE_ENV !== "test");
     this.usesCustomProviders = Boolean(normalized.providers);
     this.providers = normalized.providers ?? [
+      new CsrcFundDisclosureProvider(),
       new EastMoneyFundProvider(),
       new EastMoneyFundArchiveProvider(),
       new EastMoneyFundAnnouncementProvider(),
@@ -66,6 +69,53 @@ export class SourceRegistry {
 
   catalog() {
     return listDataSourceCatalog();
+  }
+
+  coverageMatrix(): Array<{
+    requirement: DataRequirement | "official_fund_reports" | "benchmark" | "macro_data";
+    source_ids: string[];
+    implemented_source_ids: string[];
+    authoritative_source_ids: string[];
+    needs_license_source_ids: string[];
+    gap_level: "covered" | "partial" | "missing" | "requires_license";
+    notes: string;
+  }> {
+    const catalog = this.catalog();
+    const requirements: Array<DataRequirement | "official_fund_reports" | "benchmark" | "macro_data"> = [
+      "fund_meta",
+      "current_nav",
+      "nav_history",
+      "holdings",
+      "fund_reports",
+      "official_fund_reports",
+      "policy_evidence",
+      "industry_news",
+      "social_sentiment",
+      "benchmark",
+      "macro_data"
+    ];
+
+    return requirements.map((requirement) => {
+      const matching = catalog.filter((source) => source.recommended_for.includes(requirement) || source.coverage.includes(requirement));
+      const implemented = matching.filter((source) => source.integration_status === "implemented" && !source.is_demo);
+      const authoritative = matching.filter((source) => source.quality_tier === "authoritative");
+      const needsLicense = matching.filter((source) => source.integration_status === "requires_license");
+      let gapLevel: "covered" | "partial" | "missing" | "requires_license" = "missing";
+      if (requirement === "official_fund_reports" && implemented.length > 0) gapLevel = "partial";
+      else if (implemented.some((source) => source.quality_tier === "authoritative")) gapLevel = "covered";
+      else if (implemented.length > 0) gapLevel = "partial";
+      else if (needsLicense.length > 0 && matching.length === needsLicense.length) gapLevel = "requires_license";
+
+      return {
+        requirement,
+        source_ids: matching.map((source) => source.source_id),
+        implemented_source_ids: implemented.map((source) => source.source_id),
+        authoritative_source_ids: authoritative.map((source) => source.source_id),
+        needs_license_source_ids: needsLicense.map((source) => source.source_id),
+        gap_level: gapLevel,
+        notes: this.coverageNoteFor(requirement, gapLevel)
+      };
+    });
   }
 
   providerCandidates(): Array<{ source_id: string; source_name: string; source_type: string; priority: number; is_demo: boolean; enabled: boolean }> {
@@ -117,6 +167,19 @@ export class SourceRegistry {
     if (info.is_demo) return this.demoMode;
     if (!this.usesCustomProviders && !this.enableLiveProviders) return false;
     return info.enabled;
+  }
+
+  private coverageNoteFor(
+    requirement: DataRequirement | "official_fund_reports" | "benchmark" | "macro_data",
+    gapLevel: "covered" | "partial" | "missing" | "requires_license"
+  ): string {
+    if (requirement === "official_fund_reports") {
+      return "强结论需要官方披露的定期报告正文或官方 PDF 元数据；聚合索引和报告提示公告只能支持 partial。";
+    }
+    if (gapLevel === "covered") return "已有权威 provider 接入，但仍应做缓存、重试和交叉校验。";
+    if (gapLevel === "partial") return "已有 provider 可支撑弱结论，需要补官方或授权来源。";
+    if (gapLevel === "requires_license") return "主要依赖授权数据源，接入前需要完成商务和密钥配置。";
+    return "尚无可用 provider，Argus 必须把该项列入数据缺口和工程任务。";
   }
 
   private mergeContext(left: ProviderFundPayload, right: ProviderFundPayload): ProviderFundPayload {

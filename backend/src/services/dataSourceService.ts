@@ -25,6 +25,15 @@ export class DataSourceService {
     };
   }
 
+  coverage() {
+    return {
+      strategy: "real-data-first",
+      generated_at: nowIso(),
+      note: "Coverage matrix shows whether Argus has implemented providers for each data requirement. Planned sources are not counted as integrated.",
+      coverage: this.sourceRegistry.coverageMatrix()
+    };
+  }
+
   health() {
     return {
       demo_mode: this.sourceRegistry.isDemoMode(),

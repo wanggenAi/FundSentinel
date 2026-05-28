@@ -68,7 +68,8 @@ export class ArgusAgent extends BaseAgent {
           theme_count: dataPack.themes.length
         },
         warnings: [...quality.warnings, ...quality.blocking_issues],
-        nextSuggestions: dataPack.acquisition_solutions.flatMap((solution) => solution.proposed_actions)
+        nextSuggestions: dataPack.acquisition_solutions.flatMap((solution) => solution.proposed_actions),
+        isMock: quality.data_status === "demo"
       })
     };
   }
@@ -283,7 +284,8 @@ export class ArgusAgent extends BaseAgent {
       recommended_solutions: [
         "接入基金公司官网公告/定期报告 provider，补齐官方 fund_reports。",
         "接入官方政策与行业数据 provider，补齐 policy_evidence。",
-        "为已实现的东方财富 provider 增加缓存、限流、重试和第二来源交叉校验。",
+        "为已实现的真实 provider 增加缓存、限流、重试和第二来源交叉校验。",
+        "实现证监会基金电子披露查询 endpoint 或官方 PDF 导入归档，补齐 official_fund_reports。",
         "支持用户或运营手动导入历史净值/持仓 CSV，并保留审计记录。",
         "增加定时同步任务。",
         "增加数据源监控告警。"
@@ -306,7 +308,8 @@ export class ArgusAgent extends BaseAgent {
           "在真实数据可用前，禁止对用户展示为真实自动分析。"
         ],
         engineering_tasks: [
-          "为 EastMoneyFundProvider 与 EastMoneyFundArchiveProvider 增加持久缓存、限流和失败重试。",
+          "为 EastMoneyFundProvider、EastMoneyFundArchiveProvider 和 CsrcFundDisclosureProvider 增加持久缓存、限流和失败重试。",
+          "完成证监会基金电子披露官方报告检索 endpoint 适配，若站点防护阻断则改走官方 PDF 人工导入和授权数据 API。",
           "实现基金公司公告/巨潮资讯报告检索、下载、解析和来源归档。",
           "实现政策网站检索、主题映射和证据去重。",
           "实现 CSV schema 校验和人工导入审计记录。",

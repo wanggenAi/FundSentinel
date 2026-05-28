@@ -92,6 +92,7 @@ Data providers live under `src/dataSources/`:
 - `EastMoneyFundArchiveProvider`: implemented real public-web provider for public stock/bond holding tables and disclosed holding dates from Tiantian Fund archive pages.
 - `EastMoneyFundAnnouncementProvider`: implemented real public-web provider for periodic fund report announcement indexes, detail URLs, PDF attachment URLs, and HEAD-based PDF availability metadata. This is a report discovery/source-reference provider, not a replacement for official report PDF parsing.
 - `CmfChinaFundOfficialProvider`: implemented first fund-company official-site adapter. It parses CMF China official fund detail pages, product notices, current NAV snippets, and report-prompt notices. It records official provenance, but report-prompt notices are not treated as full report bodies.
+- `CsrcFundDisclosureProvider`: implemented first official disclosure probe for the CSRC fund e-disclosure site. It parses official periodic-report links when reachable and records site-protection or endpoint failures as explicit `DataGapReport` evidence.
 - `FundCompanyReportProvider`: intended real provider for holdings and official fund reports.
 - `CninfoReportProvider`: intended backup official report source.
 - `PolicyNewsProvider`: intended provider for policy and industry news evidence.
@@ -114,6 +115,8 @@ Argus also has a source universe catalog exposed by `GET /api/data-sources/catal
 - demo fixture last, only for tests/local demo
 
 The catalog is a living source universe. A source marked `planned` or `requires_license` is not considered integrated until a provider fetches it, records provenance, and has parser tests.
+
+`GET /api/data-sources/coverage` exposes Argus's coverage matrix by requirement. It separates implemented providers from planned or licensed sources, so the backend can answer which high-quality data needs are covered now, which are partial, and which remain gaps. This is the concrete route toward the broad internet-data goal without pretending unimplemented sources are already integrated.
 
 ## Shared Blackboard
 
@@ -155,6 +158,7 @@ If Argus returns `insufficient` or `unavailable`, the DAG stops after Argus. Atl
 - `GET /api/agents`
 - `GET /api/data-sources`
 - `GET /api/data-sources/catalog`
+- `GET /api/data-sources/coverage`
 - `GET /api/data-sources/health`
 - `GET /api/data-sources/gaps/{fund_code}`
 - `POST /api/data-sources/manual-import/plan`
@@ -189,6 +193,7 @@ The live public provider set currently includes:
 - `https://api.fund.eastmoney.com/f10/JJGG` for periodic fund report announcement indexes, with the F10 referer required by the public endpoint.
 - `https://pdf.dfcfw.com/pdf/H2_{announcement_id}_1.pdf` for report PDF attachment availability checks. Argus currently records whether the latest report PDFs respond as `application/pdf` and stores content length when available.
 - `https://www.cmfchina.com/web/fundDetail/{fund_code}/index.html` for CMF China official fund-company product details and official notice/report-prompt references.
+- `http://eid.csrc.gov.cn/fund` for the CSRC fund e-disclosure official entrypoint. The provider records official-site blocking or endpoint failures rather than silently ignoring them.
 - `https://www.gov.cn/zhengce/zuixin/ZUIXINZHENGCE.json` for official latest national policy metadata. Argus treats this as macro policy context only; it does not make single-fund conclusions from policy titles.
 
 These providers parse public responses without `eval`, record `raw_reference`, apply timeout/freshness checks, and mark results as real provider data (`is_demo=false`). Aggregator sources can support partial analysis, but strong conclusions require official, identifiable report bodies and complete core data. Official report-prompt notices, such as "quarterly report prompt announcement", are recorded as `report_notice`; they do not clear the `official_fund_reports` gap by themselves.
