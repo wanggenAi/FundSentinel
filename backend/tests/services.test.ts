@@ -70,11 +70,13 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(navHistory?.implemented_source_ids.includes("eastmoney-fund"));
   assert.ok(navHistory?.implemented_source_ids.includes("eastmoney-nav-history"));
   assert.ok(macroData?.source_ids.includes("stats-gov-cn"));
+  assert.ok(macroData?.source_ids.includes("pbc-official"));
   assert.ok(macroData?.source_ids.includes("fred-official"));
   assert.ok(macroData?.source_ids.includes("world-bank-api"));
   assert.ok(macroData?.source_ids.includes("imf-data-api"));
   assert.ok(macroData?.source_ids.includes("eurostat-api"));
   assert.ok(macroData?.implemented_source_ids.includes("stats-gov-cn"));
+  assert.ok(macroData?.implemented_source_ids.includes("pbc-official"));
   assert.ok(macroData?.implemented_source_ids.includes("fred-official"));
   assert.ok(macroData?.implemented_source_ids.includes("world-bank-api"));
   assert.ok(macroData?.implemented_source_ids.includes("imf-data-api"));

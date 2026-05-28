@@ -347,13 +347,13 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     stability: "high",
     coverage: ["monetary_policy", "rates", "liquidity", "financial_statistics"],
     recommended_for: ["macro_context", "bond_fund_context", "risk_context"],
-    access_method: "official website",
+    access_method: "official money statistics HTML: https://www.pbc.gov.cn/diaochatongjisi/116219/116319/5570903/5570886/index.html",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Use official public statistics and releases with timestamps.",
     priority: 43,
-    notes: "Important macro source for bond funds and liquidity context."
+    notes: "Implemented for official PBC Money Supply monthly HTML tables, including M2/M1/M0 liquidity indicators. Macro context only."
   },
   {
     source_id: "stats-gov-cn",
