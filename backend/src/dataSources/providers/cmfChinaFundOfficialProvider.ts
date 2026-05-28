@@ -12,13 +12,22 @@ interface CmfChinaNotice {
   detailUrl: string;
 }
 
+interface CmfChinaNoticeDetail {
+  title?: string;
+  publishedAt?: string;
+  pdfUrl: string | null;
+  mentionsCsrcEid: boolean;
+  mentionsCompanyWebsite: boolean;
+}
+
 export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   private static readonly baseUrl = "https://www.cmfchina.com";
 
   constructor(
     private readonly fetchImpl: FetchLike = fetch,
     private readonly timeoutMs = Number(process.env.FUNDSENTINEL_PROVIDER_TIMEOUT_MS ?? 12000),
-    private readonly maxDetailFetches = Number(process.env.FUNDSENTINEL_CMFCHINA_DETAIL_FETCH_COUNT ?? 3)
+    private readonly maxDetailFetches = Number(process.env.FUNDSENTINEL_CMFCHINA_DETAIL_FETCH_COUNT ?? 3),
+    private readonly verifyPdfCount = Number(process.env.FUNDSENTINEL_CMFCHINA_VERIFY_PDF_COUNT ?? 3)
   ) {}
 
   sourceInfo(): DataSourceInfo {
@@ -43,7 +52,8 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
       circuit_open_until: null,
       circuit_open_count: 0,
       freshness_policy: "official company notices are fresh within 150 days and acceptable within 240 days",
-      notes: "Parses CMF China official fund detail pages for product notices and report-notice evidence. It records provenance but does not pretend prompt notices are full report bodies."
+      notes:
+        "Parses CMF China official fund detail pages, notice detail pages, and report PDF metadata. It records provenance and does not pretend prompt notices are full report bodies."
     };
   }
 
@@ -76,10 +86,14 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
         warnings
       );
       const documents = parsed.notices.map((notice) => this.documentFor(notice, detailNotices.get(notice.adId)));
+      await this.verifyPdfDocuments(documents, warnings);
       const latestDate = documents.map((document) => document.published_at).filter(Boolean).sort().at(-1);
       const freshness = this.freshnessFor(latestDate ?? undefined);
       if (!documents.some((document) => document.document_kind === "periodic_report" || document.document_kind === "report_notice")) {
         warnings.push("招商基金官网公告列表未识别到定期报告或报告提示公告。");
+      }
+      if (documents.some((document) => document.document_kind === "periodic_report" && document.pdf_url) && !documents.some((document) => document.document_kind === "periodic_report" && document.pdf_verified)) {
+        warnings.push("招商基金官网识别到定期报告 PDF 链接，但尚未通过 PDF 元数据校验，official_fund_reports 不应视为完整覆盖。");
       }
       if (freshness === "stale") warnings.push("招商基金官网最新公告较旧，强结论应降级。");
 
@@ -176,12 +190,13 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
     return [...notices.values()];
   }
 
-  static parseNoticeDetailPage(html: string): { title?: string; publishedAt?: string; mentionsCsrcEid: boolean; mentionsCompanyWebsite: boolean } {
+  static parseNoticeDetailPage(html: string, detailUrl = CmfChinaFundOfficialProvider.baseUrl): CmfChinaNoticeDetail {
     const title = this.firstMatch(html, /<h2>([^<]+)<\/h2>/u);
     const publishedAt = this.firstMatch(html, /<div[^>]*class="data"[^>]*>([^<]+)<\/div>/u);
     return {
       title,
       publishedAt,
+      pdfUrl: this.firstPdfUrl(html, detailUrl),
       mentionsCsrcEid: /eid\.csrc\.gov\.cn\/fund/u.test(html),
       mentionsCompanyWebsite: /cmfchina\.com/u.test(html) || /本公司网站/u.test(html)
     };
@@ -224,20 +239,40 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
   private async fetchNoticeDetails(
     notices: CmfChinaNotice[],
     warnings: string[]
-  ): Promise<Map<string, ReturnType<typeof CmfChinaFundOfficialProvider.parseNoticeDetailPage>>> {
-    const detailMap = new Map<string, ReturnType<typeof CmfChinaFundOfficialProvider.parseNoticeDetailPage>>();
+  ): Promise<Map<string, CmfChinaNoticeDetail>> {
+    const detailMap = new Map<string, CmfChinaNoticeDetail>();
     await Promise.all(
       notices.map(async (notice) => {
         try {
           const response = await this.fetchWithTimeout(notice.detailUrl, { headers: this.headers() }, Math.min(this.timeoutMs, 5000));
           if (!response.ok) return;
-          detailMap.set(notice.adId, CmfChinaFundOfficialProvider.parseNoticeDetailPage(await response.text()));
+          detailMap.set(notice.adId, CmfChinaFundOfficialProvider.parseNoticeDetailPage(await response.text(), notice.detailUrl));
         } catch (error) {
           warnings.push(`招商基金官网公告详情抓取失败：${notice.adId} ${error instanceof Error ? error.message : String(error)}。`);
         }
       })
     );
     return detailMap;
+  }
+
+  private async verifyPdfDocuments(documents: FundReportDocument[], warnings: string[]): Promise<void> {
+    const candidates = documents.filter((document) => document.pdf_url).slice(0, Math.max(0, this.verifyPdfCount));
+    await Promise.all(
+      candidates.map(async (document) => {
+        try {
+          const response = await this.fetchWithTimeout(document.pdf_url!, { method: "HEAD", headers: this.pdfHeaders() }, Math.min(this.timeoutMs, 5000));
+          const contentType = response.headers.get("content-type");
+          const contentLength = response.headers.get("content-length");
+          const parsedLength = contentLength ? Number(contentLength) : null;
+          document.pdf_verified = response.ok && Boolean(contentType?.toLowerCase().includes("pdf"));
+          document.pdf_content_type = contentType;
+          document.pdf_content_length = parsedLength !== null && Number.isFinite(parsedLength) ? parsedLength : document.pdf_content_length;
+          if (!document.pdf_verified) warnings.push(`招商基金官网报告 PDF 未通过 HEAD 校验：${document.announcement_id}。`);
+        } catch (error) {
+          warnings.push(`招商基金官网报告 PDF 校验失败：${document.announcement_id} ${error instanceof Error ? error.message : String(error)}。`);
+        }
+      })
+    );
   }
 
   private async fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number): Promise<Response> {
@@ -252,7 +287,7 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
 
   private documentFor(
     notice: CmfChinaNotice,
-    detail?: ReturnType<typeof CmfChinaFundOfficialProvider.parseNoticeDetailPage>
+    detail?: CmfChinaNoticeDetail
   ): FundReportDocument {
     const title = detail?.title ?? notice.title;
     return {
@@ -262,7 +297,7 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
       category: null,
       document_kind: this.documentKindFor(title, detail),
       detail_url: notice.detailUrl,
-      pdf_url: null,
+      pdf_url: detail?.pdfUrl ?? null,
       pdf_verified: false,
       pdf_content_type: null,
       pdf_content_length: null,
@@ -272,7 +307,7 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
     };
   }
 
-  private documentKindFor(title: string, _detail?: ReturnType<typeof CmfChinaFundOfficialProvider.parseNoticeDetailPage>): FundReportDocument["document_kind"] {
+  private documentKindFor(title: string, _detail?: CmfChinaNoticeDetail): FundReportDocument["document_kind"] {
     if (/季度报告|年度报告|中期报告/u.test(title) && /提示性公告/u.test(title)) return "report_notice";
     if (/季度报告|年度报告|中期报告/u.test(title)) return "periodic_report";
     if (/销售文件|招募说明书|基金合同|托管协议|产品资料概要/u.test(title)) return "sales_document";
@@ -285,7 +320,7 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
   }
 
   private reportRefFor(document: FundReportDocument): string {
-    return `${document.published_at ?? "unknown-date"} ${document.title} id=${document.announcement_id} kind=${document.document_kind} url=${document.detail_url ?? ""}`;
+    return `${document.published_at ?? "unknown-date"} ${document.title} id=${document.announcement_id} kind=${document.document_kind} url=${document.detail_url ?? ""} pdf=${document.pdf_url ?? ""} pdf_verified=${document.pdf_verified}`;
   }
 
   private fundDetailUrl(fundCode: string): string {
@@ -295,6 +330,13 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
   private headers(): HeadersInit {
     return {
       "user-agent": "Mozilla/5.0 FundSentinel/0.1 (+https://github.com/wanggenAi/FundSentinel)"
+    };
+  }
+
+  private pdfHeaders(): HeadersInit {
+    return {
+      ...this.headers(),
+      accept: "application/pdf,*/*;q=0.8"
     };
   }
 
@@ -330,7 +372,24 @@ export class CmfChinaFundOfficialProvider implements DataProvider<FundDataSource
   }
 
   private static stripHtml(value: string): string {
-    return value.replace(/<[^>]+>/gu, "").replace(/&nbsp;/gu, " ").trim();
+    return value
+      .replace(/<[^>]+>/gu, "")
+      .replace(/&nbsp;/gu, " ")
+      .replace(/&amp;/gu, "&")
+      .replace(/\s+/gu, " ")
+      .trim();
+  }
+
+  private static firstPdfUrl(html: string, detailUrl: string): string | null {
+    const attributeMatch = /(?:href|src)=["']([^"']+\.pdf(?:[?#][^"']*)?)["']/iu.exec(html);
+    const rawMatch = /https?:\/\/[^\s"'<>]+\.pdf(?:[?#][^\s"'<>]*)?/iu.exec(html);
+    const candidate = attributeMatch?.[1] ?? rawMatch?.[0];
+    if (!candidate) return null;
+    try {
+      return new URL(candidate, detailUrl).toString();
+    } catch {
+      return candidate;
+    }
   }
 
   private static numberOrUndefined(value?: string): number | undefined {
