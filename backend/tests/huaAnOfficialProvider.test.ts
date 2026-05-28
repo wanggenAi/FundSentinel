@@ -58,6 +58,27 @@ const huaAnNavTableHtml = `
 </table>
 `;
 
+const huaAnReportDetailHtml = `
+<html>
+  <head><title>华安策略优选混合型证券投资基金2026年第1季度报告</title></head>
+  <body>
+    <h1>华安策略优选混合型证券投资基金2026年第1季度报告</h1>
+    <div class="date">发布时间：2026-04-22</div>
+    <p>本报告全文同步登载于华安基金官网。</p>
+    <a href="/upload/report/040008-2026q1.pdf">下载PDF全文</a>
+  </body>
+</html>
+`;
+
+const huaAnBusinessNoticeHtml = `
+<html>
+  <body>
+    <h1>关于华安策略优选混合型证券投资基金暂停大额申购的公告</h1>
+    <div class="date">发布时间：2026-05-19</div>
+  </body>
+</html>
+`;
+
 test("HuaAn official parser extracts fund detail, NAV, holdings, and notices", () => {
   const parsed = HuaAnFundOfficialProvider.parseFundDetailPage(huaAnDetailHtml, "040008");
   const navRows = HuaAnFundOfficialProvider.parseNavTable(huaAnNavTableHtml);
@@ -81,13 +102,43 @@ test("HuaAn official parser extracts fund detail, NAV, holdings, and notices", (
   );
 });
 
+test("HuaAn official parser discovers report PDFs from official notice details", () => {
+  const parsed = HuaAnFundOfficialProvider.parseNoticeDetailPage(
+    huaAnReportDetailHtml,
+    "https://www.huaan.com.cn/news/2026-04-22/123456_1.shtml"
+  );
+
+  assert.equal(parsed.title, "华安策略优选混合型证券投资基金2026年第1季度报告");
+  assert.equal(parsed.publishedAt, "2026-04-22");
+  assert.equal(parsed.pdfUrl, "https://www.huaan.com.cn/upload/report/040008-2026q1.pdf");
+  assert.equal(parsed.mentionsCompanyWebsite, true);
+});
+
 test("HuaAn official provider returns official core data without fund advice", async () => {
-  const fetchImpl = (async (input: RequestInfo | URL) => {
+  const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("selectFundayByCode.do")) {
       return new Response(huaAnNavTableHtml, {
         status: 200,
         headers: { "content-type": "text/html" }
+      });
+    }
+    if (url.endsWith("/news/2026-04-22/123456_1.shtml")) {
+      return new Response(huaAnReportDetailHtml, {
+        status: 200,
+        headers: { "content-type": "text/html" }
+      });
+    }
+    if (url.endsWith("/news/2026-05-19/123457_1.shtml")) {
+      return new Response(huaAnBusinessNoticeHtml, {
+        status: 200,
+        headers: { "content-type": "text/html" }
+      });
+    }
+    if (url.endsWith("/upload/report/040008-2026q1.pdf") && init?.method === "HEAD") {
+      return new Response(null, {
+        status: 200,
+        headers: { "content-type": "application/pdf", "content-length": "456789" }
       });
     }
     return new Response(huaAnDetailHtml, {
@@ -113,6 +164,10 @@ test("HuaAn official provider returns official core data without fund advice", a
   assert.deepEqual(result.data?.portfolio_holdings, ["招商轮船(601872)", "万华化学(600309)"]);
   assert.equal(result.data?.fund_report_documents?.[0]?.source_type, "official_disclosure");
   assert.equal(result.data?.fund_report_documents?.[0]?.document_kind, "periodic_report");
+  assert.equal(result.data?.fund_report_documents?.[0]?.pdf_url, "https://www.huaan.com.cn/upload/report/040008-2026q1.pdf");
+  assert.equal(result.data?.fund_report_documents?.[0]?.pdf_verified, true);
+  assert.equal(result.data?.fund_report_documents?.[0]?.pdf_content_type, "application/pdf");
+  assert.equal(result.data?.fund_report_documents?.[0]?.pdf_content_length, 456789);
   assert.equal(result.data?.fund_report_documents?.[1]?.document_kind, "business_notice");
   assert.ok(result.warnings.some((warning) => warning.includes("基金公司官方来源")));
   assert.doesNotMatch(JSON.stringify(result.data), /trial_buy|staged_buy|buy|sell|position/i);
@@ -158,7 +213,47 @@ test("Argus recognizes HuaAn official provider as official core NAV coverage", a
   assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.current_nav, true);
   assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.nav_history, true);
   assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.holdings, true);
+  assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.fund_reports, false);
   assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_current_nav"), false);
   assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_nav_history"), false);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), true);
   assert.ok(dataPack.data_sources.some((source) => source.source_id === "huaan-fund-official" && source.record_count === 3));
+});
+
+test("Argus counts HuaAn official reports only after official PDF metadata is verified", async () => {
+  const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes("selectFundayByCode.do")) {
+      return new Response(huaAnNavTableHtml, {
+        status: 200,
+        headers: { "content-type": "text/html" }
+      });
+    }
+    if (url.endsWith("/news/2026-04-22/123456_1.shtml")) {
+      return new Response(huaAnReportDetailHtml, {
+        status: 200,
+        headers: { "content-type": "text/html" }
+      });
+    }
+    if (url.endsWith("/upload/report/040008-2026q1.pdf") && init?.method === "HEAD") {
+      return new Response(null, {
+        status: 200,
+        headers: { "content-type": "application/pdf", "content-length": "456789" }
+      });
+    }
+    return new Response(huaAnDetailHtml, {
+      status: 200,
+      headers: { "content-type": "text/html" }
+    });
+  }) as typeof fetch;
+  const registry = new SourceRegistry({
+    providers: [new HuaAnFundOfficialProvider(fetchImpl, 1000)],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("huaan-official-report-flow", "040008");
+
+  assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.fund_reports, true);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), false);
 });

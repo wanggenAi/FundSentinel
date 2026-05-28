@@ -18,12 +18,22 @@ interface HuaAnNotice {
   detailUrl: string;
 }
 
+interface HuaAnNoticeDetail {
+  title?: string;
+  publishedAt?: string;
+  pdfUrl: string | null;
+  mentionsCsrcEid: boolean;
+  mentionsCompanyWebsite: boolean;
+}
+
 export class HuaAnFundOfficialProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   private static readonly baseUrl = "https://www.huaan.com.cn";
 
   constructor(
     private readonly fetchImpl: FetchLike = fetch,
-    private readonly timeoutMs = Number(process.env.FUNDSENTINEL_PROVIDER_TIMEOUT_MS ?? 12000)
+    private readonly timeoutMs = Number(process.env.FUNDSENTINEL_PROVIDER_TIMEOUT_MS ?? 12000),
+    private readonly maxDetailFetches = Number(process.env.FUNDSENTINEL_HUAAN_DETAIL_FETCH_COUNT ?? 3),
+    private readonly verifyPdfCount = Number(process.env.FUNDSENTINEL_HUAAN_VERIFY_PDF_COUNT ?? 3)
   ) {}
 
   sourceInfo(): DataSourceInfo {
@@ -48,7 +58,8 @@ export class HuaAnFundOfficialProvider implements DataProvider<FundDataSourceInp
       circuit_open_until: null,
       circuit_open_count: 0,
       freshness_policy: "official company NAV rows should be fresh within 10 days and acceptable within 30 days",
-      notes: "Parses HuaAn official fund pages and NAV table endpoint for official fund metadata, current NAV, recent NAV rows, holdings names, and disclosure links."
+      notes:
+        "Parses HuaAn official fund pages, NAV table endpoint, disclosure detail pages, and PDF metadata for official fund metadata, current NAV, recent NAV rows, holdings names, and report evidence."
     };
   }
 
@@ -83,15 +94,22 @@ export class HuaAnFundOfficialProvider implements DataProvider<FundDataSourceInp
       const currentNavDate = detail.currentNavDate ?? navRows.at(-1)?.date;
       const navHistory = navRows.map((row) => row.nav);
       const navHistoryDates = navRows.map((row) => row.date);
-      const documents = detail.notices.map((notice, index) => this.documentFor(notice, index));
-      const freshness = this.freshnessFor(currentNavDate);
       const warnings = [
-        "华安基金官网是基金公司官方来源；当前 provider 解析官网详情页、净值表、持仓名称和公告链接，报告 PDF 正文仍需后续接入证监会/公司公告正文解析。"
+        "华安基金官网是基金公司官方来源；当前 provider 解析官网详情页、净值表、持仓名称、公告详情和 PDF 元数据，PDF 正文仍需后续接入证监会/公司公告全文解析。"
       ];
+      const noticeDetails = await this.fetchNoticeDetails(
+        detail.notices.filter((notice) => this.isReportLike(notice.title)).slice(0, Math.max(0, this.maxDetailFetches)),
+        warnings
+      );
+      const documents = detail.notices.map((notice, index) => this.documentFor(notice, index, noticeDetails.get(notice.detailUrl)));
+      await this.verifyPdfDocuments(documents, warnings);
+      const freshness = this.freshnessFor(currentNavDate);
       if (!navRows.length) warnings.push("华安基金官网净值表未返回可用历史净值行。");
       if (freshness === "stale") warnings.push("华安基金官网最新净值日期偏旧，强结论应降级。");
       if (!documents.some((document) => document.document_kind === "periodic_report")) {
         warnings.push("华安基金官网详情页未识别到完整定期报告正文，official_fund_reports 仍需证监会或官方 PDF 交叉验证。");
+      } else if (!documents.some((document) => document.document_kind === "periodic_report" && document.pdf_verified)) {
+        warnings.push("华安基金官网识别到定期报告公告，但尚未校验到官方 PDF 附件，official_fund_reports 不应视为完整覆盖。");
       }
 
       return {
@@ -197,6 +215,25 @@ export class HuaAnFundOfficialProvider implements DataProvider<FundDataSourceInp
     return [...notices.values()];
   }
 
+  static parseNoticeDetailPage(html: string, detailUrl: string): HuaAnNoticeDetail {
+    const title =
+      this.firstMatch(html, /<h1[^>]*>([\s\S]*?)<\/h1>/u) ??
+      this.firstMatch(html, /<h2[^>]*>([\s\S]*?)<\/h2>/u) ??
+      this.firstMatch(html, /<title[^>]*>([\s\S]*?)<\/title>/u);
+    const publishedAt =
+      this.firstMatch(html, /(?:发布日期|发布时间|日期)[：:\s]*<\/?[^>]*>\s*(\d{4}-\d{2}-\d{2})/u) ??
+      this.firstMatch(html, /(?:发布日期|发布时间|日期)[：:\s]*(\d{4}-\d{2}-\d{2})/u) ??
+      this.firstMatch(html, /(\d{4}-\d{2}-\d{2})/u);
+
+    return {
+      title,
+      publishedAt,
+      pdfUrl: this.firstPdfUrl(html, detailUrl),
+      mentionsCsrcEid: /eid\.csrc\.gov\.cn\/fund/u.test(html),
+      mentionsCompanyWebsite: /huaan\.com\.cn/u.test(html) || /本公司网站|华安基金官网/u.test(html)
+    };
+  }
+
   private static parseTopStockHoldings(html: string): string[] {
     const headerIndex = html.indexOf("前十名股票投资明细");
     if (headerIndex < 0) return [];
@@ -211,15 +248,55 @@ export class HuaAnFundOfficialProvider implements DataProvider<FundDataSourceInp
     return [...new Set(holdings)];
   }
 
-  private documentFor(notice: HuaAnNotice, index: number): FundReportDocument {
+  private async fetchNoticeDetails(notices: HuaAnNotice[], warnings: string[]): Promise<Map<string, HuaAnNoticeDetail>> {
+    const detailMap = new Map<string, HuaAnNoticeDetail>();
+    await Promise.all(
+      notices.map(async (notice) => {
+        try {
+          const response = await this.fetchWithTimeout(notice.detailUrl, { headers: this.headers() }, Math.min(this.timeoutMs, 5000));
+          if (!response.ok) {
+            warnings.push(`华安基金官网公告详情返回 HTTP ${response.status}：${notice.title}。`);
+            return;
+          }
+          detailMap.set(notice.detailUrl, HuaAnFundOfficialProvider.parseNoticeDetailPage(await response.text(), notice.detailUrl));
+        } catch (error) {
+          warnings.push(`华安基金官网公告详情抓取失败：${notice.title} ${error instanceof Error ? error.message : String(error)}。`);
+        }
+      })
+    );
+    return detailMap;
+  }
+
+  private async verifyPdfDocuments(documents: FundReportDocument[], warnings: string[]): Promise<void> {
+    const candidates = documents.filter((document) => document.pdf_url).slice(0, Math.max(0, this.verifyPdfCount));
+    await Promise.all(
+      candidates.map(async (document) => {
+        try {
+          const response = await this.fetchWithTimeout(document.pdf_url!, { method: "HEAD", headers: this.pdfHeaders() }, Math.min(this.timeoutMs, 5000));
+          const contentType = response.headers.get("content-type");
+          const contentLength = response.headers.get("content-length");
+          const parsedLength = contentLength ? Number(contentLength) : null;
+          document.pdf_verified = response.ok && Boolean(contentType?.toLowerCase().includes("pdf"));
+          document.pdf_content_type = contentType;
+          document.pdf_content_length = parsedLength !== null && Number.isFinite(parsedLength) ? parsedLength : document.pdf_content_length;
+          if (!document.pdf_verified) warnings.push(`华安基金官网报告 PDF 未通过 HEAD 校验：${document.announcement_id}。`);
+        } catch (error) {
+          warnings.push(`华安基金官网报告 PDF 校验失败：${document.announcement_id} ${error instanceof Error ? error.message : String(error)}。`);
+        }
+      })
+    );
+  }
+
+  private documentFor(notice: HuaAnNotice, index: number, detail?: HuaAnNoticeDetail): FundReportDocument {
+    const title = detail?.title ?? notice.title;
     return {
-      title: notice.title,
+      title,
       announcement_id: `huaan-${notice.publishedAt ?? "unknown"}-${index}`,
-      published_at: notice.publishedAt,
+      published_at: detail?.publishedAt ?? notice.publishedAt,
       category: null,
-      document_kind: this.documentKindFor(notice.title),
+      document_kind: this.documentKindFor(title),
       detail_url: notice.detailUrl,
-      pdf_url: null,
+      pdf_url: detail?.pdfUrl ?? null,
       pdf_verified: false,
       pdf_content_type: null,
       pdf_content_length: null,
@@ -237,7 +314,11 @@ export class HuaAnFundOfficialProvider implements DataProvider<FundDataSourceInp
   }
 
   private reportRefFor(document: FundReportDocument): string {
-    return `${document.published_at ?? "unknown-date"} ${document.title} id=${document.announcement_id} kind=${document.document_kind} url=${document.detail_url ?? ""}`;
+    return `${document.published_at ?? "unknown-date"} ${document.title} id=${document.announcement_id} kind=${document.document_kind} url=${document.detail_url ?? ""} pdf=${document.pdf_url ?? ""} pdf_verified=${document.pdf_verified}`;
+  }
+
+  private isReportLike(title: string): boolean {
+    return /季度报告|年度报告|中期报告/u.test(title);
   }
 
   private fundDetailUrl(fundCode: string): string {
@@ -262,6 +343,13 @@ export class HuaAnFundOfficialProvider implements DataProvider<FundDataSourceInp
     return {
       "user-agent": "Mozilla/5.0 FundSentinel/0.1 (+https://github.com/wanggenAi/FundSentinel)",
       accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    };
+  }
+
+  private pdfHeaders(): HeadersInit {
+    return {
+      ...this.headers(),
+      accept: "application/pdf,*/*;q=0.8"
     };
   }
 
@@ -305,7 +393,24 @@ export class HuaAnFundOfficialProvider implements DataProvider<FundDataSourceInp
   }
 
   private static stripHtml(value: string): string {
-    return value.replace(/<[^>]+>/gu, "").replace(/&nbsp;/gu, " ").replace(/\s+/gu, " ").trim();
+    return value
+      .replace(/<[^>]+>/gu, "")
+      .replace(/&nbsp;/gu, " ")
+      .replace(/&amp;/gu, "&")
+      .replace(/\s+/gu, " ")
+      .trim();
+  }
+
+  private static firstPdfUrl(html: string, detailUrl: string): string | null {
+    const attributeMatch = /(?:href|src)=["']([^"']+\.pdf(?:[?#][^"']*)?)["']/iu.exec(html);
+    const rawMatch = /https?:\/\/[^\s"'<>]+\.pdf(?:[?#][^\s"'<>]*)?/iu.exec(html);
+    const candidate = attributeMatch?.[1] ?? rawMatch?.[0];
+    if (!candidate) return null;
+    try {
+      return new URL(candidate, detailUrl).toString();
+    } catch {
+      return candidate;
+    }
   }
 
   private static numberOrUndefined(value?: string): number | undefined {

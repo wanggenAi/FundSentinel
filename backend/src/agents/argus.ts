@@ -605,7 +605,9 @@ export class ArgusAgent extends BaseAgent {
         (document) =>
           document.source_type === "official_disclosure" &&
           document.trust_level === "A" &&
-          document.document_kind === "periodic_report"
+          document.document_kind === "periodic_report" &&
+          document.pdf_verified === true &&
+          Boolean(document.pdf_url)
       )
     );
   }
