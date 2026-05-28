@@ -4,7 +4,7 @@ export interface EvidenceItem {
   title: string;
   source_name: string;
   source_type: SourceType;
-  trust_level: TrustLevel;
+  trust_level: TrustLevel | "DEMO";
   summary: string;
   importance_score: number;
   related_theme: string | null;
@@ -42,4 +42,3 @@ export interface AnalyzeRequest {
   fund_code: string;
   user_request: string;
 }
-

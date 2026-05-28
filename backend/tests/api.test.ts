@@ -23,8 +23,8 @@ test("API home returns HomeDashboardResponse", async () => {
   const payload = response.json();
   assert.equal(payload.is_mock, true);
   assert.equal(payload.generated_by, "Atlas");
-  assert.ok(payload.strategy_triggers.length > 0);
-  assert.ok(payload.strategy_triggers.every((trigger: { related_agent?: string }) => trigger.related_agent));
+  assert.equal(payload.strategy_triggers.length, 0);
+  assert.ok(payload.today_focus.some((item: { title: string }) => item.title === "真实数据不足"));
 });
 
 test("API opportunities returns OpportunitySquareResponse", async () => {
@@ -34,11 +34,10 @@ test("API opportunities returns OpportunitySquareResponse", async () => {
 
   assert.equal(response.statusCode, 200);
   const payload = response.json();
-  assert.equal(payload.is_mock, true);
+  assert.equal(payload.is_mock, false);
   assert.equal(payload.generated_by, "Atlas");
-  assert.equal(payload.candidates.length, 5);
-  assert.ok(payload.candidates.every((candidate: Record<string, unknown>) => "overall_opportunity_score" in candidate));
-  assert.ok(payload.candidates.every((candidate: Record<string, unknown>) => "action" in candidate));
+  assert.equal(payload.candidates.length, 0);
+  assert.match(payload.summary, /真实核心数据不可用/);
 });
 
 test("API fund analysis and analyze post return full analysis", async () => {
@@ -54,10 +53,32 @@ test("API fund analysis and analyze post return full analysis", async () => {
   assert.equal(getResponse.statusCode, 200);
   const getPayload = getResponse.json();
   assert.equal(getPayload.fund_code, "007951");
-  assert.deepEqual(new Set(Object.keys(getPayload.agent_results)), new Set(["Argus", "Logos", "Nadir", "Vega", "Aegis", "Atlas"]));
+  assert.deepEqual(new Set(Object.keys(getPayload.agent_results)), new Set(["Argus", "Atlas"]));
   assert.equal(getPayload.final_decision.generated_by, "Atlas");
+  assert.equal(getPayload.data_pack.data_status, "unavailable");
 
   assert.equal(postResponse.statusCode, 200);
-  assert.equal(postResponse.json().is_mock, true);
+  assert.equal(postResponse.json().data_pack.data_status, "unavailable");
 });
 
+test("data source APIs are available", async () => {
+  const app = await buildApp();
+  const sourcesResponse = await app.inject({ method: "GET", url: "/api/data-sources" });
+  const catalogResponse = await app.inject({ method: "GET", url: "/api/data-sources/catalog" });
+  const healthResponse = await app.inject({ method: "GET", url: "/api/data-sources/health" });
+  const gapsResponse = await app.inject({ method: "GET", url: "/api/data-sources/gaps/007951" });
+  const manualPlanResponse = await app.inject({ method: "POST", url: "/api/data-sources/manual-import/plan" });
+  await app.close();
+
+  assert.equal(sourcesResponse.statusCode, 200);
+  assert.ok(sourcesResponse.json().sources.some((source: { source_id: string }) => source.source_id === "demo-fixture"));
+  assert.equal(catalogResponse.statusCode, 200);
+  assert.ok(catalogResponse.json().sources.some((source: { source_id: string }) => source.source_id === "csrc-fund-disclosure"));
+  assert.ok(catalogResponse.json().sources.some((source: { source_id: string }) => source.source_id === "commercial-terminal-api"));
+  assert.equal(healthResponse.statusCode, 200);
+  assert.ok(healthResponse.json().sources.length > 0);
+  assert.equal(gapsResponse.statusCode, 200);
+  assert.ok(gapsResponse.json().recommended_solutions.length > 0);
+  assert.equal(manualPlanResponse.statusCode, 200);
+  assert.ok(manualPlanResponse.json().solutions[0].engineering_tasks.length > 0);
+});

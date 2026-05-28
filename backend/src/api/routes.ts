@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { AtlasOrchestrationService, FundAnalysisService, HomeService, OpportunityService } from "../services/index.js";
+import { AtlasOrchestrationService, DataSourceService, FundAnalysisService, HomeService, OpportunityService } from "../services/index.js";
 import { nowIso } from "../schemas/index.js";
 
 const analyzeRequestSchema = z.object({
@@ -19,6 +19,18 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   }));
 
   app.get("/api/agents", async () => new AtlasOrchestrationService().listAgents());
+
+  app.get("/api/data-sources", async () => new DataSourceService().listSources());
+
+  app.get("/api/data-sources/catalog", async () => new DataSourceService().catalog());
+
+  app.get("/api/data-sources/health", async () => new DataSourceService().health());
+
+  app.get<{ Params: { fund_code: string } }>("/api/data-sources/gaps/:fund_code", async (request) =>
+    new DataSourceService().gaps(request.params.fund_code)
+  );
+
+  app.post("/api/data-sources/manual-import/plan", async () => new DataSourceService().manualImportPlan());
 
   app.get("/api/home", async () => new HomeService().getHomeDashboard());
 
@@ -44,4 +56,3 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return new FundAnalysisService().analyzeFund(parsed.data.fund_code);
   });
 }
-

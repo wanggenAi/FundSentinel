@@ -28,6 +28,16 @@ export class FundAnalysisDagRunner {
     blackboard.writeAgentResult(taskId, argusResult);
     this.trace("Argus", "finish");
 
+    if (!dataPack.allow_downstream_analysis || ["insufficient", "unavailable"].includes(dataPack.data_status)) {
+      blackboard.markDegraded(taskId, `Argus data_status=${dataPack.data_status}; downstream analysis stopped.`);
+      this.trace("Atlas", "start");
+      const atlasResult = await this.deps.atlas.finalReview(taskId, dataPack, blackboard.getAllAgentResults(taskId));
+      blackboard.writeAgentResult(taskId, atlasResult);
+      blackboard.markCompleted(taskId);
+      this.trace("Atlas", "finish");
+      return { dataPack, agentResults: blackboard.getAllAgentResults(taskId) };
+    }
+
     this.trace("Logos,Nadir,Vega", "parallel_start");
     const [logosResult, nadirResult, vegaResult] = await Promise.all([
       this.runAgent("Logos", this.deps.logos.run(taskId, dataPack)),
@@ -72,4 +82,3 @@ export class FundAnalysisDagRunner {
     this.deps.traceRecorder?.(agentName, event);
   }
 }
-

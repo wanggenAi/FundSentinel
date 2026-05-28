@@ -1,42 +1,47 @@
 import { BaseAgent } from "./base.js";
-import type { AgentResult, EvidenceItem, FundDataPack } from "../schemas/index.js";
-import { type AgentStatus } from "../schemas/index.js";
+import { SourceRegistry, type DataProviderResult, type ProviderFundPayload } from "../dataSources/index.js";
+import type {
+  AgentResult,
+  DataAcquisitionPlan,
+  DataAcquisitionSolution,
+  DataGapReport,
+  DataQualityReport,
+  DataRequirement,
+  DataStatus,
+  EvidenceItem,
+  FundDataPack
+} from "../schemas/index.js";
+import { type AgentStatus, nowIso } from "../schemas/index.js";
 import { AIGateway } from "../services/aiGateway.js";
-import { MockDataService } from "../services/mockDataService.js";
 
 export class ArgusAgent extends BaseAgent {
   readonly name = "Argus";
   readonly role = "Data Steward Agent";
   readonly responsibilities = [
-    "管理基金基础数据、历史净值、持仓数据和 mock 数据质量",
-    "输出 FundDataPack 并显式标记 mock",
-    "记录数据更新时间、可信度和质量告警"
+    "优先获取真实基金数据并记录来源",
+    "校验基金元数据、当前净值、历史净值、持仓、报告和外部证据",
+    "在数据不足时输出 DataGapReport 和 DataAcquisitionSolution，阻止假数据驱动强结论"
   ];
 
   constructor(
-    private readonly mockDataService = new MockDataService(),
+    private readonly sourceRegistry = new SourceRegistry(),
     aiGateway?: AIGateway
   ) {
     super(aiGateway);
   }
 
   async prepareDataPack(taskId: string, fundCode: string): Promise<{ dataPack: FundDataPack; result: AgentResult }> {
-    const dataPack = this.mockDataService.getFundDataPack(fundCode);
-    const status: AgentStatus = dataPack.data_quality.level === "low" ? "warning" : "success";
-    const evidence: EvidenceItem[] = [
-      {
-        title: "Mock 基金数据包",
-        source_name: "MockDataService",
-        source_type: "mock",
-        trust_level: "C",
-        summary: "V0.1 使用内置 mock 基金基础信息、净值历史、主题和质量标记。",
-        importance_score: 0.8,
-        related_theme: null,
-        published_at: dataPack.updated_at,
-        url: null,
-        is_mock: true
-      }
-    ];
+    const plan = this.buildAcquisitionPlan(taskId, fundCode);
+    const providerResults = await this.sourceRegistry.fetchAll({
+      fund_code: fundCode,
+      required_data: [...plan.required_data, ...plan.optional_data],
+      demo_mode: this.sourceRegistry.isDemoMode()
+    });
+    const dataPack = this.buildFundDataPack(fundCode, plan, providerResults);
+    const quality = dataPack.data_quality_report;
+    const status: AgentStatus = quality.data_status === "ready" ? "success" : quality.allow_downstream_analysis ? "warning" : "failed";
+    const evidence = this.buildEvidence(providerResults);
+    const confidence = this.confidenceFor(quality.data_status, quality.score);
 
     return {
       dataPack,
@@ -44,18 +49,26 @@ export class ArgusAgent extends BaseAgent {
         taskId,
         fundCode: dataPack.fund_code,
         status,
-        score: Number((dataPack.data_quality.score * 100).toFixed(2)),
-        confidence: dataPack.data_quality.score,
-        summary: `${dataPack.fund_name} 数据包已生成，质量等级 ${dataPack.data_quality.level}。`,
+        score: quality.score,
+        confidence,
+        summary: this.summaryFor(dataPack),
         evidence,
         metrics: {
-          data_quality_score: dataPack.data_quality.score,
+          data_status: quality.data_status,
+          data_quality_score: quality.score,
+          real_source_count: quality.real_source_count,
+          demo_source_count: quality.demo_source_count,
+          successful_source_count: quality.successful_source_count,
+          failed_source_count: quality.failed_source_count,
+          missing_core_fields: quality.missing_core_fields,
+          missing_auxiliary_fields: quality.missing_auxiliary_fields,
+          allow_downstream_analysis: quality.allow_downstream_analysis,
+          allow_strong_conclusion: quality.allow_strong_conclusion,
           nav_points: dataPack.nav_history.length,
-          theme_count: dataPack.themes.length,
-          is_mock: true
+          theme_count: dataPack.themes.length
         },
-        warnings: dataPack.data_quality.warnings,
-        nextSuggestions: ["接入真实基金基础信息、净值、基金报告和持仓披露数据源。"]
+        warnings: [...quality.warnings, ...quality.blocking_issues],
+        nextSuggestions: dataPack.acquisition_solutions.flatMap((solution) => solution.proposed_actions)
       })
     };
   }
@@ -63,5 +76,340 @@ export class ArgusAgent extends BaseAgent {
   async run(taskId: string, fundCode: string): Promise<AgentResult> {
     return (await this.prepareDataPack(taskId, fundCode)).result;
   }
-}
 
+  buildAcquisitionPlan(taskId: string, fundCode: string): DataAcquisitionPlan {
+    return {
+      task_id: taskId,
+      fund_code: fundCode,
+      requested_by: "Atlas",
+      required_data: ["fund_meta", "current_nav", "nav_history"],
+      optional_data: ["holdings", "fund_reports", "policy_evidence", "industry_news", "social_sentiment"],
+      provider_candidates: this.sourceRegistry.providerCandidates(),
+      acquisition_strategy: "优先使用真实 provider 获取基金元数据、当前净值和历史净值；再补充持仓、报告、政策和新闻证据。",
+      fallback_strategy: "主数据源失败后尝试备用真实 provider；自动源全部失败时提出 CSV/第三方 API/定时同步等解决方案。Demo fixture 仅在显式 demo mode 下启用。",
+      created_by: "Argus",
+      created_at: nowIso()
+    };
+  }
+
+  private buildFundDataPack(
+    fundCode: string,
+    plan: DataAcquisitionPlan,
+    providerResults: Array<DataProviderResult<ProviderFundPayload>>
+  ): FundDataPack {
+    const merged = this.mergeProviderPayloads(providerResults.filter((result) => result.success && result.data).map((result) => result.data!));
+    const quality = this.buildQualityReport(providerResults, merged);
+    const gapReport = this.buildGapReport(fundCode, quality, providerResults);
+    const solutions = this.buildSolutions(quality, gapReport);
+    const now = nowIso();
+    return {
+      fund_code: merged.fund_code ?? fundCode,
+      fund_name: merged.fund_name ?? "Unknown fund",
+      fund_type: merged.fund_type ?? "unknown",
+      themes: merged.themes ?? [],
+      current_nav: merged.current_nav ?? 0,
+      daily_return: merged.daily_return ?? 0,
+      nav_history: merged.nav_history ?? [],
+      stage_returns: merged.stage_returns ?? {},
+      portfolio_holdings: merged.portfolio_holdings ?? [],
+      fund_report_refs: merged.fund_report_refs ?? [],
+      fund_report_documents: merged.fund_report_documents ?? [],
+      policy_signals: merged.policy_signals ?? [],
+      news_summaries: merged.news_summaries ?? [],
+      social_sentiment_score: merged.social_sentiment_score ?? 0,
+      evidence_items: this.buildEvidence(providerResults),
+      data_sources: providerResults.map((result) => ({
+        source_id: result.source_id,
+        source_name: result.source_name,
+        source_type: result.source_type,
+        trust_level: result.trust_level,
+        success: result.success,
+        data_status: result.data_status,
+        freshness: result.freshness,
+        fetched_at: result.fetched_at,
+        raw_reference: result.raw_reference,
+        record_count: this.recordCountFor(result.data),
+        as_of: result.data?.holdings_as_of,
+        is_demo: result.is_demo,
+        error: result.error,
+        warnings: result.warnings
+      })),
+      data_acquisition_plan: plan,
+      data_quality_report: quality,
+      data_gap_report: gapReport,
+      acquisition_solutions: solutions,
+      data_status: quality.data_status,
+      allow_downstream_analysis: quality.allow_downstream_analysis,
+      allow_strong_conclusion: quality.allow_strong_conclusion,
+      data_quality: {
+        level: quality.level,
+        score: quality.score / 100,
+        source: "Argus SourceRegistry",
+        updated_at: quality.generated_at,
+        warnings: quality.warnings,
+        is_mock: quality.data_status === "demo"
+      },
+      updated_at: now,
+      generated_at: now,
+      is_mock: quality.data_status === "demo"
+    };
+  }
+
+  private mergeProviderPayloads(payloads: ProviderFundPayload[]): ProviderFundPayload {
+    const merged: ProviderFundPayload = {};
+    for (const payload of payloads) {
+      this.setIfMissing(merged, "fund_code", payload.fund_code);
+      this.setIfMissing(merged, "fund_name", payload.fund_name);
+      this.setIfMissing(merged, "fund_type", payload.fund_type);
+      this.setIfMissing(merged, "current_nav", payload.current_nav);
+      this.setIfMissing(merged, "daily_return", payload.daily_return);
+      this.setIfMissing(merged, "social_sentiment_score", payload.social_sentiment_score);
+
+      if (payload.nav_history?.length && (!merged.nav_history?.length || payload.nav_history.length > merged.nav_history.length)) {
+        merged.nav_history = payload.nav_history;
+      }
+      if (payload.stage_returns) {
+        merged.stage_returns = { ...(merged.stage_returns ?? {}), ...payload.stage_returns };
+      }
+      merged.portfolio_holdings = this.mergeUnique(merged.portfolio_holdings, payload.portfolio_holdings);
+      merged.fund_report_refs = this.mergeUnique(merged.fund_report_refs, payload.fund_report_refs);
+      merged.fund_report_documents = this.mergeReportDocuments(merged.fund_report_documents, payload.fund_report_documents);
+      merged.themes = this.mergeUnique(merged.themes, payload.themes);
+      merged.policy_signals = this.mergeUnique(merged.policy_signals, payload.policy_signals);
+      merged.news_summaries = this.mergeUnique(merged.news_summaries, payload.news_summaries);
+
+      if (payload.holdings_as_of && (!merged.holdings_as_of || payload.holdings_as_of > merged.holdings_as_of)) {
+        merged.holdings_as_of = payload.holdings_as_of;
+      }
+      this.setIfMissing(merged, "holdings_source", payload.holdings_source);
+    }
+    return merged;
+  }
+
+  private buildQualityReport(
+    providerResults: Array<DataProviderResult<ProviderFundPayload>>,
+    merged: ProviderFundPayload
+  ): DataQualityReport {
+    const successful = providerResults.filter((result) => result.success);
+    const failed = providerResults.filter((result) => !result.success);
+    const demoSuccess = successful.filter((result) => result.is_demo);
+    const realSuccess = successful.filter((result) => !result.is_demo);
+    const missingCoreFields = [
+      !merged.fund_code || !merged.fund_name ? "fund_meta" : null,
+      merged.current_nav === undefined ? "current_nav" : null,
+      !merged.nav_history?.length ? "nav_history" : null
+    ].filter(Boolean) as string[];
+    const hasFundReportSource = successful.some((result) => result.source_type === "fund_report" || Boolean(result.data?.fund_report_refs?.length));
+    const hasAuthoritativeFundReportSource = this.hasAuthoritativeFundReportDocument(successful);
+    const missingAuxiliaryFields = [
+      !merged.portfolio_holdings?.length ? "holdings" : null,
+      hasFundReportSource ? null : "fund_reports",
+      hasAuthoritativeFundReportSource ? null : "official_fund_reports",
+      !merged.policy_signals?.length ? "policy_evidence" : null,
+      !merged.news_summaries?.length ? "industry_news" : null,
+      merged.social_sentiment_score === undefined ? "social_sentiment" : null
+    ].filter(Boolean) as string[];
+    const staleSources = providerResults.filter((result) => result.freshness === "stale").map((result) => result.source_name);
+    const warnings = providerResults.flatMap((result) => result.warnings);
+    const blockingIssues: string[] = [];
+    let dataStatus: DataStatus = "ready";
+    let allowDownstreamAnalysis = true;
+    let allowStrongConclusion = true;
+
+    if (demoSuccess.length > 0 && realSuccess.length === 0) {
+      dataStatus = "demo";
+      allowStrongConclusion = false;
+    } else if (successful.length === 0) {
+      dataStatus = "unavailable";
+      allowDownstreamAnalysis = false;
+      allowStrongConclusion = false;
+      blockingIssues.push("没有可用真实数据源，不能继续真实基金分析。");
+    } else if (missingCoreFields.length > 0) {
+      dataStatus = "insufficient";
+      allowDownstreamAnalysis = false;
+      allowStrongConclusion = false;
+      blockingIssues.push(`核心数据缺失：${missingCoreFields.join(", ")}。`);
+    } else if (missingAuxiliaryFields.some((field) => ["holdings", "fund_reports", "official_fund_reports", "policy_evidence"].includes(field))) {
+      dataStatus = "partial";
+      allowStrongConclusion = false;
+      warnings.push(`辅助证据不完整：${missingAuxiliaryFields.join(", ")}。Logos 必须降级，Atlas 不允许强结论。`);
+    }
+
+    if (staleSources.length > 0) {
+      allowStrongConclusion = false;
+      warnings.push(`存在过期数据源：${staleSources.join(", ")}。`);
+      if (dataStatus === "ready") dataStatus = "partial";
+    }
+    if (missingAuxiliaryFields.includes("industry_news")) warnings.push("industry_news 缺失，不影响核心数据但会降低解释完整性。");
+    if (missingAuxiliaryFields.includes("social_sentiment")) warnings.push("social_sentiment 缺失，不影响核心分析，只能作为弱可选信号。");
+
+    const score = this.scoreFor(dataStatus, missingCoreFields.length, realSuccess.length, demoSuccess.length, failed.length);
+    return {
+      data_status: dataStatus,
+      level: score >= 75 ? "high" : score >= 45 ? "medium" : "low",
+      score,
+      real_source_count: realSuccess.length,
+      demo_source_count: demoSuccess.length,
+      successful_source_count: successful.length,
+      failed_source_count: failed.length,
+      missing_core_fields: missingCoreFields,
+      missing_auxiliary_fields: missingAuxiliaryFields,
+      stale_sources: staleSources,
+      warnings,
+      blocking_issues: blockingIssues,
+      allow_downstream_analysis: allowDownstreamAnalysis,
+      allow_strong_conclusion: allowStrongConclusion,
+      generated_by: "Argus",
+      generated_at: nowIso()
+    };
+  }
+
+  private buildGapReport(
+    fundCode: string,
+    quality: DataQualityReport,
+    providerResults: Array<DataProviderResult<ProviderFundPayload>>
+  ): DataGapReport | null {
+    const failedSources = providerResults.filter((result) => !result.success).map((result) => result.source_name);
+    const missingData = [...quality.missing_core_fields, ...quality.missing_auxiliary_fields];
+    if (quality.data_status === "ready") return null;
+    return {
+      fund_code: fundCode,
+      missing_data: [...new Set(missingData)],
+      failed_sources: failedSources,
+      impact: quality.allow_downstream_analysis
+        ? "只能支持弱结论，后续 Agent 必须降级。"
+        : "不能支持真实基金分析，后续 Agent 不应输出买卖或仓位结论。",
+      blocking_downstream_agents: quality.allow_downstream_analysis ? ["Logos"] : ["Logos", "Nadir", "Vega", "Aegis"],
+      recommended_solutions: [
+        "接入基金公司官网公告/定期报告 provider，补齐官方 fund_reports。",
+        "接入官方政策与行业数据 provider，补齐 policy_evidence。",
+        "为已实现的东方财富 provider 增加缓存、限流、重试和第二来源交叉校验。",
+        "支持用户或运营手动导入历史净值/持仓 CSV，并保留审计记录。",
+        "增加定时同步任务。",
+        "增加数据源监控告警。"
+      ],
+      created_by: "Argus",
+      created_at: nowIso()
+    };
+  }
+
+  private buildSolutions(quality: DataQualityReport, gapReport: DataGapReport | null): DataAcquisitionSolution[] {
+    if (!gapReport) return [];
+    return [
+      {
+        problem: `当前数据状态为 ${quality.data_status}，缺少 ${gapReport.missing_data.join(", ")}。`,
+        severity: quality.allow_downstream_analysis ? "high" : "blocking",
+        proposed_actions: [
+          "优先接入基金公司官网、证监会披露、巨潮资讯等官方报告 provider。",
+          "接入官方政策和行业数据 provider，为 Logos 提供可追溯硬证据。",
+          "实现 ManualCsvProvider 作为短期真实数据导入和交叉验证方案。",
+          "在真实数据可用前，禁止对用户展示为真实自动分析。"
+        ],
+        engineering_tasks: [
+          "为 EastMoneyFundProvider 与 EastMoneyFundArchiveProvider 增加持久缓存、限流和失败重试。",
+          "实现基金公司公告/巨潮资讯报告检索、下载、解析和来源归档。",
+          "实现政策网站检索、主题映射和证据去重。",
+          "实现 CSV schema 校验和人工导入审计记录。",
+          "为 SourceRegistry 增加数据源健康监控。"
+        ],
+        manual_workaround: [
+          "短期可通过 CSV 导入基金元数据、当前净值和历史净值完成验证。",
+          "人工导入结果必须显示来源和导入时间，不能标记为自动真实抓取。"
+        ],
+        owner_agent: "Argus"
+      }
+    ];
+  }
+
+  private setIfMissing<K extends keyof ProviderFundPayload>(target: ProviderFundPayload, key: K, value: ProviderFundPayload[K]): void {
+    if (target[key] === undefined && value !== undefined && value !== null) {
+      target[key] = value;
+    }
+  }
+
+  private mergeUnique(left: string[] | undefined, right: string[] | undefined): string[] | undefined {
+    if (!left?.length && !right?.length) return left ?? right;
+    return [...new Set([...(left ?? []), ...(right ?? [])])];
+  }
+
+  private mergeReportDocuments(
+    left: ProviderFundPayload["fund_report_documents"] | undefined,
+    right: ProviderFundPayload["fund_report_documents"] | undefined
+  ): ProviderFundPayload["fund_report_documents"] | undefined {
+    if (!left?.length && !right?.length) return left ?? right;
+    const merged = new Map<string, NonNullable<ProviderFundPayload["fund_report_documents"]>[number]>();
+    for (const document of [...(left ?? []), ...(right ?? [])]) {
+      merged.set(document.announcement_id || document.title, document);
+    }
+    return [...merged.values()];
+  }
+
+  private recordCountFor(data: ProviderFundPayload | null): number | null {
+    if (!data) return null;
+    if (data.nav_history?.length) return data.nav_history.length;
+    if (data.portfolio_holdings?.length) return data.portfolio_holdings.length;
+    if (data.fund_report_documents?.length) return data.fund_report_documents.length;
+    if (data.fund_report_refs?.length) return data.fund_report_refs.length;
+    if (data.policy_signals?.length) return data.policy_signals.length;
+    if (data.news_summaries?.length) return data.news_summaries.length;
+    return null;
+  }
+
+  private buildEvidence(providerResults: Array<DataProviderResult<ProviderFundPayload>>): EvidenceItem[] {
+    return providerResults.map((result) => ({
+      title: `${result.source_name} 数据获取${result.success ? "成功" : "失败"}`,
+      source_name: result.source_name,
+      source_type: result.is_demo ? "demo" : "official",
+      trust_level: result.trust_level,
+      summary: result.success
+        ? `数据状态 ${result.data_status}，freshness=${result.freshness}。`
+        : `数据源失败：${result.error ?? "unknown error"}。`,
+      importance_score: result.success ? 0.8 : 0.65,
+      related_theme: null,
+      published_at: result.fetched_at,
+      url: result.raw_reference,
+      is_mock: result.is_demo
+    }));
+  }
+
+  private scoreFor(dataStatus: DataStatus, missingCoreCount: number, realSuccessCount: number, demoSuccessCount: number, failedCount: number): number {
+    if (dataStatus === "demo") return 35;
+    if (dataStatus === "unavailable") return 0;
+    if (dataStatus === "insufficient") return Math.max(10, 40 - missingCoreCount * 10 - failedCount * 3);
+    if (dataStatus === "partial") return Math.min(72, 50 + realSuccessCount * 8 - failedCount * 2);
+    return Math.min(95, 78 + realSuccessCount * 5 - failedCount);
+  }
+
+  private confidenceFor(dataStatus: DataStatus, score: number): number {
+    if (dataStatus === "demo") return 0.35;
+    if (dataStatus === "unavailable") return 0.05;
+    if (dataStatus === "insufficient") return 0.2;
+    if (dataStatus === "partial") return Math.min(0.6, score / 100);
+    return Math.min(0.9, score / 100);
+  }
+
+  private summaryFor(dataPack: FundDataPack): string {
+    const quality = dataPack.data_quality_report;
+    if (quality.data_status === "ready") {
+      return `Argus 已获取真实核心数据，允许后续 Agent 分析；强结论允许=${quality.allow_strong_conclusion}。`;
+    }
+    if (quality.data_status === "demo") {
+      return "Argus 当前仅获取到 demo fixture 数据，只能用于演示，不能用于真实投资判断，也不允许强结论。";
+    }
+    const missingFields = [...quality.missing_core_fields, ...quality.missing_auxiliary_fields];
+    const missing = missingFields.length ? missingFields.join(", ") : "非核心证据";
+    return `Argus 未能获取足够真实数据，data_status=${quality.data_status}，缺失=${missing}，允许后续分析=${quality.allow_downstream_analysis}，允许强结论=${quality.allow_strong_conclusion}。`;
+  }
+
+  private hasAuthoritativeFundReportDocument(results: Array<DataProviderResult<ProviderFundPayload>>): boolean {
+    return results.some((result) =>
+      result.trust_level === "A" &&
+      result.data?.fund_report_documents?.some(
+        (document) =>
+          document.source_type === "official_disclosure" &&
+          document.trust_level === "A" &&
+          document.document_kind === "periodic_report"
+      )
+    );
+  }
+}

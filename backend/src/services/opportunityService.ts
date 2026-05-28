@@ -1,3 +1,4 @@
+import { SourceRegistry } from "../dataSources/index.js";
 import type { FundAnalysisResponse, OpportunityCandidate, OpportunitySquareResponse, StrategyAction } from "../schemas/index.js";
 import { nowIso } from "../schemas/index.js";
 import { FundAnalysisService } from "./fundAnalysisService.js";
@@ -6,7 +7,7 @@ import { MockDataService } from "./mockDataService.js";
 export class OpportunityService {
   constructor(
     private readonly mockDataService = new MockDataService(),
-    private readonly fundAnalysisService = new FundAnalysisService(mockDataService)
+    private readonly fundAnalysisService = new FundAnalysisService(new SourceRegistry())
   ) {}
 
   async getOpportunities(limit = 6): Promise<OpportunitySquareResponse> {
@@ -15,19 +16,24 @@ export class OpportunityService {
     const analyses = await Promise.all(
       universe.map((fund) => this.fundAnalysisService.analyzeFund(fund.fund_code, `opportunity-${fund.fund_code}`))
     );
-    const candidates = analyses.map((analysis) => this.candidateFromAnalysis(analysis)).sort((a, b) => b.overall_opportunity_score - a.overall_opportunity_score);
+    const candidates = analyses
+      .filter((analysis) => analysis.data_pack.allow_downstream_analysis)
+      .map((analysis) => this.candidateFromAnalysis(analysis))
+      .sort((a, b) => b.overall_opportunity_score - a.overall_opportunity_score);
     const qualityScore = candidates.length ? Math.min(...candidates.map((candidate) => candidate.confidence)) : 0;
     return {
-      is_mock: true,
+      is_mock: candidates.some((candidate) => candidate.is_mock),
       candidates,
-      summary: "Atlas 已基于 mock 多 Agent 结果生成候选池；候选不等于买入，动作以 Aegis 风险仓位建议为准。",
+      summary: candidates.length
+        ? "Atlas 已基于可用数据生成候选池；候选不等于买入，动作以 Aegis 风险仓位建议为准。"
+        : "真实核心数据不可用，Argus 已阻止采基广场生成伪候选基金。",
       data_quality: {
         level: qualityScore >= 0.7 ? "high" : qualityScore >= 0.5 ? "medium" : "low",
         score: Number(qualityScore.toFixed(2)),
-        source: "Atlas + MockDataService",
+        source: "Atlas + Argus SourceRegistry",
         updated_at: nowIso(),
-        warnings: ["采基广场当前全部使用 mock 数据，不代表真实基金推荐。"],
-        is_mock: true
+        warnings: candidates.length ? [] : ["没有真实可用核心数据，采基广场不会输出伪推荐。"],
+        is_mock: false
       },
       generated_by: "Atlas",
       generated_at: nowIso()
@@ -69,4 +75,3 @@ export class OpportunityService {
     };
   }
 }
-

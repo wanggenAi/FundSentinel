@@ -7,7 +7,7 @@
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
     "build": "tsc -p tsconfig.json",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "NODE_ENV=test tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.0",
@@ -20,4 +20,3 @@
     "typescript": "^5.8.0"
   }
 }
-

@@ -15,17 +15,28 @@ export class HomeService {
     const analyses = await Promise.all(
       portfolio.holdings.map((holding) => this.fundAnalysisService.analyzeFund(holding.fund_code, `home-${holding.fund_code}`))
     );
-    const strategyTriggers = this.strategyTriggerService.buildTriggers(analyses);
+    const actionableAnalyses = analyses.filter((analysis) => analysis.data_pack.allow_downstream_analysis);
+    const strategyTriggers = this.strategyTriggerService.buildTriggers(actionableAnalyses);
+    const blockedFunds = analyses.filter((analysis) => !analysis.data_pack.allow_downstream_analysis);
     return {
-      is_mock: true,
+      is_mock: portfolio.is_mock,
       total_assets: portfolio.total_assets,
       daily_pnl: portfolio.daily_pnl,
       daily_pnl_ratio: portfolio.daily_pnl_ratio,
       holding_count: portfolio.holdings.length,
       risk_level: this.homeRiskLevel(strategyTriggers.map((trigger) => trigger.priority)),
       strategy_triggers: strategyTriggers,
-      holding_alerts: this.strategyTriggerService.buildHoldingAlerts(analyses),
-      today_focus: this.strategyTriggerService.buildTodayFocus(strategyTriggers),
+      holding_alerts: this.strategyTriggerService.buildHoldingAlerts(actionableAnalyses),
+      today_focus: [
+        ...this.strategyTriggerService.buildTodayFocus(strategyTriggers),
+        ...blockedFunds.slice(0, 3).map((analysis) => ({
+          title: "真实数据不足",
+          summary: `${analysis.fund_code} 缺少真实核心数据，Argus 已阻止策略结论。`,
+          priority: "high" as const,
+          related_funds: [analysis.fund_code],
+          is_mock: analysis.is_mock
+        }))
+      ],
       data_quality: portfolio.data_quality,
       generated_by: "Atlas",
       generated_at: portfolio.generated_at
@@ -38,4 +49,3 @@ export class HomeService {
     return "low";
   }
 }
-

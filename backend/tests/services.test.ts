@@ -1,34 +1,58 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { FundAnalysisService, HomeService, OpportunityService } from "../src/services/index.js";
+import { SourceRegistry } from "../src/dataSources/index.js";
+import { DataSourceService, FundAnalysisService, HomeService, OpportunityService } from "../src/services/index.js";
 
-test("Atlas generates FundAnalysisResponse", async () => {
-  const response = await new FundAnalysisService().analyzeFund("007951", "analysis-flow");
+test("default FundAnalysisResponse with live providers disabled is data unavailable, not fake analysis", async () => {
+  const response = await new FundAnalysisService(new SourceRegistry({ enableLiveProviders: false })).analyzeFund("007951", "analysis-flow");
 
-  assert.equal(response.is_mock, true);
+  assert.equal(response.is_mock, false);
   assert.equal(response.final_decision.generated_by, "Atlas");
-  assert.deepEqual(new Set(Object.keys(response.agent_results)), new Set(["Argus", "Logos", "Nadir", "Vega", "Aegis", "Atlas"]));
+  assert.deepEqual(new Set(Object.keys(response.agent_results)), new Set(["Argus", "Atlas"]));
   assert.equal((response.blackboard_snapshot as { status: string }).status, "completed");
-  assert.equal(response.data_pack.is_mock, true);
+  assert.equal(response.data_pack.data_status, "unavailable");
+  assert.ok(response.data_pack.data_gap_report?.recommended_solutions.length);
+  assert.ok(response.data_pack.acquisition_solutions[0].engineering_tasks.length);
 });
 
-test("home service returns dashboard with related agents", async () => {
+test("home service does not fake strategy triggers when live providers are disabled", async () => {
   const response = await new HomeService().getHomeDashboard();
 
   assert.equal(response.is_mock, true);
   assert.ok(response.holding_count > 0);
-  assert.ok(response.strategy_triggers.length > 0);
-  assert.ok(response.strategy_triggers.every((trigger) => trigger.related_agent));
-  assert.ok(response.strategy_triggers.every((trigger) => trigger.is_mock));
+  assert.equal(response.strategy_triggers.length, 0);
+  assert.ok(response.today_focus.some((item) => item.title === "真实数据不足"));
 });
 
-test("opportunity service returns candidates with scores and actions", async () => {
+test("opportunity service does not fake candidates without real data", async () => {
   const response = await new OpportunityService().getOpportunities(5);
 
-  assert.equal(response.is_mock, true);
-  assert.equal(response.candidates.length, 5);
-  assert.ok(response.candidates.every((candidate) => typeof candidate.overall_opportunity_score === "number"));
-  assert.ok(response.candidates.every((candidate) => candidate.action));
-  assert.ok(response.candidates.every((candidate) => candidate.is_mock));
+  assert.equal(response.candidates.length, 0);
+  assert.match(response.summary, /真实核心数据不可用/);
 });
 
+test("demo mode can return demo analysis but forbids strong conclusions", async () => {
+  const response = await new FundAnalysisService(new SourceRegistry({ demoMode: true, enableLiveProviders: false })).analyzeFund("007951", "demo-flow");
+
+  assert.equal(response.data_pack.data_status, "demo");
+  assert.equal(response.data_pack.allow_strong_conclusion, false);
+  assert.equal(response.is_mock, true);
+});
+
+test("SourceRegistry lists real providers and demo fixture provider", () => {
+  const sources = new SourceRegistry(false).listSources();
+
+  assert.ok(sources.some((source) => source.source_id === "eastmoney-fund" && !source.is_demo));
+  assert.ok(sources.some((source) => source.source_id === "cmfchina-fund-official" && source.trust_level === "A" && !source.is_demo));
+  assert.ok(sources.some((source) => source.source_id === "demo-fixture" && source.is_demo && !source.enabled));
+});
+
+test("DataSourceService returns gap and manual import plan", async () => {
+  const service = new DataSourceService();
+  const gap = await service.gaps("007951");
+  const manualPlan = service.manualImportPlan();
+
+  assert.ok(gap.missing_data.length > 0);
+  assert.ok(gap.recommended_solutions.length > 0);
+  assert.ok(manualPlan.solutions[0].engineering_tasks.length > 0);
+});

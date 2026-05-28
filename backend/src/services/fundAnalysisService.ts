@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { AegisAgent, ArgusAgent, AtlasAgent, LogosAgent, NadirAgent, VegaAgent } from "../agents/index.js";
+import { SourceRegistry } from "../dataSources/index.js";
 import { SharedBlackboard, FundAnalysisDagRunner } from "../orchestration/index.js";
 import type { FundAnalysisResponse } from "../schemas/index.js";
 import { AIGateway } from "./aiGateway.js";
-import { MockDataService } from "./mockDataService.js";
 
 export class FundAnalysisService {
   constructor(
-    private readonly mockDataService = new MockDataService(),
+    private readonly sourceRegistry = new SourceRegistry(),
     private readonly aiGateway = new AIGateway()
   ) {}
 
@@ -15,7 +15,7 @@ export class FundAnalysisService {
     const blackboard = new SharedBlackboard();
     const atlas = new AtlasAgent(this.aiGateway);
     const runner = new FundAnalysisDagRunner({
-      argus: new ArgusAgent(this.mockDataService, this.aiGateway),
+      argus: new ArgusAgent(this.sourceRegistry, this.aiGateway),
       logos: new LogosAgent(this.aiGateway),
       nadir: new NadirAgent(this.aiGateway),
       vega: new VegaAgent(this.aiGateway),
@@ -29,7 +29,7 @@ export class FundAnalysisService {
       task_id: taskId,
       fund_code: dataPack.fund_code,
       fund_name: dataPack.fund_name,
-      is_mock: true,
+      is_mock: dataPack.data_status === "demo",
       data_pack: dataPack,
       agent_results: agentResults,
       final_decision: finalDecision,
@@ -38,4 +38,3 @@ export class FundAnalysisService {
     };
   }
 }
-

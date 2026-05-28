@@ -1,44 +1,63 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { AegisAgent, ArgusAgent, AtlasAgent, LogosAgent, NadirAgent, VegaAgent } from "../src/agents/index.js";
+import { SourceRegistry } from "../src/dataSources/index.js";
 import type { AgentResult, DataQuality } from "../src/schemas/index.js";
 import { MockDataService } from "../src/services/index.js";
 
-test("each agent returns AgentResult", async () => {
-  const mockData = new MockDataService();
-  const argus = new ArgusAgent(mockData);
+test("Argus returns AgentResult with unavailable data by default", async () => {
+  const argus = new ArgusAgent(new SourceRegistry({ enableLiveProviders: false }));
   const { dataPack, result: argusResult } = await argus.prepareDataPack("contract-task", "007951");
-  const logosResult = await new LogosAgent().run("contract-task", dataPack);
-  const nadirResult = await new NadirAgent().run("contract-task", dataPack);
-  const vegaResult = await new VegaAgent().run("contract-task", dataPack);
+
+  assert.equal(argusResult.agent_name, "Argus");
+  assert.equal(argusResult.task_id, "contract-task");
+  assert.equal(argusResult.status, "failed");
+  assert.equal(dataPack.data_status, "unavailable");
+  assert.equal(dataPack.allow_downstream_analysis, false);
+  assert.equal(dataPack.allow_strong_conclusion, false);
+});
+
+test("specialist agents still return AgentResult with explicit demo fixture input", async () => {
+  const dataPack = new MockDataService().getFundDataPack("007951");
+  const logosResult = await new LogosAgent().run("demo-contract", dataPack);
+  const nadirResult = await new NadirAgent().run("demo-contract", dataPack);
+  const vegaResult = await new VegaAgent().run("demo-contract", dataPack);
   const aegisResult = await new AegisAgent().run("contract-task", dataPack, {
     Logos: logosResult,
     Nadir: nadirResult,
     Vega: vegaResult
   });
   const atlasResult = await new AtlasAgent().finalReview("contract-task", dataPack, {
-    Argus: argusResult,
+    Argus: { ...logosResult, agent_name: "Argus" },
     Logos: logosResult,
     Nadir: nadirResult,
     Vega: vegaResult,
     Aegis: aegisResult
   });
 
-  for (const result of [argusResult, logosResult, nadirResult, vegaResult, aegisResult, atlasResult]) {
-    assert.equal(result.task_id, "contract-task");
+  for (const result of [logosResult, nadirResult, vegaResult, aegisResult, atlasResult]) {
     assert.equal(result.is_mock, true);
     assert.ok(["success", "warning", "failed"].includes(result.status));
     assert.equal(typeof result.agent_name, "string");
   }
 });
 
-test("Argus output is explicitly mock", async () => {
-  const { dataPack, result } = await new ArgusAgent(new MockDataService()).prepareDataPack("argus-task", "007951");
+test("demo mode allows demo dataPack but forbids strong conclusion", async () => {
+  const { dataPack, result } = await new ArgusAgent(new SourceRegistry({ demoMode: true, enableLiveProviders: false })).prepareDataPack("argus-task", "007951");
 
   assert.equal(dataPack.is_mock, true);
+  assert.equal(dataPack.data_status, "demo");
+  assert.equal(dataPack.allow_downstream_analysis, true);
+  assert.equal(dataPack.allow_strong_conclusion, false);
   assert.equal(dataPack.data_quality.is_mock, true);
   assert.equal(result.is_mock, true);
-  assert.equal(result.metrics.is_mock, true);
+  assert.equal(result.metrics.data_status, "demo");
+  assert.ok(result.confidence <= 0.35);
+  assert.equal(result.score, 35);
+  assert.equal(result.metrics.action, undefined);
+  assert.equal(result.metrics.buy, undefined);
+  assert.equal(result.metrics.sell, undefined);
+  assert.equal(result.metrics.position, undefined);
 });
 
 test("low data quality prevents staged_buy", async () => {
@@ -108,4 +127,3 @@ test("critical failed agent prevents aggressive Atlas decision", () => {
 
   assert.ok(!["trial_buy", "staged_buy"].includes(decision.action));
 });
-

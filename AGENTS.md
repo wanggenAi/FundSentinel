@@ -12,3 +12,20 @@
 10. Do not claim guaranteed returns, "must buy", or "risk-free" outcomes.
 11. V0.1 backend uses TypeScript + Fastify. Keep frontend and backend decoupled.
 12. Atlas is a backend orchestrator for home intelligence and opportunity square, not the main user-facing chat UI.
+13. Argus must prioritize real data acquisition over demo or fixture data.
+14. Argus must not fabricate fund data, source metadata, freshness, or provider success.
+15. Argus must not use demo data as real business data; demo requires explicit `FUNDSENTINEL_DEMO_MODE=true`.
+16. Argus must not give investment advice, action, buy, sell, or position conclusions.
+17. Argus must block strong conclusions when core data is missing or stale.
+18. Provider failures must be recorded and surfaced in DataGapReport.
+19. When data cannot be acquired, Argus must output DataAcquisitionSolution with engineering tasks and manual workaround options.
+20. Test fixtures are for tests/local demo only and must not become default business output.
+21. Argus should actively use legal, public internet providers before falling back to manual import.
+22. CSV/manual import is a fallback or bootstrap path, not the default data acquisition strategy.
+23. Public web providers must include timeout, source URL, freshness checks, failure reporting, and parser tests.
+24. The data-source catalog is a living internet source universe; distinguish `implemented`, `planned`, `requires_license`, `manual`, and `blocked` sources clearly.
+25. Do not claim a data source is integrated until a provider fetches it, records provenance, and has tests.
+26. Public aggregator sources can bootstrap data, but official disclosure/policy sources must remain higher trust for strong conclusions.
+27. Official report-prompt notices are useful provenance, but they must not be treated as full report bodies.
+28. `official_fund_reports` should require official disclosure documents, not merely aggregator indexes or generic company notices.
+29. New public-web providers must classify document kind conservatively, especially `periodic_report`, `report_notice`, `business_notice`, and `sales_document`.
