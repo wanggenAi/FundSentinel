@@ -17,6 +17,7 @@ export * from "./providers/govCnPolicyProvider.js";
 export * from "./providers/huaAnFundOfficialProvider.js";
 export * from "./providers/imfDataMapperProvider.js";
 export * from "./providers/manualCsvProvider.js";
+export * from "./providers/manualOfficialReportProvider.js";
 export * from "./providers/policyNewsProvider.js";
 export * from "./providers/statsGovMacroProvider.js";
 export * from "./providers/worldBankMacroProvider.js";

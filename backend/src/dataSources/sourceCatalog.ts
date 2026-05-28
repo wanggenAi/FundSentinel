@@ -194,6 +194,23 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     notes: "Implemented as explicit local CSV directory fallback via FUNDSENTINEL_MANUAL_CSV_DIR. Best short-term way to validate real-data flow without scraping."
   },
   {
+    source_id: "manual-official-report-import",
+    source_name: "人工官方报告 PDF 导入",
+    source_type: "manual_import",
+    quality_tier: "authoritative",
+    stability: "high",
+    coverage: ["fund_reports", "official_fund_reports", "official_pdf_metadata"],
+    recommended_for: ["fund_reports", "official_fund_reports", "official_evidence", "manual_workaround"],
+    access_method: "verified local PDF manifest via FUNDSENTINEL_MANUAL_REPORT_DIR",
+    requires_auth: false,
+    is_demo: false,
+    integration_status: "implemented",
+    legal_note: "Requires official source URL, local PDF file, SHA256 checksum, import timestamp, and operator/source audit trail.",
+    priority: 21,
+    notes:
+      "Implemented as explicit local manifest fallback for official report PDFs when automated official sites are blocked or coverage is incomplete. It verifies PDF file signature and SHA256 but does not parse report body text."
+  },
+  {
     source_id: "gov-cn-policy",
     source_name: "中国政府网最新政策",
     source_type: "policy",

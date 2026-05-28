@@ -13,6 +13,7 @@ import { GovCnPolicyProvider } from "./providers/govCnPolicyProvider.js";
 import { HuaAnFundOfficialProvider } from "./providers/huaAnFundOfficialProvider.js";
 import { ImfDataMapperProvider } from "./providers/imfDataMapperProvider.js";
 import { ManualCsvProvider } from "./providers/manualCsvProvider.js";
+import { ManualOfficialReportProvider } from "./providers/manualOfficialReportProvider.js";
 import { PolicyNewsProvider } from "./providers/policyNewsProvider.js";
 import { StatsGovMacroProvider } from "./providers/statsGovMacroProvider.js";
 import { WorldBankMacroProvider } from "./providers/worldBankMacroProvider.js";
@@ -94,6 +95,7 @@ export class SourceRegistry {
       new ImfDataMapperProvider(),
       new EurostatProvider(),
       new PolicyNewsProvider(),
+      new ManualOfficialReportProvider(),
       new ManualCsvProvider(),
       new DemoFixtureProvider()
     ];
