@@ -70,6 +70,7 @@ export class DemoFixtureProvider implements DataProvider<FundDataSourceInput, Pr
         current_nav: fixture.current_nav,
         daily_return: fixture.daily_return,
         nav_history: fixture.nav_history,
+        nav_history_dates: [],
         stage_returns: fixture.stage_returns,
         portfolio_holdings: fixture.portfolio_holdings,
         themes: fixture.themes,

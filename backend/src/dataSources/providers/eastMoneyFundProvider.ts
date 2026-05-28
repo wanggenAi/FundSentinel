@@ -105,8 +105,10 @@ export class EastMoneyFundProvider implements DataProvider<FundDataSourceInput, 
     const fundCode = this.extractStringVar(text, "fS_code");
     const fundName = this.extractStringVar(text, "fS_name");
     const trend = this.extractJsonVar<Array<{ x: number; y: number; equityReturn?: number }>>(text, "Data_netWorthTrend") ?? [];
-    const navHistory = trend.map((item) => item.y).filter((value) => Number.isFinite(value));
+    const validTrend = trend.filter((item) => Number.isFinite(item.y));
+    const navHistory = validTrend.map((item) => item.y);
     const latest = trend.at(-1);
+    const navHistoryDates = validTrend.map((item) => (Number.isFinite(item.x) ? new Date(item.x).toISOString().slice(0, 10) : "unknown"));
     const stockCodes = this.extractStringArrayVar(text, "stockCodesNew") ?? this.extractStringArrayVar(text, "stockCodes") ?? [];
     const bondCodes = this.extractStringArrayVar(text, "zqCodes") ?? [];
     const stageReturns = this.extractStageReturns(text);
@@ -117,6 +119,7 @@ export class EastMoneyFundProvider implements DataProvider<FundDataSourceInput, 
       current_nav: latest?.y,
       daily_return: latest?.equityReturn === undefined ? undefined : Number((latest.equityReturn / 100).toFixed(6)),
       nav_history: navHistory,
+      nav_history_dates: navHistoryDates,
       stage_returns: stageReturns,
       portfolio_holdings: [...stockCodes.map((code) => `stock:${code}`), ...bondCodes.map((code) => `bond:${code}`)],
       themes: this.inferThemes(fundName),

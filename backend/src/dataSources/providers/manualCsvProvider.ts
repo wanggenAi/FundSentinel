@@ -105,6 +105,7 @@ export class ManualCsvProvider implements DataProvider<FundDataSourceInput, Prov
           current_nav: latest.nav,
           daily_return: latest.daily_return,
           nav_history: navHistory,
+          nav_history_dates: sortedRows.map((row) => row.date),
           portfolio_holdings: [...new Set(sortedRows.flatMap((row) => row.holding ? [row.holding] : []))],
           holdings_source: "manual_csv",
           themes: [...new Set(sortedRows.flatMap((row) => row.theme ? [row.theme] : []))],

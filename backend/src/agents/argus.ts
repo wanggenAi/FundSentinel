@@ -111,6 +111,7 @@ export class ArgusAgent extends BaseAgent {
       current_nav: merged.current_nav ?? 0,
       daily_return: merged.daily_return ?? 0,
       nav_history: merged.nav_history ?? [],
+      nav_history_dates: merged.nav_history_dates ?? [],
       stage_returns: merged.stage_returns ?? {},
       portfolio_holdings: merged.portfolio_holdings ?? [],
       fund_report_refs: merged.fund_report_refs ?? [],
@@ -174,8 +175,11 @@ export class ArgusAgent extends BaseAgent {
       this.setIfMissing(merged, "daily_return", payload.daily_return);
       this.setIfMissing(merged, "social_sentiment_score", payload.social_sentiment_score);
 
-      if (payload.nav_history?.length && (!merged.nav_history?.length || payload.nav_history.length > merged.nav_history.length)) {
+      if (this.shouldUseNavHistory(payload, merged)) {
         merged.nav_history = payload.nav_history;
+        merged.nav_history_dates = payload.nav_history_dates;
+        if (payload.current_nav !== undefined) merged.current_nav = payload.current_nav;
+        if (payload.daily_return !== undefined) merged.daily_return = payload.daily_return;
       }
       if (payload.stage_returns) {
         merged.stage_returns = { ...(merged.stage_returns ?? {}), ...payload.stage_returns };
@@ -344,6 +348,17 @@ export class ArgusAgent extends BaseAgent {
   private mergeUnique(left: string[] | undefined, right: string[] | undefined): string[] | undefined {
     if (!left?.length && !right?.length) return left ?? right;
     return [...new Set([...(left ?? []), ...(right ?? [])])];
+  }
+
+  private shouldUseNavHistory(candidate: ProviderFundPayload, current: ProviderFundPayload): boolean {
+    if (!candidate.nav_history?.length) return false;
+    if (!current.nav_history?.length) return true;
+    const candidateLatest = candidate.nav_history_dates?.at(-1);
+    const currentLatest = current.nav_history_dates?.at(-1);
+    if (candidateLatest && currentLatest && candidateLatest !== currentLatest) return candidateLatest > currentLatest;
+    if (candidateLatest && !currentLatest) return true;
+    if (!candidateLatest && currentLatest) return false;
+    return candidate.nav_history.length > current.nav_history.length;
   }
 
   private mergeReportDocuments(

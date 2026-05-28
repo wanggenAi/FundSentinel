@@ -11,6 +11,7 @@ export interface FundDataPack {
   current_nav: number;
   daily_return: number;
   nav_history: number[];
+  nav_history_dates: string[];
   stage_returns: Record<string, number>;
   portfolio_holdings: string[];
   fund_report_refs: string[];

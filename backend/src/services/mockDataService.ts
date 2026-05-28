@@ -228,6 +228,7 @@ export class MockDataService {
       current_nav: raw.current_nav,
       daily_return: raw.daily_return,
       nav_history: raw.nav_history,
+      nav_history_dates: [],
       stage_returns: raw.stage_returns,
       portfolio_holdings: raw.portfolio_holdings,
       fund_report_refs: [],

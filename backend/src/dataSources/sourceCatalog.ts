@@ -126,8 +126,24 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     is_demo: false,
     integration_status: "implemented",
     legal_note: "Confirm terms before automated use; cache, rate-limit, and cross-check against official reports.",
-    priority: 12,
+    priority: 13,
     notes: "Parses public archive tables for stock and bond holdings."
+  },
+  {
+    source_id: "eastmoney-nav-history",
+    source_name: "东方财富/天天基金历史净值明细",
+    source_type: "nav_history",
+    quality_tier: "high",
+    stability: "medium",
+    coverage: ["current_nav", "nav_history", "nav_history_dates", "purchase_redeem_status"],
+    recommended_for: ["nav_history", "current_nav", "cross_source_validation"],
+    access_method: "public F10 NAV endpoint: https://api.fund.eastmoney.com/f10/lsjz",
+    requires_auth: false,
+    is_demo: false,
+    integration_status: "implemented",
+    legal_note: "Confirm terms before automated use; cache, rate-limit, and cross-check against official fund company NAV disclosures.",
+    priority: 11,
+    notes: "Second implemented NAV path for cross-checking the page JavaScript provider. Not an official fund-company source."
   },
   {
     source_id: "eastmoney-fund-announcement",

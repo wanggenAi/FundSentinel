@@ -21,6 +21,7 @@ test("EastMoney parser extracts real fund fields from public page JavaScript", (
   assert.equal(parsed.fund_type, "bond");
   assert.equal(parsed.current_nav, 1.219);
   assert.deepEqual(parsed.nav_history, [1.217, 1.219]);
+  assert.equal(parsed.nav_history_dates?.length, 2);
   assert.equal(parsed.daily_return, 0.0016);
   assert.equal(parsed.stage_returns?.["1y"], 0.068);
   assert.ok(parsed.portfolio_holdings?.includes("stock:1.600030"));
@@ -48,4 +49,3 @@ test("EastMoney provider fetches and returns provenance with injected fetch", as
   assert.match(result.raw_reference ?? "", /fund\.eastmoney\.com/);
   assert.ok(result.warnings.some((warning) => warning.includes("公开页面解析")));
 });
-

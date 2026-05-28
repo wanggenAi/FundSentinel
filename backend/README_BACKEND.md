@@ -89,6 +89,7 @@ If any core data is missing, Argus returns `insufficient` or `unavailable`. If o
 Data providers live under `src/dataSources/`:
 
 - `EastMoneyFundProvider`: implemented real public-web provider for fund meta, current NAV, NAV history, stage returns, and limited position-code hints from EastMoney/Tiantian Fund page JavaScript.
+- `EastMoneyNavHistoryProvider`: implemented second real public-web NAV provider using the EastMoney/Tiantian F10 historical NAV endpoint. It supplies dated NAV rows for cross-checking core NAV freshness and history.
 - `EastMoneyFundArchiveProvider`: implemented real public-web provider for public stock/bond holding tables and disclosed holding dates from Tiantian Fund archive pages.
 - `EastMoneyFundAnnouncementProvider`: implemented real public-web provider for periodic fund report announcement indexes, detail URLs, PDF attachment URLs, and HEAD-based PDF availability metadata. This is a report discovery/source-reference provider, not a replacement for official report PDF parsing.
 - `CmfChinaFundOfficialProvider`: implemented first fund-company official-site adapter. It parses CMF China official fund detail pages, product notices, current NAV snippets, and report-prompt notices. It records official provenance, but report-prompt notices are not treated as full report bodies.

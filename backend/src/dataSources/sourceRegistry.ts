@@ -5,6 +5,7 @@ import { DemoFixtureProvider } from "./providers/demoFixtureProvider.js";
 import { EastMoneyFundAnnouncementProvider } from "./providers/eastMoneyFundAnnouncementProvider.js";
 import { EastMoneyFundArchiveProvider } from "./providers/eastMoneyFundArchiveProvider.js";
 import { EastMoneyFundProvider } from "./providers/eastMoneyFundProvider.js";
+import { EastMoneyNavHistoryProvider } from "./providers/eastMoneyNavHistoryProvider.js";
 import { FundCompanyReportProvider } from "./providers/fundCompanyReportProvider.js";
 import { GovCnPolicyProvider } from "./providers/govCnPolicyProvider.js";
 import { ManualCsvProvider } from "./providers/manualCsvProvider.js";
@@ -75,6 +76,7 @@ export class SourceRegistry {
     this.providers = normalized.providers ?? [
       new CsrcFundDisclosureProvider(),
       new EastMoneyFundProvider(),
+      new EastMoneyNavHistoryProvider(),
       new EastMoneyFundArchiveProvider(),
       new EastMoneyFundAnnouncementProvider(),
       new CmfChinaFundOfficialProvider(),
@@ -481,6 +483,7 @@ export class SourceRegistry {
       ...left,
       ...Object.fromEntries(Object.entries(right).filter(([, value]) => value !== undefined && value !== null)),
       nav_history: right.nav_history?.length ? right.nav_history : left.nav_history,
+      nav_history_dates: right.nav_history_dates?.length ? right.nav_history_dates : left.nav_history_dates,
       portfolio_holdings: [...new Set([...(left.portfolio_holdings ?? []), ...(right.portfolio_holdings ?? [])])],
       fund_report_refs: [...new Set([...(left.fund_report_refs ?? []), ...(right.fund_report_refs ?? [])])],
       fund_report_documents: [...(left.fund_report_documents ?? []), ...(right.fund_report_documents ?? [])],

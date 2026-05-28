@@ -9,6 +9,7 @@ export * from "./providers/demoFixtureProvider.js";
 export * from "./providers/eastMoneyFundAnnouncementProvider.js";
 export * from "./providers/eastMoneyFundProvider.js";
 export * from "./providers/eastMoneyFundArchiveProvider.js";
+export * from "./providers/eastMoneyNavHistoryProvider.js";
 export * from "./providers/fundCompanyReportProvider.js";
 export * from "./providers/govCnPolicyProvider.js";
 export * from "./providers/manualCsvProvider.js";
