@@ -276,6 +276,9 @@ export class ArgusAgent extends BaseAgent {
     if (missingAuxiliaryFields.includes("industry_news")) warnings.push("industry_news 缺失，不影响核心数据但会降低解释完整性。");
     if (missingAuxiliaryFields.includes("macro_data")) warnings.push("macro_data 缺失，不影响基金核心净值分析，但会降低跨市场/宏观解释能力。");
     if (missingAuxiliaryFields.includes("social_sentiment")) warnings.push("social_sentiment 缺失，不影响核心分析，只能作为弱可选信号。");
+    if (missingAuxiliaryFields.includes("official_fund_reports")) {
+      warnings.push(...this.officialReportGapWarnings(successful));
+    }
 
     const score = this.scoreFor(
       dataStatus,
@@ -319,6 +322,13 @@ export class ArgusAgent extends BaseAgent {
   ): DataGapReport | null {
     const failedSources = providerResults.filter((result) => !result.success).map((result) => result.source_name);
     const missingData = [...quality.missing_core_fields, ...quality.missing_auxiliary_fields];
+    const reportGapSolutions = quality.missing_auxiliary_fields.includes("official_fund_reports")
+      ? [
+          "official_fund_reports 缺口要求官方披露定期报告 PDF 通过元数据校验；只有提示性公告、聚合索引或未校验 PDF 不能放行强结论。",
+          "对已解析到的官方 PDF 执行 HEAD 校验并记录 content-type/content-length；校验失败时保留 DataGapReport，不得把链接当作完整报告证据。",
+          "若官网/证监会站点防护阻断自动校验，改用运营导入官方 PDF 或授权披露 API，并保留导入审计记录。"
+        ]
+      : [];
     if (quality.data_status === "ready") return null;
     return {
       fund_code: fundCode,
@@ -335,6 +345,7 @@ export class ArgusAgent extends BaseAgent {
         ...(quality.missing_auxiliary_fields.includes("official_nav_history")
           ? ["接入基金公司官网、监管披露或授权数据 API 的官方历史净值 provider，补齐 official_nav_history。"]
           : []),
+        ...reportGapSolutions,
         "接入基金公司官网公告/定期报告 provider，补齐官方 fund_reports。",
         "接入官方政策与行业数据 provider，补齐 policy_evidence。",
         "为已实现的真实 provider 增加缓存、限流、重试和第二来源交叉校验。",
@@ -542,6 +553,45 @@ export class ArgusAgent extends BaseAgent {
       url: result.raw_reference,
       is_mock: result.is_demo
     }));
+  }
+
+  private officialReportGapWarnings(results: Array<DataProviderResult<ProviderFundPayload>>): string[] {
+    const documents = results.flatMap((result) =>
+      (result.data?.fund_report_documents ?? []).map((document) => ({
+        sourceId: result.source_id,
+        sourceName: result.source_name,
+        trustLevel: result.trust_level,
+        document
+      }))
+    );
+    const officialDocuments = documents.filter(({ document }) => document.source_type === "official_disclosure");
+    const officialPeriodicDocuments = officialDocuments.filter(({ document }) => document.document_kind === "periodic_report");
+    const unverifiedOfficialPdfs = officialPeriodicDocuments.filter(({ document }) => Boolean(document.pdf_url) && !document.pdf_verified);
+    const reportNotices = officialDocuments.filter(({ document }) => document.document_kind === "report_notice");
+    const aggregatorDocuments = documents.filter(({ document }) => document.source_type === "aggregator_index");
+    const warnings: string[] = [];
+
+    if (unverifiedOfficialPdfs.length) {
+      const sample = unverifiedOfficialPdfs
+        .slice(0, 3)
+        .map(({ sourceId, document }) => `${sourceId}:${document.announcement_id}`)
+        .join(", ");
+      warnings.push(`official_fund_reports 缺口：已发现官方定期报告 PDF 但未通过元数据校验（${sample}）。必须校验 PDF content-type/content-length 或改用授权/人工导入官方 PDF。`);
+    }
+    if (!unverifiedOfficialPdfs.length && reportNotices.length) {
+      const sample = reportNotices
+        .slice(0, 3)
+        .map(({ sourceId, document }) => `${sourceId}:${document.announcement_id}`)
+        .join(", ");
+      warnings.push(`official_fund_reports 缺口：当前仅有官方报告提示公告（${sample}），不能视为完整定期报告正文或已校验 PDF。`);
+    }
+    if (!officialPeriodicDocuments.length && !reportNotices.length && aggregatorDocuments.length) {
+      warnings.push("official_fund_reports 缺口：当前只有聚合公告索引或第三方 PDF，仍需基金公司/监管/巨潮等官方披露源交叉验证。");
+    }
+    if (!documents.length) {
+      warnings.push("official_fund_reports 缺口：未获取到任何基金报告文档元数据。");
+    }
+    return [...new Set(warnings)];
   }
 
   private hasAuthoritativeField<K extends keyof ProviderFundPayload>(results: Array<DataProviderResult<ProviderFundPayload>>, field: K): boolean {

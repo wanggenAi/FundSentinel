@@ -13,6 +13,7 @@ import {
   SourceRegistry,
   WorldBankMacroProvider
 } from "../src/dataSources/index.js";
+import type { DataProviderResult, DataProvider, DataSourceInfo, FundDataSourceInput, ProviderFundPayload } from "../src/dataSources/index.js";
 
 const eastMoneyText = `
 var fS_name = "招商信用增强债券C";var fS_code = "007951";
@@ -64,6 +65,81 @@ fw.pageNum=1;fw.pageSize=10;fw.total=2;fw.pages=1;fw.list=[
 </script>
 <a class="item" href="/web/noticedetails/223506/index.html" target="_blank"><p>招商基金管理有限公司旗下基金2026年第1季度报告提示性公告</p><span class="date">2026-04-22</span></a>
 `;
+
+class UnverifiedOfficialReportProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "unverified-official-report-test",
+      source_name: "Unverified Official Report Test Provider",
+      source_type: "regulatory_disclosure",
+      trust_level: "A",
+      enabled: true,
+      priority: 1,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "unverified-official-report-test",
+      source_name: "Unverified Official Report Test Provider",
+      source_type: "regulatory_disclosure",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "招商信用增强债券C",
+        fund_type: "债券型",
+        current_nav: 1.0799,
+        nav_history: [1.0801, 1.0799],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        fund_report_refs: ["2026-04-22 招商信用增强债券C2026年第1季度报告 pdf_verified=false"],
+        fund_report_documents: [
+          {
+            title: "招商信用增强债券C2026年第1季度报告",
+            announcement_id: "unverified-2026q1",
+            published_at: "2026-04-22",
+            category: null,
+            document_kind: "periodic_report",
+            detail_url: "https://official.example.test/detail",
+            pdf_url: "https://official.example.test/report.pdf",
+            pdf_verified: false,
+            pdf_content_type: null,
+            pdf_content_length: null,
+            source_name: "官方披露测试源",
+            source_type: "official_disclosure",
+            trust_level: "A"
+          }
+        ]
+      },
+      raw_reference: "https://official.example.test/detail",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
 
 test("Argus source composition separates authoritative, aggregator, manual, and macro sources", async () => {
   const registry = new SourceRegistry({
@@ -153,6 +229,47 @@ test("Argus recognizes official fund-company NAV coverage for core NAV fields", 
   assert.deepEqual(dataPack.nav_history_dates, ["2026-05-27", "2026-05-28"]);
   assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_current_nav"), false);
   assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_nav_history"), false);
+});
+
+test("Argus explains official report gaps when only report notices are available", async () => {
+  const registry = new SourceRegistry({
+    providers: [
+      new CmfChinaFundOfficialProvider(
+        (async () =>
+          new Response(cmfFundDetailHtml, {
+            status: 200,
+            headers: { "content-type": "text/html" }
+          })) as typeof fetch,
+        1000,
+        0
+      )
+    ],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("official-report-gap-notice", "007951");
+
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), true);
+  assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("当前仅有官方报告提示公告")));
+  assert.ok(
+    dataPack.data_gap_report?.recommended_solutions.some((solution) => solution.includes("只有提示性公告、聚合索引或未校验 PDF 不能放行强结论"))
+  );
+});
+
+test("Argus explains official report gaps when official PDFs are not verified", async () => {
+  const registry = new SourceRegistry({
+    providers: [new UnverifiedOfficialReportProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("official-report-gap-unverified-pdf", "007951");
+
+  assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.fund_reports, false);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), true);
+  assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("已发现官方定期报告 PDF 但未通过元数据校验")));
+  assert.ok(dataPack.data_gap_report?.recommended_solutions.some((solution) => solution.includes("HEAD 校验并记录 content-type/content-length")));
 });
 
 test("Argus source composition recognizes manual import separately from aggregator sources", async () => {
