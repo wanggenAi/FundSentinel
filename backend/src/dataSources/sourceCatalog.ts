@@ -50,20 +50,20 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     notes: "Best for industry-level facts and manager/public fund validation."
   },
   {
-    source_id: "cninfo-disclosure",
+    source_id: "cninfo-report",
     source_name: "巨潮资讯网",
     source_type: "regulatory_disclosure",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["fund_announcements", "listed_company_announcements", "fund_reports"],
+    coverage: ["fund_announcements", "listed_fund_reports", "listed_fund_pdf_metadata", "fund_reports"],
     recommended_for: ["fund_reports", "official_fund_reports", "holdings_cross_check", "official_announcements"],
-    access_method: "official disclosure website",
+    access_method: "official endpoints: /new/data/fund_stock.json and /new/hisAnnouncement/query",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Respect official site rules; prefer documented query endpoints if available.",
     priority: 4,
-    notes: "Important official disclosure channel."
+    notes: "Implemented for listed funds covered by CNInfo fund_stock.json, such as ETF/LOF/closed-end funds. It uses precise code/orgId matching and verifies official PDF metadata; ordinary open-end funds may be outside this source's coverage."
   },
   {
     source_id: "fund-company-official-sites",

@@ -42,3 +42,4 @@
 40. Core NAV data should prefer multiple independent real providers when available; aggregator NAV sources are useful for cross-checking but still need official fund-company or authorized data confirmation before strong conclusions.
 41. Same-date NAV conflicts across real providers must be recorded in `nav_consistency_report` and must block strong conclusions until resolved.
 42. Argus must keep `source_composition` current; aggregator and manual sources must not be counted as official core coverage.
+43. Official disclosure providers must use precise fund identifiers where possible; broad keyword searches must not be used when they can mis-match another fund.
