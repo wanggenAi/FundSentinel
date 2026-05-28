@@ -1,7 +1,8 @@
 import { nowIso } from "../../schemas/index.js";
 import type { DataProvider } from "./baseProvider.js";
 import type { DataProviderResult, DataSourceInfo, FundDataSourceInput, ProviderFundPayload } from "../sourceTypes.js";
-import { access, readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { access, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 interface ManualCsvRow {
@@ -61,15 +62,30 @@ export class ManualCsvProvider implements DataProvider<FundDataSourceInput, Prov
     const filePath = path.join(this.dataDir, `${input.fund_code}.csv`);
     try {
       await access(filePath);
-      const rows = ManualCsvProvider.parseCsv(await readFile(filePath, "utf8")).filter((row) => row.fund_code === input.fund_code);
+      const [fileBuffer, fileStats] = await Promise.all([readFile(filePath), stat(filePath)]);
+      const fileText = fileBuffer.toString("utf8");
+      const rows = ManualCsvProvider.parseCsv(fileText).filter((row) => row.fund_code === input.fund_code);
       if (!rows.length) return this.failure(info, `No rows found for fund ${input.fund_code}`, ["CSV 文件存在，但没有匹配该基金代码的记录。"], filePath);
 
       const sortedRows = [...rows].sort((a, b) => a.date.localeCompare(b.date));
       const latest = sortedRows.at(-1)!;
+      const earliest = sortedRows[0]!;
       const navHistory = sortedRows.map((row) => row.nav);
+      const importedAt = nowIso();
+      const manualImportAudit = {
+        file_path: filePath,
+        file_sha256: createHash("sha256").update(fileBuffer).digest("hex"),
+        file_size_bytes: fileStats.size,
+        file_mtime: fileStats.mtime.toISOString(),
+        row_count: sortedRows.length,
+        date_start: earliest.date,
+        date_end: latest.date,
+        latest_date: latest.date,
+        imported_at: importedAt
+      };
       const warnings = [
-        "手动 CSV 是经人工声明/导入的真实数据 workaround；Argus 必须展示来源路径和导入时间，不得标记为自动抓取。",
-        "CSV 数据应保留导入人、来源说明和文件校验审计记录；V0.1 provider 仅完成读取与字段校验。"
+        "手动 CSV 是经人工声明/导入的真实数据 workaround；Argus 必须展示来源路径、文件校验和导入时间，不得标记为自动抓取。",
+        "CSV 数据应保留导入人、来源说明和文件校验审计记录；V0.1 provider 已记录文件 checksum、mtime、行数和日期范围。"
       ];
       if (sortedRows.length < 30) warnings.push("CSV 净值历史少于 30 条，只能支持弱结论。");
       const freshness = this.freshnessFor(latest.date);
@@ -91,10 +107,11 @@ export class ManualCsvProvider implements DataProvider<FundDataSourceInput, Prov
           nav_history: navHistory,
           portfolio_holdings: [...new Set(sortedRows.flatMap((row) => row.holding ? [row.holding] : []))],
           holdings_source: "manual_csv",
-          themes: [...new Set(sortedRows.flatMap((row) => row.theme ? [row.theme] : []))]
+          themes: [...new Set(sortedRows.flatMap((row) => row.theme ? [row.theme] : []))],
+          manual_import_audit: manualImportAudit
         },
         raw_reference: filePath,
-        fetched_at: nowIso(),
+        fetched_at: importedAt,
         freshness,
         warnings,
         error: null,

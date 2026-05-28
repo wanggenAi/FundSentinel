@@ -133,8 +133,18 @@ export class SourceRegistry {
     ];
 
     return requirements.map((requirement) => {
-      const matching = catalog.filter((source) => source.recommended_for.includes(requirement) || source.coverage.includes(requirement));
-      const implemented = matching.filter((source) => source.integration_status === "implemented" && !source.is_demo);
+      const matching = catalog.filter(
+        (source) =>
+          source.recommended_for.includes(requirement) ||
+          source.coverage.includes(requirement) ||
+          (requirement === "macro_data" && (source.source_type === "macro_data" || source.recommended_for.includes("macro_context")))
+      );
+      const implemented = matching.filter(
+        (source) =>
+          source.integration_status === "implemented" &&
+          !source.is_demo &&
+          (requirement !== "macro_data" || source.source_type === "macro_data" || source.coverage.includes("macro_data"))
+      );
       const authoritative = matching.filter((source) => source.quality_tier === "authoritative");
       const needsLicense = matching.filter((source) => source.integration_status === "requires_license");
       let gapLevel: "covered" | "partial" | "missing" | "requires_license" = "missing";

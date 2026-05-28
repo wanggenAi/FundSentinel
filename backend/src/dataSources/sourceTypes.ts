@@ -10,6 +10,7 @@ export type DataSourceType =
   | "fund_company"
   | "index_data"
   | "macro_data"
+  | "market_data"
   | "policy"
   | "news"
   | "social"
@@ -105,4 +106,17 @@ export interface ProviderFundPayload {
   policy_signals?: string[];
   news_summaries?: string[];
   social_sentiment_score?: number;
+  manual_import_audit?: ManualImportAudit;
+}
+
+export interface ManualImportAudit {
+  file_path: string;
+  file_sha256: string;
+  file_size_bytes: number;
+  file_mtime: string;
+  row_count: number;
+  date_start: string;
+  date_end: string;
+  latest_date: string;
+  imported_at: string;
 }

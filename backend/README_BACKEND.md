@@ -97,7 +97,7 @@ Data providers live under `src/dataSources/`:
 - `CninfoReportProvider`: intended backup official report source.
 - `PolicyNewsProvider`: intended provider for policy and industry news evidence.
 - `GovCnPolicyProvider`: implemented official Gov.cn latest-policy JSON provider. It uses fund context collected by earlier providers, such as real fund name, themes, and holdings, to map broad official policy background. It must not infer themes from stale mock fund-code mappings.
-- `ManualCsvProvider`: implemented fallback real-data workaround for manually imported CSV. It is enabled only when `FUNDSENTINEL_MANUAL_CSV_DIR` points to an operator/user verified directory, reads `{fund_code}.csv`, and requires `fund_code,date,nav`.
+- `ManualCsvProvider`: implemented fallback real-data workaround for manually imported CSV. It is enabled only when `FUNDSENTINEL_MANUAL_CSV_DIR` points to an operator/user verified directory, reads `{fund_code}.csv`, requires `fund_code,date,nav`, and records file checksum, size, mtime, row count, date range, latest date, and import timestamp.
 - `DemoFixtureProvider`: local demo fixture, enabled only when `FUNDSENTINEL_DEMO_MODE=true`.
 
 Real providers are listed before demo fixtures. Provider failures are recorded and surfaced in gap reports. Demo fixture data is never treated as real business data.
@@ -110,6 +110,8 @@ Argus also has a source universe catalog exposed by `GET /api/data-sources/catal
 - licensed commercial APIs such as Wind/Choice/Tushare when credentials and legal rights exist
 - policy and official macro/industry sources such as Gov.cn, NDRC, MIIT, PBOC, NBS, MOF, and SAFE for Logos evidence
 - index/benchmark sources such as CSI Index for index-fund validation
+- global official disclosure and macro sources such as SEC EDGAR, HKEX disclosure pages, FRED, World Bank, IMF, OECD, and Eurostat for QDII/global fund context
+- licensed global market data APIs such as Nasdaq Data Link when credentials and legal rights exist
 - financial media as secondary evidence only
 - social/forum sentiment as weak optional evidence only
 - demo fixture last, only for tests/local demo
@@ -279,7 +281,18 @@ Optional columns:
 fund_name,fund_type,daily_return,holding,theme
 ```
 
-Manual CSV data is marked as `source_type=manual_import`, `is_demo=false`, and includes the file path in `raw_reference`. It must be treated as operator/user verified data with audit requirements, not as automatic internet acquisition.
+Manual CSV data is marked as `source_type=manual_import`, `is_demo=false`, and includes the file path in `raw_reference`. Argus also exposes `manual_import_audit` in the provider payload and `data_sources` output with:
+
+- `file_sha256`
+- `file_size_bytes`
+- `file_mtime`
+- `row_count`
+- `date_start`
+- `date_end`
+- `latest_date`
+- `imported_at`
+
+It must be treated as operator/user verified data with audit requirements, not as automatic internet acquisition.
 
 ## Reliability Rules
 

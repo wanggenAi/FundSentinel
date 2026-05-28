@@ -139,7 +139,8 @@ export class ArgusAgent extends BaseAgent {
         cache_hit: result.cache_hit ?? false,
         cache_expires_at: result.cache_expires_at ?? null,
         skipped_by_circuit_breaker: result.skipped_by_circuit_breaker ?? false,
-        circuit_open_until: this.sourceRegistry.listSources().find((source) => source.source_id === result.source_id)?.circuit_open_until ?? null
+        circuit_open_until: this.sourceRegistry.listSources().find((source) => source.source_id === result.source_id)?.circuit_open_until ?? null,
+        manual_import_audit: result.data?.manual_import_audit ?? null
       })),
       data_acquisition_plan: plan,
       data_quality_report: quality,

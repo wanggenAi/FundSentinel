@@ -51,11 +51,16 @@ test("SourceRegistry lists real providers and demo fixture provider", () => {
 test("SourceRegistry coverage matrix distinguishes implemented and gap requirements", () => {
   const coverage = new SourceRegistry({ enableLiveProviders: false }).coverageMatrix();
   const officialReports = coverage.find((item) => item.requirement === "official_fund_reports");
+  const macroData = coverage.find((item) => item.requirement === "macro_data");
   const social = coverage.find((item) => item.requirement === "social_sentiment");
 
   assert.ok(officialReports?.source_ids.includes("csrc-fund-disclosure"));
   assert.ok(officialReports?.implemented_source_ids.includes("csrc-fund-disclosure"));
   assert.equal(officialReports?.gap_level, "partial");
+  assert.ok(macroData?.source_ids.includes("fred-official"));
+  assert.ok(macroData?.source_ids.includes("world-bank-api"));
+  assert.ok(macroData?.source_ids.includes("imf-data-api"));
+  assert.equal(macroData?.gap_level, "missing");
   assert.equal(social?.gap_level, "missing");
 });
 

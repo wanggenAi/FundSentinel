@@ -35,3 +35,5 @@
 33. Public provider calls should go through `SourceRegistry` reliability controls so cache, retry, latency, attempt count, and provider health metadata stay consistent.
 34. Repeated provider failures should trigger SourceRegistry cooldown/circuit-breaker behavior rather than hammering blocked public sources on every API request.
 35. Manual CSV data may be used only as explicit verified fallback via `FUNDSENTINEL_MANUAL_CSV_DIR`; it must keep `source_type=manual_import`, file provenance, and audit warnings.
+36. Manual CSV outputs must include checksum, file size, file mtime, row count, date range, latest date, and import timestamp in Argus audit metadata.
+37. Argus may maintain a broad internet source universe, including overseas official macro/disclosure sources, but planned or licensed sources must stay labeled until a real provider and tests exist.

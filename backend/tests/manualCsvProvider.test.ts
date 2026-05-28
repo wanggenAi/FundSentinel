@@ -33,6 +33,14 @@ test("ManualCsvProvider parses verified CSV rows into a real data payload", asyn
     assert.deepEqual(result.data?.nav_history, [1.012, 1.015, 1.018]);
     assert.deepEqual(result.data?.portfolio_holdings, ["国债", "政策性金融债", "信用债"]);
     assert.equal(result.raw_reference, path.join(dir, "007951.csv"));
+    assert.equal(result.data?.manual_import_audit?.row_count, 3);
+    assert.equal(result.data?.manual_import_audit?.date_start, "2026-05-26");
+    assert.equal(result.data?.manual_import_audit?.date_end, "2026-05-28");
+    assert.equal(result.data?.manual_import_audit?.latest_date, "2026-05-28");
+    assert.equal(result.data?.manual_import_audit?.file_path, path.join(dir, "007951.csv"));
+    assert.equal(result.data?.manual_import_audit?.file_sha256.length, 64);
+    assert.ok((result.data?.manual_import_audit?.file_size_bytes ?? 0) > 0);
+    assert.match(result.data?.manual_import_audit?.file_mtime ?? "", /^\d{4}-\d{2}-\d{2}T/u);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -83,6 +91,9 @@ test("Argus can use manual CSV as explicit real-data fallback", async () => {
     assert.equal(dataPack.data_quality_report.missing_core_fields.length, 0);
     assert.equal(dataPack.allow_downstream_analysis, true);
     assert.ok(dataPack.data_sources.some((source) => source.source_id === "manual-csv-import" && source.success === true));
+    const manualSource = dataPack.data_sources.find((source) => source.source_id === "manual-csv-import");
+    assert.equal((manualSource?.manual_import_audit as { latest_date?: string } | undefined)?.latest_date, "2026-05-28");
+    assert.equal((manualSource?.manual_import_audit as { file_sha256?: string } | undefined)?.file_sha256?.length, 64);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
