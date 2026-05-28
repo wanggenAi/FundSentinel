@@ -99,6 +99,7 @@ Data providers live under `src/dataSources/`:
 - `EastMoneyFundArchiveProvider`: implemented real public-web provider for public stock/bond holding tables and disclosed holding dates from Tiantian Fund archive pages.
 - `EastMoneyFundAnnouncementProvider`: implemented real public-web provider for periodic fund report announcement indexes, detail URLs, PDF attachment URLs, and HEAD-based PDF availability metadata. This is a report discovery/source-reference provider, not a replacement for official report PDF parsing.
 - `CmfChinaFundOfficialProvider`: implemented first fund-company official-site adapter. It parses CMF China official fund detail pages, product notices, current NAV snippets, SSR-embedded recent NAV history, and report-prompt notices. It records official provenance, but report-prompt notices are not treated as full report bodies.
+- `HuaAnFundOfficialProvider`: implemented second fund-company official-site adapter. It parses HuaAn official fund detail pages, the official NAV table endpoint, top holding names, and disclosure links. It contributes to `official_current_nav` / `official_nav_history` coverage for HuaAn funds, while still requiring CSRC/company PDF parsing for full report-body evidence.
 - `CsrcFundDisclosureProvider`: implemented first official disclosure probe for the CSRC fund e-disclosure site. It parses official periodic-report links when reachable and records site-protection or endpoint failures as explicit `DataGapReport` evidence.
 - `CninfoReportProvider`: implemented official CNInfo/巨潮 fund disclosure adapter for listed funds covered by `fund_stock.json`, such as ETF/LOF/closed-end funds. It performs precise fund code + orgId matching, queries `hisAnnouncement/query`, records official PDF metadata, and avoids broad keyword searches that could mis-match another fund.
 - `FundCompanyReportProvider`: intended real provider for holdings and official fund reports.
@@ -209,6 +210,7 @@ The live public provider set currently includes:
 - `https://api.fund.eastmoney.com/f10/JJGG` for periodic fund report announcement indexes, with the F10 referer required by the public endpoint.
 - `https://pdf.dfcfw.com/pdf/H2_{announcement_id}_1.pdf` for report PDF attachment availability checks. Argus currently records whether the latest report PDFs respond as `application/pdf` and stores content length when available.
 - `https://www.cmfchina.com/web/fundDetail/{fund_code}/index.html` for CMF China official fund-company product details, SSR-embedded recent NAV rows, and official notice/report-prompt references.
+- `https://www.huaan.com.cn/funds/{fund_code}/index.shtml` plus `https://www.huaan.com.cn/funddetail/selectFundayByCode.do?fd.fundcode={fund_code}` for HuaAn official fund details, recent NAV table rows, holdings names, and disclosure links.
 - `http://eid.csrc.gov.cn/fund` for the CSRC fund e-disclosure official entrypoint. The provider records official-site blocking or endpoint failures rather than silently ignoring them.
 - `https://www.cninfo.com.cn/new/data/fund_stock.json` plus `https://www.cninfo.com.cn/new/hisAnnouncement/query` for CNInfo official listed-fund disclosure lookup and PDF metadata.
 - `https://www.gov.cn/zhengce/zuixin/ZUIXINZHENGCE.json` for official latest national policy metadata. Argus treats this as macro policy context only; it does not make single-fund conclusions from policy titles.
@@ -343,7 +345,7 @@ Recommended next steps:
 
 1. Cross-check EastMoney NAV data against a second real source.
 2. Keep `FundDataPack` as the canonical input contract to specialist Agents.
-3. Add official fund report providers for holdings and reports, especially fund company official sites, CSRC disclosure systems, and CNInfo where available.
+3. Add more official fund-company adapters for holdings, NAV, and reports, especially broadening from CMF China/HuaAn to more top fund companies and cross-checking with CSRC disclosure systems and CNInfo where available.
 4. Add policy/news providers with official-source priority and media as secondary evidence only.
 5. Implement `ManualCsvProvider` only as verified fallback/bootstrap import.
 6. Persist blackboard and provider health snapshots with SQLite or Postgres once real data enters.

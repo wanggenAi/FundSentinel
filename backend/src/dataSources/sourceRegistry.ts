@@ -10,6 +10,7 @@ import { EurostatProvider } from "./providers/eurostatProvider.js";
 import { FredMacroProvider } from "./providers/fredMacroProvider.js";
 import { FundCompanyReportProvider } from "./providers/fundCompanyReportProvider.js";
 import { GovCnPolicyProvider } from "./providers/govCnPolicyProvider.js";
+import { HuaAnFundOfficialProvider } from "./providers/huaAnFundOfficialProvider.js";
 import { ImfDataMapperProvider } from "./providers/imfDataMapperProvider.js";
 import { ManualCsvProvider } from "./providers/manualCsvProvider.js";
 import { PolicyNewsProvider } from "./providers/policyNewsProvider.js";
@@ -83,6 +84,7 @@ export class SourceRegistry {
       new EastMoneyFundArchiveProvider(),
       new EastMoneyFundAnnouncementProvider(),
       new CmfChinaFundOfficialProvider(),
+      new HuaAnFundOfficialProvider(),
       new FundCompanyReportProvider(),
       new CninfoReportProvider(),
       new GovCnPolicyProvider(),

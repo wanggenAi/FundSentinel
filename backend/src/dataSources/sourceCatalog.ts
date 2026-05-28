@@ -98,6 +98,22 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     notes: "Implemented first per-company adapter. It records official notices/report prompts, parses SSR page NAV history for official-company cross-checking, and points to CSRC fund e-disclosure when referenced."
   },
   {
+    source_id: "huaan-fund-official",
+    source_name: "华安基金官网官方净值与披露",
+    source_type: "fund_company",
+    quality_tier: "authoritative",
+    stability: "medium",
+    coverage: ["fund_meta", "current_nav", "nav_history", "holdings", "official_company_notices", "fund_reports"],
+    recommended_for: ["current_nav", "nav_history", "fund_meta", "holdings", "fund_reports", "official_fund_reports", "official_evidence"],
+    access_method: "official website adapter: https://www.huaan.com.cn/funds/{fund_code}/index.shtml and /funddetail/selectFundayByCode.do",
+    requires_auth: false,
+    is_demo: false,
+    integration_status: "implemented",
+    legal_note: "Use public official company pages respectfully; cache and rate-limit. Cross-check report links against CSRC official disclosure when possible.",
+    priority: 7,
+    notes: "Second per-company official adapter. It parses official HuaAn fund pages, recent NAV table rows, holdings names, and disclosure links without treating unverified PDF bodies as parsed report text."
+  },
+  {
     source_id: "eastmoney-fund",
     source_name: "东方财富/天天基金基金数据",
     source_type: "nav_history",

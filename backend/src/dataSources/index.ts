@@ -14,6 +14,7 @@ export * from "./providers/eurostatProvider.js";
 export * from "./providers/fundCompanyReportProvider.js";
 export * from "./providers/fredMacroProvider.js";
 export * from "./providers/govCnPolicyProvider.js";
+export * from "./providers/huaAnFundOfficialProvider.js";
 export * from "./providers/imfDataMapperProvider.js";
 export * from "./providers/manualCsvProvider.js";
 export * from "./providers/policyNewsProvider.js";
