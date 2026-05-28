@@ -58,13 +58,33 @@ export class DataSourceService {
     );
   }
 
-  manualImportPlan(): { solutions: DataAcquisitionSolution[]; required_csv_columns: string[]; warnings: string[] } {
+  manualImportPlan(): {
+    solutions: DataAcquisitionSolution[];
+    required_csv_columns: string[];
+    required_report_manifest_fields: string[];
+    report_manifest_filename: string;
+    warnings: string[];
+  } {
     return {
       required_csv_columns: ["fund_code", "date", "nav"],
+      required_report_manifest_fields: [
+        "fund_code",
+        "title",
+        "announcement_id",
+        "published_at",
+        "document_kind",
+        "source_name",
+        "source_url",
+        "pdf_path",
+        "pdf_sha256"
+      ],
+      report_manifest_filename: "{fund_code}.reports.json",
       warnings: [
         "手动导入是真实数据 workaround，但必须记录来源、导入时间和用户确认。",
         "CSV 数据不得标记为自动抓取。",
-        "V0.1 可通过 FUNDSENTINEL_MANUAL_CSV_DIR 指向本地审核目录，文件名为 {fund_code}.csv。"
+        "官方报告 PDF manifest 不得标记为自动抓取，只能作为人工审核/运营导入的官方来源 fallback。",
+        "V0.1 可通过 FUNDSENTINEL_MANUAL_CSV_DIR 指向本地审核目录，文件名为 {fund_code}.csv。",
+        "V0.1 可通过 FUNDSENTINEL_MANUAL_REPORT_DIR 指向官方报告 PDF 审核目录，manifest 文件名为 {fund_code}.reports.json。"
       ],
       solutions: [
         {
@@ -73,6 +93,26 @@ export class DataSourceService {
           proposed_actions: ["把审核后的历史净值 CSV 放入 FUNDSENTINEL_MANUAL_CSV_DIR。", "可选增加 fund_name、fund_type、daily_return、holding、theme 列。", "导入后由 Argus 校验日期、缺失值和异常净值。"],
           engineering_tasks: ["实现前端/后台 CSV 上传接口。", "增加文件 checksum、导入人、来源声明和审计日志。", "为 ManualCsvProvider 增加持久导入记录和回滚。"],
           manual_workaround: ["先由运营或用户提供经核验的 CSV 文件。", "文件名使用 {fund_code}.csv，例如 007951.csv。"],
+          owner_agent: "Argus"
+        },
+        {
+          problem: "自动 provider 已发现或需要补齐官方定期报告，但官网/证监会/巨潮自动校验可能被站点防护、覆盖范围或授权限制阻断。",
+          severity: "high",
+          proposed_actions: [
+            "把审核后的官方 PDF 放入 FUNDSENTINEL_MANUAL_REPORT_DIR。",
+            "为每只基金提供 {fund_code}.reports.json manifest，记录官方来源 URL、PDF 相对路径、发布日期、document_kind 和 SHA256。",
+            "导入后由 Argus 校验 PDF 文件头和 SHA256；只有 periodic_report 且 pdf_verified=true 才补齐 official_fund_reports。"
+          ],
+          engineering_tasks: [
+            "实现后台官方 PDF 上传与 manifest 生成接口。",
+            "记录导入人、来源 URL、PDF SHA256、文件大小、导入时间和复核状态。",
+            "为 ManualOfficialReportProvider 增加持久导入记录、撤回/替换流程和审计查询 API。"
+          ],
+          manual_workaround: [
+            "先由运营从基金公司官网、证监会基金电子披露或巨潮资讯下载官方 PDF。",
+            "计算 PDF SHA256 后写入 {fund_code}.reports.json，例如 007951.reports.json。",
+            "manifest 中 document_kind 必须使用 periodic_report、report_notice、business_notice、sales_document 或 other。"
+          ],
           owner_agent: "Argus"
         }
       ]

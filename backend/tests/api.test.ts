@@ -91,4 +91,7 @@ test("data source APIs are available", async () => {
   assert.ok(gapsResponse.json().recommended_solutions.some((solution: string) => solution.includes("official_current_nav")));
   assert.equal(manualPlanResponse.statusCode, 200);
   assert.ok(manualPlanResponse.json().solutions[0].engineering_tasks.length > 0);
+  assert.ok(manualPlanResponse.json().required_report_manifest_fields.includes("pdf_sha256"));
+  assert.equal(manualPlanResponse.json().report_manifest_filename, "{fund_code}.reports.json");
+  assert.ok(manualPlanResponse.json().warnings.some((warning: string) => warning.includes("FUNDSENTINEL_MANUAL_REPORT_DIR")));
 });

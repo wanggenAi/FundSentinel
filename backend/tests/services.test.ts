@@ -164,6 +164,10 @@ test("DataSourceService returns gap and manual import plan", async () => {
   assert.ok(gap.missing_data.length > 0);
   assert.ok(gap.recommended_solutions.length > 0);
   assert.ok(manualPlan.solutions[0].engineering_tasks.length > 0);
+  assert.ok(manualPlan.required_report_manifest_fields.includes("pdf_sha256"));
+  assert.equal(manualPlan.report_manifest_filename, "{fund_code}.reports.json");
+  assert.ok(manualPlan.solutions.some((solution) => solution.proposed_actions.some((action) => action.includes("FUNDSENTINEL_MANUAL_REPORT_DIR"))));
+  assert.ok(manualPlan.warnings.some((warning) => warning.includes("官方报告 PDF manifest 不得标记为自动抓取")));
 });
 
 function sourceInfo(sourceId: string): DataSourceInfo {
