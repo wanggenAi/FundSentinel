@@ -11,7 +11,8 @@ export class CsrcFundDisclosureProvider implements DataProvider<FundDataSourceIn
   constructor(
     private readonly fetchImpl: FetchLike = fetch,
     private readonly timeoutMs = Number(process.env.FUNDSENTINEL_PROVIDER_TIMEOUT_MS ?? 12000),
-    private readonly endpointTemplates: string[] = ["http://eid.csrc.gov.cn/fund", "http://eid.csrc.gov.cn/fund/"]
+    private readonly endpointTemplates: string[] = ["http://eid.csrc.gov.cn/fund", "http://eid.csrc.gov.cn/fund/"],
+    private readonly verifyPdfCount = Number(process.env.FUNDSENTINEL_CSRC_VERIFY_PDF_COUNT ?? 3)
   ) {}
 
   sourceInfo(): DataSourceInfo {
@@ -37,7 +38,7 @@ export class CsrcFundDisclosureProvider implements DataProvider<FundDataSourceIn
       circuit_open_count: 0,
       freshness_policy: "official periodic fund reports are fresh within 150 days and acceptable within 240 days",
       notes:
-        "Attempts the CSRC fund e-disclosure entrypoint and parses official periodic-report links when available. If the official site blocks automation, the failure is surfaced as a data gap."
+        "Attempts the CSRC fund e-disclosure entrypoint, parses official periodic-report links, and verifies PDF metadata when available. If the official site blocks automation, the failure is surfaced as a data gap."
     };
   }
 
@@ -79,7 +80,11 @@ export class CsrcFundDisclosureProvider implements DataProvider<FundDataSourceIn
 
         const latestDate = documents.map((document) => document.published_at).filter(Boolean).sort().at(-1);
         const freshness = this.freshnessFor(latestDate ?? undefined);
+        await this.verifyPdfDocuments(documents, warnings);
         if (freshness === "stale") warnings.push("证监会基金电子披露最新定期报告较旧，强结论应降级。");
+        if (documents.some((document) => document.document_kind === "periodic_report" && document.pdf_url) && !documents.some((document) => document.document_kind === "periodic_report" && document.pdf_verified)) {
+          warnings.push("证监会基金电子披露解析到定期报告 PDF 链接，但尚未通过 PDF 元数据校验，official_fund_reports 不应视为完整覆盖。");
+        }
 
         return {
           source_id: info.source_id,
@@ -163,7 +168,27 @@ export class CsrcFundDisclosureProvider implements DataProvider<FundDataSourceIn
   }
 
   private reportRefFor(document: FundReportDocument): string {
-    return `${document.published_at ?? "unknown-date"} ${document.title} kind=${document.document_kind} url=${document.detail_url ?? ""}`;
+    return `${document.published_at ?? "unknown-date"} ${document.title} kind=${document.document_kind} url=${document.detail_url ?? ""} pdf=${document.pdf_url ?? ""} pdf_verified=${document.pdf_verified}`;
+  }
+
+  private async verifyPdfDocuments(documents: FundReportDocument[], warnings: string[]): Promise<void> {
+    const candidates = documents.filter((document) => document.pdf_url).slice(0, Math.max(0, this.verifyPdfCount));
+    await Promise.all(
+      candidates.map(async (document) => {
+        try {
+          const response = await this.fetchWithTimeout(document.pdf_url!, { method: "HEAD", headers: this.pdfHeaders() }, Math.min(this.timeoutMs, 5000));
+          const contentType = response.headers.get("content-type");
+          const contentLength = response.headers.get("content-length");
+          const parsedLength = contentLength ? Number(contentLength) : null;
+          document.pdf_verified = response.ok && Boolean(contentType?.toLowerCase().includes("pdf"));
+          document.pdf_content_type = contentType;
+          document.pdf_content_length = parsedLength !== null && Number.isFinite(parsedLength) ? parsedLength : document.pdf_content_length;
+          if (!document.pdf_verified) warnings.push(`证监会基金电子披露 PDF 未通过 HEAD 校验：${document.announcement_id}。`);
+        } catch (error) {
+          warnings.push(`证监会基金电子披露 PDF 校验失败：${document.announcement_id} ${error instanceof Error ? error.message : String(error)}。`);
+        }
+      })
+    );
   }
 
   private async fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number): Promise<Response> {
@@ -181,6 +206,13 @@ export class CsrcFundDisclosureProvider implements DataProvider<FundDataSourceIn
       "user-agent": "Mozilla/5.0 FundSentinel/0.1 (+https://github.com/wanggenAi/FundSentinel)",
       accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "accept-language": "zh-CN,zh;q=0.9"
+    };
+  }
+
+  private pdfHeaders(): HeadersInit {
+    return {
+      ...this.headers(),
+      accept: "application/pdf,*/*;q=0.8"
     };
   }
 
