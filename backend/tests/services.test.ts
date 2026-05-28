@@ -57,9 +57,11 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(officialReports?.source_ids.includes("csrc-fund-disclosure"));
   assert.ok(officialReports?.implemented_source_ids.includes("csrc-fund-disclosure"));
   assert.equal(officialReports?.gap_level, "partial");
+  assert.ok(macroData?.source_ids.includes("stats-gov-cn"));
   assert.ok(macroData?.source_ids.includes("fred-official"));
   assert.ok(macroData?.source_ids.includes("world-bank-api"));
   assert.ok(macroData?.source_ids.includes("imf-data-api"));
+  assert.ok(macroData?.implemented_source_ids.includes("stats-gov-cn"));
   assert.ok(macroData?.implemented_source_ids.includes("world-bank-api"));
   assert.equal(macroData?.gap_level, "covered");
   assert.equal(social?.gap_level, "missing");

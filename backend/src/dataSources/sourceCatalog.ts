@@ -279,15 +279,15 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     source_type: "macro_data",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["macro_statistics", "industry_statistics", "economic_indicators"],
+    coverage: ["macro_data", "macro_statistics", "industry_statistics", "economic_indicators"],
     recommended_for: ["macro_context", "industry_logic"],
-    access_method: "official website / public statistics",
+    access_method: "official National Data endpoint probe: https://data.stats.gov.cn/easyquery.htm",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Use official public statistics and keep release date.",
     priority: 44,
-    notes: "Core source for macro and industry baseline data."
+    notes: "Implemented as an official endpoint probe/parser. Site protection or blocked access is surfaced as a data gap instead of being bypassed."
   },
   {
     source_id: "mof-official",

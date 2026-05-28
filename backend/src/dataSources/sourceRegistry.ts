@@ -9,6 +9,7 @@ import { FundCompanyReportProvider } from "./providers/fundCompanyReportProvider
 import { GovCnPolicyProvider } from "./providers/govCnPolicyProvider.js";
 import { ManualCsvProvider } from "./providers/manualCsvProvider.js";
 import { PolicyNewsProvider } from "./providers/policyNewsProvider.js";
+import { StatsGovMacroProvider } from "./providers/statsGovMacroProvider.js";
 import { WorldBankMacroProvider } from "./providers/worldBankMacroProvider.js";
 import type { DataProvider } from "./providers/baseProvider.js";
 import type { DataProviderResult, DataSourceInfo, FundDataSourceInput, ProviderFundPayload } from "./sourceTypes.js";
@@ -80,6 +81,7 @@ export class SourceRegistry {
       new FundCompanyReportProvider(),
       new CninfoReportProvider(),
       new GovCnPolicyProvider(),
+      new StatsGovMacroProvider(),
       new WorldBankMacroProvider(),
       new PolicyNewsProvider(),
       new ManualCsvProvider(),

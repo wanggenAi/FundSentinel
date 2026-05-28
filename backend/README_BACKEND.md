@@ -97,6 +97,7 @@ Data providers live under `src/dataSources/`:
 - `CninfoReportProvider`: intended backup official report source.
 - `PolicyNewsProvider`: intended provider for policy and industry news evidence.
 - `GovCnPolicyProvider`: implemented official Gov.cn latest-policy JSON provider. It uses fund context collected by earlier providers, such as real fund name, themes, and holdings, to map broad official policy background. It must not infer themes from stale mock fund-code mappings.
+- `StatsGovMacroProvider`: implemented official National Bureau of Statistics endpoint probe/parser for China macro and industry indicators. If the official site blocks automated access, Argus surfaces the failure as a data gap and does not bypass site protection.
 - `WorldBankMacroProvider`: implemented official World Bank Open Data API provider for low-frequency macro context such as GDP growth, CPI inflation, and real interest rates. It writes structured `macro_indicators` and must not be treated as fund NAV, holdings, or trading evidence.
 - `ManualCsvProvider`: implemented fallback real-data workaround for manually imported CSV. It is enabled only when `FUNDSENTINEL_MANUAL_CSV_DIR` points to an operator/user verified directory, reads `{fund_code}.csv`, requires `fund_code,date,nav`, and records file checksum, size, mtime, row count, date range, latest date, and import timestamp.
 - `DemoFixtureProvider`: local demo fixture, enabled only when `FUNDSENTINEL_DEMO_MODE=true`.
@@ -109,7 +110,7 @@ Argus also has a source universe catalog exposed by `GET /api/data-sources/catal
 - practical NAV/history sources such as EastMoney/Tiantian Fund, with legal/terms review required before automated use
 - manual CSV import as a fallback/bootstrap path with audit trail, not the main acquisition route
 - licensed commercial APIs such as Wind/Choice/Tushare when credentials and legal rights exist
-- policy and official macro/industry sources such as Gov.cn, NDRC, MIIT, PBOC, NBS, MOF, and SAFE for Logos evidence
+- policy and official macro/industry sources such as Gov.cn, NDRC, MIIT, NBS, PBOC, MOF, and SAFE for Logos evidence
 - index/benchmark sources such as CSI Index for index-fund validation
 - global official disclosure and macro sources such as SEC EDGAR, HKEX disclosure pages, World Bank, FRED, IMF, OECD, and Eurostat for QDII/global fund context
 - licensed global market data APIs such as Nasdaq Data Link when credentials and legal rights exist
