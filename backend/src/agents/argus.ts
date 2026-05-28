@@ -133,7 +133,11 @@ export class ArgusAgent extends BaseAgent {
         as_of: result.data?.holdings_as_of,
         is_demo: result.is_demo,
         error: result.error,
-        warnings: result.warnings
+        warnings: result.warnings,
+        attempt_count: result.attempt_count ?? 1,
+        latency_ms: result.latency_ms ?? null,
+        cache_hit: result.cache_hit ?? false,
+        cache_expires_at: result.cache_expires_at ?? null
       })),
       data_acquisition_plan: plan,
       data_quality_report: quality,

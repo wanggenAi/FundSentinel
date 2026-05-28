@@ -32,6 +32,10 @@ export interface DataSourceInfo {
   last_success_at: string | null;
   last_failed_at: string | null;
   failure_count: number;
+  last_latency_ms: number | null;
+  last_attempt_count: number;
+  cache_hit_count: number;
+  last_cache_hit_at: string | null;
   freshness_policy: string;
   notes: string;
 }
@@ -67,6 +71,10 @@ export interface DataProviderResult<TOutput> {
   warnings: string[];
   error: string | null;
   is_demo: boolean;
+  attempt_count?: number;
+  latency_ms?: number;
+  cache_hit?: boolean;
+  cache_expires_at?: string | null;
 }
 
 export interface FundDataSourceInput {

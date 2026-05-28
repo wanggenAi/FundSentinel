@@ -42,6 +42,10 @@ export class GovCnPolicyProvider implements DataProvider<FundDataSourceInput, Pr
       last_success_at: null,
       last_failed_at: null,
       failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
       freshness_policy: "latest policy list should be fresh within 30 days and acceptable within 90 days",
       notes: "Fetches China government latest policy JSON and maps broad policy themes as official evidence only."
     };

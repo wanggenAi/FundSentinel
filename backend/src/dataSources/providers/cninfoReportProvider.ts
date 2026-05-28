@@ -17,6 +17,10 @@ export class CninfoReportProvider implements DataProvider<FundDataSourceInput, P
       last_success_at: null,
       last_failed_at: null,
       failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
       freshness_policy: "latest official disclosure preferred",
       notes: "Real provider adapter not implemented yet. Intended as backup official report source."
     };

@@ -18,7 +18,14 @@ import type { DataRequirement } from "../schemas/index.js";
 export interface SourceRegistryOptions {
   demoMode?: boolean;
   enableLiveProviders?: boolean;
+  cacheTtlMs?: number;
+  retryCount?: number;
   providers?: Array<DataProvider<FundDataSourceInput, ProviderFundPayload>>;
+}
+
+interface CachedProviderResult {
+  result: DataProviderResult<ProviderFundPayload>;
+  expiresAt: number;
 }
 
 export class SourceRegistry {
@@ -27,6 +34,9 @@ export class SourceRegistry {
   private readonly demoMode: boolean;
   private readonly enableLiveProviders: boolean;
   private readonly usesCustomProviders: boolean;
+  private readonly cacheTtlMs: number;
+  private readonly retryCount: number;
+  private readonly resultCache = new Map<string, CachedProviderResult>();
 
   constructor(options: boolean | SourceRegistryOptions = {}) {
     const normalized: SourceRegistryOptions = typeof options === "boolean" ? { demoMode: options } : options;
@@ -34,6 +44,8 @@ export class SourceRegistry {
     this.enableLiveProviders =
       normalized.enableLiveProviders ?? (process.env.FUNDSENTINEL_DISABLE_LIVE_PROVIDERS !== "true" && process.env.NODE_ENV !== "test");
     this.usesCustomProviders = Boolean(normalized.providers);
+    this.cacheTtlMs = normalized.cacheTtlMs ?? Number(process.env.FUNDSENTINEL_PROVIDER_CACHE_TTL_MS ?? 300_000);
+    this.retryCount = normalized.retryCount ?? Number(process.env.FUNDSENTINEL_PROVIDER_RETRY_COUNT ?? 1);
     this.providers = normalized.providers ?? [
       new CsrcFundDisclosureProvider(),
       new EastMoneyFundProvider(),
@@ -51,7 +63,11 @@ export class SourceRegistry {
       const info = provider.sourceInfo();
       this.sourceStates.set(info.source_id, {
         ...info,
-        enabled: this.enabledFor(info)
+        enabled: this.enabledFor(info),
+        last_latency_ms: info.last_latency_ms ?? null,
+        last_attempt_count: info.last_attempt_count ?? 0,
+        cache_hit_count: info.cache_hit_count ?? 0,
+        last_cache_hit_at: info.last_cache_hit_at ?? null
       });
     }
   }
@@ -60,10 +76,11 @@ export class SourceRegistry {
     return [...this.sourceStates.values()].sort((a, b) => a.priority - b.priority);
   }
 
-  health(): Array<DataSourceInfo & { health_status: "healthy" | "disabled" | "failing" | "demo_only" }> {
+  health(): Array<DataSourceInfo & { health_status: "healthy" | "disabled" | "failing" | "demo_only"; cache_entries: number }> {
     return this.listSources().map((source) => ({
       ...source,
-      health_status: source.is_demo ? "demo_only" : source.enabled ? (source.failure_count > 0 ? "failing" : "healthy") : "disabled"
+      health_status: source.is_demo ? "demo_only" : source.enabled ? (source.failure_count > 0 ? "failing" : "healthy") : "disabled",
+      cache_entries: this.cacheEntryCountFor(source.source_id)
     }));
   }
 
@@ -140,7 +157,8 @@ export class SourceRegistry {
     const results: Array<DataProviderResult<ProviderFundPayload>> = [];
     let context: ProviderFundPayload = {};
     for (const provider of activeProviders) {
-      const result = await provider.fetch({ ...input, context, demo_mode: this.demoMode });
+      const providerInput = { ...input, context, demo_mode: this.demoMode };
+      const result = await this.fetchProvider(provider, providerInput);
       this.recordResult(result);
       results.push(result);
       if (result.success && result.data) context = this.mergeContext(context, result.data);
@@ -155,7 +173,11 @@ export class SourceRegistry {
       ...current,
       last_success_at: result.success ? nowIso() : current.last_success_at,
       last_failed_at: result.success ? current.last_failed_at : nowIso(),
-      failure_count: result.success ? current.failure_count : current.failure_count + 1
+      failure_count: result.success ? current.failure_count : current.failure_count + 1,
+      last_latency_ms: result.latency_ms ?? current.last_latency_ms,
+      last_attempt_count: result.attempt_count ?? current.last_attempt_count,
+      cache_hit_count: result.cache_hit ? current.cache_hit_count + 1 : current.cache_hit_count,
+      last_cache_hit_at: result.cache_hit ? nowIso() : current.last_cache_hit_at
     });
   }
 
@@ -167,6 +189,167 @@ export class SourceRegistry {
     if (info.is_demo) return this.demoMode;
     if (!this.usesCustomProviders && !this.enableLiveProviders) return false;
     return info.enabled;
+  }
+
+  private async fetchProvider(
+    provider: DataProvider<FundDataSourceInput, ProviderFundPayload>,
+    input: FundDataSourceInput
+  ): Promise<DataProviderResult<ProviderFundPayload>> {
+    const info = provider.sourceInfo();
+    const cacheKey = this.cacheKeyFor(info.source_id, input);
+    const cached = this.readCache(cacheKey);
+    if (cached) return cached;
+
+    const startedAt = Date.now();
+    const maxAttempts = Math.max(1, this.retryCount + 1);
+    let lastResult: DataProviderResult<ProviderFundPayload> | null = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const result = await this.safeProviderFetch(provider, input);
+      lastResult = this.withRuntimeMetadata(result, attempt, startedAt, false, null);
+      if (lastResult.success) {
+        this.writeCache(cacheKey, lastResult);
+        return lastResult;
+      }
+      if (attempt < maxAttempts && this.shouldRetry(lastResult)) await this.wait(this.retryDelayMs(attempt));
+      else break;
+    }
+    return lastResult ?? this.providerFailure(info, "Provider returned no result", startedAt, maxAttempts);
+  }
+
+  private async safeProviderFetch(
+    provider: DataProvider<FundDataSourceInput, ProviderFundPayload>,
+    input: FundDataSourceInput
+  ): Promise<DataProviderResult<ProviderFundPayload>> {
+    try {
+      return await provider.fetch(input);
+    } catch (error) {
+      const info = provider.sourceInfo();
+      return {
+        source_id: info.source_id,
+        source_name: info.source_name,
+        source_type: info.source_type,
+        trust_level: info.trust_level,
+        data_status: "unavailable",
+        success: false,
+        data: null,
+        raw_reference: null,
+        fetched_at: nowIso(),
+        freshness: "unknown",
+        warnings: ["Provider 抛出未捕获异常，SourceRegistry 已转换为显式失败结果。"],
+        error: error instanceof Error ? error.message : String(error),
+        is_demo: info.is_demo
+      };
+    }
+  }
+
+  private readCache(cacheKey: string): DataProviderResult<ProviderFundPayload> | null {
+    if (this.cacheTtlMs <= 0) return null;
+    const cached = this.resultCache.get(cacheKey);
+    if (!cached) return null;
+    if (cached.expiresAt <= Date.now()) {
+      this.resultCache.delete(cacheKey);
+      return null;
+    }
+    return {
+      ...cached.result,
+      warnings: [...cached.result.warnings, "SourceRegistry cache hit; using recently fetched provider result."],
+      fetched_at: nowIso(),
+      cache_hit: true,
+      cache_expires_at: new Date(cached.expiresAt).toISOString(),
+      latency_ms: 0
+    };
+  }
+
+  private writeCache(cacheKey: string, result: DataProviderResult<ProviderFundPayload>): void {
+    if (this.cacheTtlMs <= 0 || !result.success || result.is_demo) return;
+    this.resultCache.set(cacheKey, {
+      result: { ...result, warnings: [...result.warnings], cache_hit: false, cache_expires_at: new Date(Date.now() + this.cacheTtlMs).toISOString() },
+      expiresAt: Date.now() + this.cacheTtlMs
+    });
+  }
+
+  private withRuntimeMetadata(
+    result: DataProviderResult<ProviderFundPayload>,
+    attemptCount: number,
+    startedAt: number,
+    cacheHit: boolean,
+    cacheExpiresAt: string | null
+  ): DataProviderResult<ProviderFundPayload> {
+    return {
+      ...result,
+      warnings: [...result.warnings],
+      attempt_count: attemptCount,
+      latency_ms: Date.now() - startedAt,
+      cache_hit: cacheHit,
+      cache_expires_at: cacheExpiresAt
+    };
+  }
+
+  private shouldRetry(result: DataProviderResult<ProviderFundPayload>): boolean {
+    if (result.success || result.is_demo) return false;
+    const message = `${result.error ?? ""} ${result.warnings.join(" ")}`.toLowerCase();
+    return /timeout|abort|network|fetch failed|econnreset|socket|temporar|5\d\d|rate/u.test(message);
+  }
+
+  private retryDelayMs(attempt: number): number {
+    return Math.min(1000, 120 * 2 ** Math.max(0, attempt - 1));
+  }
+
+  private wait(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private cacheKeyFor(sourceId: string, input: FundDataSourceInput): string {
+    return JSON.stringify({
+      source_id: sourceId,
+      fund_code: input.fund_code,
+      required_data: [...input.required_data].sort(),
+      context: this.contextSignature(input.context),
+      demo_mode: input.demo_mode
+    });
+  }
+
+  private contextSignature(context: ProviderFundPayload | undefined): Record<string, unknown> {
+    if (!context) return {};
+    return {
+      fund_name: context.fund_name,
+      fund_type: context.fund_type,
+      themes: [...(context.themes ?? [])].sort(),
+      portfolio_holdings: [...(context.portfolio_holdings ?? [])].sort().slice(0, 50),
+      holdings_as_of: context.holdings_as_of,
+      fund_report_refs: [...(context.fund_report_refs ?? [])].sort().slice(0, 20)
+    };
+  }
+
+  private cacheEntryCountFor(sourceId: string): number {
+    return [...this.resultCache.keys()].filter((key) => key.includes(`"source_id":"${sourceId}"`)).length;
+  }
+
+  private providerFailure(
+    info: DataSourceInfo,
+    error: string,
+    startedAt: number,
+    attemptCount: number
+  ): DataProviderResult<ProviderFundPayload> {
+    return {
+      source_id: info.source_id,
+      source_name: info.source_name,
+      source_type: info.source_type,
+      trust_level: info.trust_level,
+      data_status: "unavailable",
+      success: false,
+      data: null,
+      raw_reference: null,
+      fetched_at: nowIso(),
+      freshness: "unknown",
+      warnings: ["Provider 调度层未收到返回结果。"],
+      error,
+      is_demo: info.is_demo,
+      attempt_count: attemptCount,
+      latency_ms: Date.now() - startedAt,
+      cache_hit: false,
+      cache_expires_at: null
+    };
   }
 
   private coverageNoteFor(

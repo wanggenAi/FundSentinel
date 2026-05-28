@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SourceRegistry } from "../src/dataSources/index.js";
+import { SourceRegistry, type DataProvider, type DataProviderResult, type DataSourceInfo, type FundDataSourceInput, type ProviderFundPayload } from "../src/dataSources/index.js";
 import { DataSourceService, FundAnalysisService, HomeService, OpportunityService } from "../src/services/index.js";
 
 test("default FundAnalysisResponse with live providers disabled is data unavailable, not fake analysis", async () => {
@@ -59,6 +59,48 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.equal(social?.gap_level, "missing");
 });
 
+test("SourceRegistry caches successful real provider results and exposes cache health", async () => {
+  const provider = new CountingProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
+  const input = { fund_code: "007951", required_data: ["fund_meta", "current_nav", "nav_history"], demo_mode: false };
+
+  const first = await registry.fetchAll(input);
+  const second = await registry.fetchAll(input);
+  const health = registry.health().find((source) => source.source_id === "counting-provider");
+
+  assert.equal(provider.callCount, 1);
+  assert.equal(first[0].cache_hit, false);
+  assert.equal(second[0].cache_hit, true);
+  assert.equal(second[0].latency_ms, 0);
+  assert.equal(health?.cache_hit_count, 1);
+  assert.equal(health?.cache_entries, 1);
+});
+
+test("SourceRegistry retries transient provider failures but does not cache failures", async () => {
+  const provider = new FlakyProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 1 });
+  const result = (await registry.fetchAll({ fund_code: "007951", required_data: ["fund_meta"], demo_mode: false }))[0];
+  const health = registry.health().find((source) => source.source_id === "flaky-provider");
+
+  assert.equal(provider.callCount, 2);
+  assert.equal(result.success, true);
+  assert.equal(result.attempt_count, 2);
+  assert.equal(result.cache_hit, false);
+  assert.equal(health?.last_attempt_count, 2);
+});
+
+test("SourceRegistry converts uncaught provider exceptions into failed results", async () => {
+  const provider = new ThrowingProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 0, retryCount: 0 });
+  const result = (await registry.fetchAll({ fund_code: "007951", required_data: ["fund_meta"], demo_mode: false }))[0];
+  const health = registry.health().find((source) => source.source_id === "throwing-provider");
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /network timeout/);
+  assert.ok(result.warnings.some((warning) => warning.includes("未捕获异常")));
+  assert.equal(health?.failure_count, 1);
+});
+
 test("DataSourceService returns gap and manual import plan", async () => {
   const service = new DataSourceService();
   const gap = await service.gaps("007951");
@@ -68,3 +110,100 @@ test("DataSourceService returns gap and manual import plan", async () => {
   assert.ok(gap.recommended_solutions.length > 0);
   assert.ok(manualPlan.solutions[0].engineering_tasks.length > 0);
 });
+
+function sourceInfo(sourceId: string): DataSourceInfo {
+  return {
+    source_id: sourceId,
+    source_name: sourceId,
+    source_type: "fund_meta",
+    trust_level: "B",
+    enabled: true,
+    priority: 1,
+    access_method: "test fixture provider",
+    requires_auth: false,
+    is_demo: false,
+    last_success_at: null,
+    last_failed_at: null,
+    failure_count: 0,
+    last_latency_ms: null,
+    last_attempt_count: 0,
+    cache_hit_count: 0,
+    last_cache_hit_at: null,
+    freshness_policy: "test",
+    notes: "test provider"
+  };
+}
+
+function providerResult(sourceId: string, success: boolean): DataProviderResult<ProviderFundPayload> {
+  const info = sourceInfo(sourceId);
+  return {
+    source_id: info.source_id,
+    source_name: info.source_name,
+    source_type: info.source_type,
+    trust_level: info.trust_level,
+    data_status: success ? "partial" : "unavailable",
+    success,
+    data: success
+      ? {
+          fund_code: "007951",
+          fund_name: "Test Fund",
+          current_nav: 1,
+          nav_history: [0.98, 1]
+        }
+      : null,
+    raw_reference: "test://provider",
+    fetched_at: new Date().toISOString(),
+    freshness: "fresh",
+    warnings: [],
+    error: success ? null : "timeout while fetching provider",
+    is_demo: false
+  };
+}
+
+class CountingProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return sourceInfo("counting-provider");
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return providerResult("counting-provider", true);
+  }
+}
+
+class FlakyProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return sourceInfo("flaky-provider");
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return providerResult("flaky-provider", this.callCount > 1);
+  }
+}
+
+class ThrowingProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return sourceInfo("throwing-provider");
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    throw new Error("network timeout");
+  }
+}

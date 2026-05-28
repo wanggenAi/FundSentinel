@@ -202,6 +202,14 @@ These providers parse public responses without `eval`, record `raw_reference`, a
 
 Provider execution is context-aware. `SourceRegistry` passes merged data from earlier successful providers to later providers. Policy matching must use real acquired context, not hardcoded mock-era fund-code assumptions.
 
+`SourceRegistry` also owns provider reliability controls:
+
+- successful non-demo provider results are cached for a short TTL (`FUNDSENTINEL_PROVIDER_CACHE_TTL_MS`, default 5 minutes)
+- transient failures such as timeouts, fetch failures, network/socket errors, and 5xx responses are retried (`FUNDSENTINEL_PROVIDER_RETRY_COUNT`, default 1)
+- clear non-transient failures, such as official-site blocking/405 responses, are recorded without blind retry loops
+- provider outputs include `attempt_count`, `latency_ms`, `cache_hit`, and `cache_expires_at`
+- `/api/data-sources/health` includes per-source latency, last attempt count, cache hit count, cache entries, and failure count
+
 In test mode, live providers are disabled by default via `NODE_ENV=test` so CI does not depend on network availability. Parser/provider behavior is covered with injected fetch fixtures.
 
 ## Install

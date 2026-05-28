@@ -79,7 +79,11 @@ test("data source APIs are available", async () => {
   assert.equal(coverageResponse.statusCode, 200);
   assert.ok(coverageResponse.json().coverage.some((item: { requirement: string }) => item.requirement === "official_fund_reports"));
   assert.equal(healthResponse.statusCode, 200);
-  assert.ok(healthResponse.json().sources.length > 0);
+  assert.ok(
+    healthResponse
+      .json()
+      .sources.some((source: { source_id: string; cache_entries: number; last_attempt_count: number }) => source.source_id === "csrc-fund-disclosure" && "cache_entries" in source)
+  );
   assert.equal(gapsResponse.statusCode, 200);
   assert.ok(gapsResponse.json().recommended_solutions.length > 0);
   assert.equal(manualPlanResponse.statusCode, 200);

@@ -37,6 +37,10 @@ export class EastMoneyFundAnnouncementProvider implements DataProvider<FundDataS
       last_success_at: null,
       last_failed_at: null,
       failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
       freshness_policy: "latest periodic report announcement is fresh within 150 days and acceptable within 240 days",
       notes: "Fetches Tiantian/EastMoney public fund announcement index for periodic reports; cross-check official PDFs later."
     };
