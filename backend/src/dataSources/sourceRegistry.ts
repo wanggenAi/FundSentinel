@@ -169,6 +169,7 @@ export class SourceRegistry {
     requires_license_source_ids: string[];
     needs_license_source_ids: string[];
     gap_level: "covered" | "partial" | "missing" | "requires_license";
+    coverage_status: "covered" | "partial" | "missing" | "licensed_only";
     notes: string;
   }> {
     const catalog = this.catalog();
@@ -235,6 +236,7 @@ export class SourceRegistry {
         requires_license_source_ids: needsLicense.map((source) => source.source_id),
         needs_license_source_ids: needsLicense.map((source) => source.source_id),
         gap_level: gapLevel,
+        coverage_status: gapLevel === "requires_license" ? "licensed_only" : gapLevel,
         notes: this.coverageNoteFor(requirement, gapLevel)
       };
     });

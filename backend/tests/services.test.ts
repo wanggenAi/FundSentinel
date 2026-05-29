@@ -640,6 +640,7 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(macroData?.implemented_source_ids.includes("eurostat-api"));
   assert.equal(macroData?.gap_level, "covered");
   assert.equal(benchmark?.gap_level, "requires_license");
+  assert.equal(benchmark?.coverage_status, "licensed_only");
   assert.ok(benchmark?.requires_license_source_ids.includes("csi-index"));
   assert.ok(benchmark?.requires_license_source_ids.includes("commercial-terminal-api"));
   assert.deepEqual(benchmark?.requires_license_source_ids, benchmark?.needs_license_source_ids);
@@ -655,6 +656,7 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(industryNews?.implemented_source_ids.includes("hkex-official"));
   assert.equal(industryNews?.gap_level, "covered");
   assert.equal(social?.gap_level, "missing");
+  assert.equal(social?.coverage_status, "missing");
 });
 
 test("SourceRegistry caches successful real provider results and exposes cache health", async () => {

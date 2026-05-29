@@ -187,6 +187,12 @@ test("data source APIs are available", async () => {
   const navHistoryCoverage = coverageResponse.json().coverage.find((item: { requirement: string }) => item.requirement === "nav_history");
   assert.equal(navHistoryCoverage.implemented_source_ids.includes("manual-csv-import"), false);
   assert.ok(navHistoryCoverage.manual_source_ids.includes("manual-csv-import"));
+  const benchmarkCoverage = coverageResponse.json().coverage.find((item: { requirement: string }) => item.requirement === "benchmark");
+  assert.equal(benchmarkCoverage.coverage_status, "licensed_only");
+  assert.equal(benchmarkCoverage.gap_level, "requires_license");
+  assert.ok(benchmarkCoverage.requires_license_source_ids.includes("csi-index"));
+  assert.deepEqual(benchmarkCoverage.requires_license_source_ids, benchmarkCoverage.needs_license_source_ids);
+  assert.deepEqual(benchmarkCoverage.implemented_source_ids, []);
   assert.equal(healthResponse.statusCode, 200);
   assert.ok(
     healthResponse
