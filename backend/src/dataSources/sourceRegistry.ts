@@ -1,3 +1,4 @@
+import { AmacPublicFundDataProvider } from "./providers/amacPublicFundDataProvider.js";
 import { CninfoReportProvider } from "./providers/cninfoReportProvider.js";
 import { CmfChinaFundOfficialProvider } from "./providers/cmfChinaFundOfficialProvider.js";
 import { CsrcFundDisclosureProvider } from "./providers/csrcFundDisclosureProvider.js";
@@ -90,6 +91,7 @@ export class SourceRegistry {
       new CsrcFundDisclosureProvider(),
       new CsrcOfficialProvider(),
       new CsrcPublicFundProductProvider(),
+      new AmacPublicFundDataProvider(),
       new EastMoneyFundProvider(),
       new EastMoneyNavHistoryProvider(),
       new EastMoneyFundArchiveProvider(),

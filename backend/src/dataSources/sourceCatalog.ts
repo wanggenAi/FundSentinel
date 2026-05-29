@@ -52,18 +52,19 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
   {
     source_id: "amac-public-fund-data",
     source_name: "中国证券投资基金业协会",
-    source_type: "fund_meta",
+    source_type: "policy",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["fund_market_statistics", "manager_info", "industry_reports"],
-    recommended_for: ["fund_meta", "industry_baseline", "manager_validation"],
-    access_method: "official website / public statistics",
+    coverage: ["fund_market_statistics", "industry_reports", "policy_evidence", "industry_news"],
+    recommended_for: ["industry_baseline", "manager_validation", "policy_evidence", "industry_news", "Logos_policy_background"],
+    access_method: "official public fund statistics page: https://www.amac.org.cn/sjtj/tjbg/gmjj/",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Use official public statistics and disclose source timestamp.",
     priority: 4,
-    notes: "Best for industry-level facts and manager/public fund validation. Public product query entry still needs a stable parseable endpoint before implementation."
+    notes:
+      "Implemented for official monthly public-fund market-data PDF references as industry baseline evidence. It does not supply fund-specific NAV, holdings, or trading signals."
   },
   {
     source_id: "cninfo-report",
