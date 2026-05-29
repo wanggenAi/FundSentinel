@@ -23,6 +23,7 @@ import { MofFiscalProvider } from "./providers/mofFiscalProvider.js";
 import { PbcMacroProvider } from "./providers/pbcMacroProvider.js";
 import { PolicyNewsProvider } from "./providers/policyNewsProvider.js";
 import { SafeMacroProvider } from "./providers/safeMacroProvider.js";
+import { SecEdgarProvider } from "./providers/secEdgarProvider.js";
 import { StatsGovMacroProvider } from "./providers/statsGovMacroProvider.js";
 import { SseMarketCalendarProvider } from "./providers/sseMarketCalendarProvider.js";
 import { WorldBankMacroProvider } from "./providers/worldBankMacroProvider.js";
@@ -106,6 +107,7 @@ export class SourceRegistry {
       new SafeMacroProvider(),
       new PbcMacroProvider(),
       new StatsGovMacroProvider(),
+      new SecEdgarProvider(),
       new FredMacroProvider(),
       new WorldBankMacroProvider(),
       new ImfDataMapperProvider(),

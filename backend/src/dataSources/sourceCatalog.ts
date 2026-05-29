@@ -467,10 +467,11 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     access_method: "official SEC EDGAR APIs and filing documents",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Use SEC published access rules, identify the application, cache responses, and keep filing URLs.",
     priority: 51,
-    notes: "Authoritative overseas disclosure source for US-listed ETFs/funds and QDII cross-checks."
+    notes:
+      "Implemented for US ticker/CIK submissions metadata, including recent NPORT-P, N-CEN, N-CSR, N-1A/485BPOS/497 filings. It records official URLs but does not parse filing body text."
   },
   {
     source_id: "hkex-official",

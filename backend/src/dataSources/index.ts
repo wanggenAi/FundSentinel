@@ -27,6 +27,7 @@ export * from "./providers/mofFiscalProvider.js";
 export * from "./providers/pbcMacroProvider.js";
 export * from "./providers/policyNewsProvider.js";
 export * from "./providers/safeMacroProvider.js";
+export * from "./providers/secEdgarProvider.js";
 export * from "./providers/statsGovMacroProvider.js";
 export * from "./providers/sseMarketCalendarProvider.js";
 export * from "./providers/worldBankMacroProvider.js";

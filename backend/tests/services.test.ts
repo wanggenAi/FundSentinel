@@ -62,6 +62,7 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(officialReports?.source_ids.includes("csrc-fund-disclosure"));
   assert.ok(officialReports?.implemented_source_ids.includes("csrc-fund-disclosure"));
   assert.ok(officialReports?.implemented_source_ids.includes("fund-company-report"));
+  assert.ok(officialReports?.implemented_source_ids.includes("sec-edgar"));
   assert.equal(officialReports?.gap_level, "partial");
   assert.ok(officialCurrentNav?.source_ids.includes("cmfchina-fund-official"));
   assert.ok(officialCurrentNav?.source_ids.includes("efund-official"));
