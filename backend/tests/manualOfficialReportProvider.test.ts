@@ -144,6 +144,10 @@ test("Argus keeps manual official report import as audited fallback without offi
     assert.equal(dataPack.is_mock, false);
     assert.equal(result.is_mock, false);
     assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.fund_reports, false);
+    assert.equal(dataPack.data_quality_report.source_composition.authoritative.includes("manual-official-report-import"), false);
+    assert.equal(dataPack.data_quality_report.authoritative_source_count, 0);
+    assert.ok(dataPack.data_quality_report.source_composition.manual.includes("manual-official-report-import"));
+    assert.equal(dataPack.data_quality_report.manual_source_count, 1);
     assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("fund_reports"), false);
     assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), true);
     assert.ok(dataPack.data_gap_report?.recommended_solutions.some((solution) => solution.includes("official_fund_reports 缺口要求官方披露定期报告 PDF 通过元数据校验")));

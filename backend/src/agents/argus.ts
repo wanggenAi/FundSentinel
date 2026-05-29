@@ -518,7 +518,7 @@ export class ArgusAgent extends BaseAgent {
     failed: Array<DataProviderResult<ProviderFundPayload>>
   ): DataQualityReport["source_composition"] {
     const authoritative = successful
-      .filter((result) => !result.is_demo && (result.trust_level === "A" || ["regulatory_disclosure", "fund_company"].includes(result.source_type)))
+      .filter((result) => this.isAuthoritative(result))
       .map((result) => result.source_id);
     const aggregator = successful
       .filter((result) => !result.is_demo && ["nav_history", "holdings", "fund_report"].includes(result.source_type) && result.trust_level !== "A")
@@ -645,7 +645,7 @@ export class ArgusAgent extends BaseAgent {
   }
 
   private isAuthoritative(result: DataProviderResult<ProviderFundPayload>): boolean {
-    return !result.is_demo && (result.trust_level === "A" || ["regulatory_disclosure", "fund_company"].includes(result.source_type));
+    return !result.is_demo && result.source_type !== "manual_import" && (result.trust_level === "A" || ["regulatory_disclosure", "fund_company"].includes(result.source_type));
   }
 
   private evidenceSourceTypeFor(result: DataProviderResult<ProviderFundPayload>): EvidenceItem["source_type"] {
