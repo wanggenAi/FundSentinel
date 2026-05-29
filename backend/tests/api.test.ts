@@ -170,6 +170,9 @@ test("data source APIs are available", async () => {
   assert.ok(coverageResponse.json().coverage.some((item: { requirement: string }) => item.requirement === "official_fund_reports"));
   assert.ok(coverageResponse.json().coverage.some((item: { requirement: string }) => item.requirement === "official_current_nav"));
   assert.ok(coverageResponse.json().coverage.some((item: { requirement: string }) => item.requirement === "official_nav_history"));
+  const officialReportsCoverage = coverageResponse.json().coverage.find((item: { requirement: string }) => item.requirement === "official_fund_reports");
+  assert.equal(officialReportsCoverage.implemented_source_ids.includes("fund-company-report"), false);
+  assert.ok(officialReportsCoverage.coordinator_source_ids.includes("fund-company-report"));
   assert.equal(healthResponse.statusCode, 200);
   assert.ok(
     healthResponse
