@@ -79,13 +79,16 @@ export class DataSourceService {
   manualImportPlan(): {
     solutions: DataAcquisitionSolution[];
     required_csv_columns: string[];
+    required_csv_audit_fields: string[];
     required_portfolio_json_fields: string[];
     required_report_manifest_fields: string[];
+    required_report_audit_fields: string[];
     report_manifest_filename: string;
     warnings: string[];
   } {
     return {
       required_csv_columns: ["fund_code", "date", "nav"],
+      required_csv_audit_fields: ["file_path", "file_sha256", "file_size_bytes", "file_mtime", "row_count", "date_start", "date_end", "latest_date", "imported_at"],
       required_portfolio_json_fields: ["holdings[].fund_code", "holdings[].fund_name", "holdings[].holding_amount", "holdings[].cost_nav", "holdings[].current_nav"],
       required_report_manifest_fields: [
         "fund_code",
@@ -97,6 +100,21 @@ export class DataSourceService {
         "source_url",
         "pdf_path",
         "pdf_sha256"
+      ],
+      required_report_audit_fields: [
+        "manifest_path",
+        "manifest_sha256",
+        "manifest_size_bytes",
+        "manifest_mtime",
+        "report_count",
+        "verified_pdf_count",
+        "latest_report_date",
+        "imported_at",
+        "reports[].announcement_id",
+        "reports[].source_url",
+        "reports[].pdf_path",
+        "reports[].pdf_sha256",
+        "reports[].pdf_size_bytes"
       ],
       report_manifest_filename: "{fund_code}.reports.json",
       warnings: [

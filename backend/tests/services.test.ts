@@ -659,7 +659,33 @@ test("DataSourceService returns gap and manual import plan", async () => {
   assert.ok(gap.acquisition_solutions[0].manual_workaround.length > 0);
   assert.ok(manualPlan.solutions[0].engineering_tasks.length > 0);
   assert.ok(manualPlan.required_portfolio_json_fields.includes("holdings[].holding_amount"));
+  assert.deepEqual(manualPlan.required_csv_audit_fields, [
+    "file_path",
+    "file_sha256",
+    "file_size_bytes",
+    "file_mtime",
+    "row_count",
+    "date_start",
+    "date_end",
+    "latest_date",
+    "imported_at"
+  ]);
   assert.ok(manualPlan.required_report_manifest_fields.includes("pdf_sha256"));
+  assert.deepEqual(manualPlan.required_report_audit_fields, [
+    "manifest_path",
+    "manifest_sha256",
+    "manifest_size_bytes",
+    "manifest_mtime",
+    "report_count",
+    "verified_pdf_count",
+    "latest_report_date",
+    "imported_at",
+    "reports[].announcement_id",
+    "reports[].source_url",
+    "reports[].pdf_path",
+    "reports[].pdf_sha256",
+    "reports[].pdf_size_bytes"
+  ]);
   assert.equal(manualPlan.report_manifest_filename, "{fund_code}.reports.json");
   assert.ok(manualPlan.solutions.some((solution) => solution.proposed_actions.some((action) => action.includes("FUNDSENTINEL_PORTFOLIO_FILE"))));
   assert.ok(manualPlan.solutions.some((solution) => solution.proposed_actions.some((action) => action.includes("FUNDSENTINEL_MANUAL_REPORT_DIR"))));
