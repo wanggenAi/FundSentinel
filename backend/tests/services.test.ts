@@ -595,6 +595,7 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.equal(officialReports?.source_ids.includes("manual-official-report-import"), false);
   assert.equal(officialReports?.implemented_source_ids.includes("manual-official-report-import"), false);
   assert.equal(officialReports?.manual_source_ids.includes("manual-official-report-import"), false);
+  assert.ok(officialReports?.manual_workaround_source_ids.includes("manual-official-report-import"));
   assert.ok(officialReports?.coordinator_source_ids.includes("fund-company-report"));
   assert.ok(officialReports?.implemented_source_ids.includes("fullgoal-fund-official"));
   assert.ok(officialReports?.implemented_source_ids.includes("sec-edgar"));
@@ -607,6 +608,8 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(officialCurrentNav?.source_ids.includes("chinaamc-official"));
   assert.ok(officialCurrentNav?.source_ids.includes("harvestfund-official"));
   assert.ok(officialCurrentNav?.source_ids.includes("fullgoal-fund-official"));
+  assert.equal(officialCurrentNav?.manual_source_ids.includes("manual-csv-import"), false);
+  assert.ok(officialCurrentNav?.manual_workaround_source_ids.includes("manual-csv-import"));
   assert.equal(officialCurrentNav?.implemented_authoritative_source_ids.includes("fund-company-site-adapters"), false);
   assert.equal(officialCurrentNav?.gap_level, "covered");
   assert.ok(officialNavHistory?.source_ids.includes("cmfchina-fund-official"));
@@ -614,6 +617,8 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(officialNavHistory?.source_ids.includes("chinaamc-official"));
   assert.ok(officialNavHistory?.source_ids.includes("harvestfund-official"));
   assert.ok(officialNavHistory?.source_ids.includes("fullgoal-fund-official"));
+  assert.equal(officialNavHistory?.manual_source_ids.includes("manual-csv-import"), false);
+  assert.ok(officialNavHistory?.manual_workaround_source_ids.includes("manual-csv-import"));
   assert.equal(officialNavHistory?.implemented_authoritative_source_ids.includes("fund-company-site-adapters"), false);
   assert.equal(officialNavHistory?.gap_level, "covered");
   assert.ok(navHistory?.implemented_source_ids.includes("eastmoney-fund"));

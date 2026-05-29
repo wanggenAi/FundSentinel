@@ -33,7 +33,7 @@ import { StatsGovMacroProvider } from "./providers/statsGovMacroProvider.js";
 import { SseMarketCalendarProvider } from "./providers/sseMarketCalendarProvider.js";
 import { WorldBankMacroProvider } from "./providers/worldBankMacroProvider.js";
 import type { DataProvider } from "./providers/baseProvider.js";
-import type { DataProviderResult, DataSourceInfo, FundDataSourceInput, ProviderFundPayload } from "./sourceTypes.js";
+import type { DataProviderResult, DataSourceCatalogEntry, DataSourceInfo, FundDataSourceInput, ProviderFundPayload } from "./sourceTypes.js";
 import { listDataSourceCatalog } from "./sourceCatalog.js";
 import { nowIso } from "../schemas/index.js";
 import type { DataRequirement } from "../schemas/index.js";
@@ -65,6 +65,7 @@ const defaultSharedState: SharedRegistryState = {
 };
 
 const COORDINATOR_SOURCE_IDS = new Set(["fund-company-report"]);
+type CoverageRequirement = DataRequirement | "official_current_nav" | "official_nav_history" | "official_fund_reports" | "benchmark";
 
 export class SourceRegistry {
   private readonly providers: Array<DataProvider<FundDataSourceInput, ProviderFundPayload>>;
@@ -157,11 +158,12 @@ export class SourceRegistry {
   }
 
   coverageMatrix(): Array<{
-    requirement: DataRequirement | "official_current_nav" | "official_nav_history" | "official_fund_reports" | "benchmark";
+    requirement: CoverageRequirement;
     source_ids: string[];
     implemented_source_ids: string[];
     coordinator_source_ids: string[];
     manual_source_ids: string[];
+    manual_workaround_source_ids: string[];
     authoritative_source_ids: string[];
     implemented_authoritative_source_ids: string[];
     planned_source_ids: string[];
@@ -173,7 +175,7 @@ export class SourceRegistry {
     notes: string;
   }> {
     const catalog = this.catalog();
-    const requirements: Array<DataRequirement | "official_current_nav" | "official_nav_history" | "official_fund_reports" | "benchmark"> = [
+    const requirements: CoverageRequirement[] = [
       "fund_meta",
       "current_nav",
       "official_current_nav",
@@ -212,6 +214,7 @@ export class SourceRegistry {
       );
       const coordinators = matching.filter((source) => source.integration_status === "implemented" && COORDINATOR_SOURCE_IDS.has(source.source_id));
       const manualSources = matching.filter((source) => source.source_type === "manual_import" && !source.is_demo);
+      const manualWorkarounds = this.manualWorkaroundSourcesFor(requirement, catalog);
       const authoritative = matching.filter((source) => source.quality_tier === "authoritative");
       const implementedAuthoritative = implemented.filter((source) => source.quality_tier === "authoritative");
       const planned = matching.filter((source) => source.integration_status === "planned");
@@ -229,6 +232,7 @@ export class SourceRegistry {
         implemented_source_ids: implemented.map((source) => source.source_id),
         coordinator_source_ids: coordinators.map((source) => source.source_id),
         manual_source_ids: manualSources.map((source) => source.source_id),
+        manual_workaround_source_ids: manualWorkarounds.map((source) => source.source_id),
         authoritative_source_ids: authoritative.map((source) => source.source_id),
         implemented_authoritative_source_ids: implementedAuthoritative.map((source) => source.source_id),
         planned_source_ids: planned.map((source) => source.source_id),
@@ -538,7 +542,7 @@ export class SourceRegistry {
   }
 
   private coverageNoteFor(
-    requirement: DataRequirement | "official_current_nav" | "official_nav_history" | "official_fund_reports" | "benchmark",
+    requirement: CoverageRequirement,
     gapLevel: "covered" | "partial" | "missing" | "requires_license"
   ): string {
     if (requirement === "official_current_nav") {
@@ -554,6 +558,30 @@ export class SourceRegistry {
     if (gapLevel === "partial") return "已有 provider 可支撑弱结论，需要补官方或授权来源。";
     if (gapLevel === "requires_license") return "主要依赖授权数据源，接入前需要完成商务和密钥配置。";
     return "尚无可用 provider，Argus 必须把该项列入数据缺口和工程任务。";
+  }
+
+  private manualWorkaroundSourcesFor(
+    requirement: CoverageRequirement,
+    catalog: DataSourceCatalogEntry[]
+  ): DataSourceCatalogEntry[] {
+    const workaroundRequirements: Partial<Record<CoverageRequirement, string[]>> = {
+      official_current_nav: ["current_nav"],
+      official_nav_history: ["nav_history"],
+      official_fund_reports: ["manual_official_report_workaround"],
+      fund_meta: ["fund_meta"],
+      current_nav: ["current_nav"],
+      nav_history: ["nav_history"],
+      holdings: ["holdings"],
+      fund_reports: ["manual_official_report_workaround"]
+    };
+    const targets = workaroundRequirements[requirement] ?? [];
+    if (!targets.length) return [];
+    return catalog.filter(
+      (source) =>
+        source.integration_status === "manual" &&
+        source.source_type === "manual_import" &&
+        targets.some((target) => source.recommended_for.includes(target) || source.coverage.includes(target))
+    );
   }
 
   private mergeContext(left: ProviderFundPayload, right: ProviderFundPayload): ProviderFundPayload {

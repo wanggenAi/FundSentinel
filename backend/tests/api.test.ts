@@ -190,6 +190,13 @@ test("data source APIs are available", async () => {
   assert.equal(officialReportsCoverage.implemented_source_ids.includes("fund-company-report"), false);
   assert.ok(officialReportsCoverage.coordinator_source_ids.includes("fund-company-report"));
   assert.equal(officialReportsCoverage.manual_source_ids.includes("manual-official-report-import"), false);
+  assert.ok(officialReportsCoverage.manual_workaround_source_ids.includes("manual-official-report-import"));
+  const officialCurrentNavCoverage = coverageResponse.json().coverage.find((item: { requirement: string }) => item.requirement === "official_current_nav");
+  assert.equal(officialCurrentNavCoverage.manual_source_ids.includes("manual-csv-import"), false);
+  assert.ok(officialCurrentNavCoverage.manual_workaround_source_ids.includes("manual-csv-import"));
+  const officialNavHistoryCoverage = coverageResponse.json().coverage.find((item: { requirement: string }) => item.requirement === "official_nav_history");
+  assert.equal(officialNavHistoryCoverage.manual_source_ids.includes("manual-csv-import"), false);
+  assert.ok(officialNavHistoryCoverage.manual_workaround_source_ids.includes("manual-csv-import"));
   const navHistoryCoverage = coverageResponse.json().coverage.find((item: { requirement: string }) => item.requirement === "nav_history");
   assert.equal(navHistoryCoverage.implemented_source_ids.includes("manual-csv-import"), false);
   assert.ok(navHistoryCoverage.manual_source_ids.includes("manual-csv-import"));
