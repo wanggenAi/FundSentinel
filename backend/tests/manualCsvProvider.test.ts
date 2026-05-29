@@ -65,6 +65,17 @@ test("ManualCsvProvider rejects malformed CSV instead of fabricating data", asyn
   }
 });
 
+test("ManualCsvProvider rejects invalid calendar dates and numeric fields", async () => {
+  assert.throws(
+    () => ManualCsvProvider.parseCsv(["fund_code,date,nav,daily_return", "007951,2026-02-31,1.018,0.12"].join("\n")),
+    /invalid date/
+  );
+  assert.throws(
+    () => ManualCsvProvider.parseCsv(["fund_code,date,nav,daily_return", "007951,2026-05-28,1.018,not-a-number"].join("\n")),
+    /invalid daily_return/
+  );
+});
+
 test("Argus can use manual CSV as explicit real-data fallback", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "fundsentinel-argus-csv-"));
   try {

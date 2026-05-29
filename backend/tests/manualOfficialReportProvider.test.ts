@@ -88,6 +88,27 @@ test("ManualOfficialReportProvider rejects mismatched official PDF hashes", asyn
   }
 });
 
+test("ManualOfficialReportProvider rejects invalid calendar publication dates", () => {
+  assert.throws(
+    () =>
+      ManualOfficialReportProvider.parseManifest(
+        JSON.stringify({
+          fund_code: "007951",
+          title: "招商信用增强债券C2026年第1季度报告",
+          announcement_id: "manual-007951-2026q1",
+          published_at: "2026-02-31",
+          document_kind: "periodic_report",
+          source_name: "中国证监会基金电子披露网站",
+          source_url: "https://eid.csrc.gov.cn/fund/disclosure/007951/20260422/report.pdf",
+          pdf_path: "007951-2026q1.pdf",
+          pdf_sha256: "0".repeat(64)
+        }),
+        "007951"
+      ),
+    /invalid published_at/
+  );
+});
+
 test("Argus accepts manual official report import as verified official report coverage", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "fundsentinel-argus-manual-report-"));
   try {

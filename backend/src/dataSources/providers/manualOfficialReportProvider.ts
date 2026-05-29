@@ -230,7 +230,7 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
       category: typeof record.category === "string" ? record.category : null
     };
     if (!/^\d{6}$/u.test(normalized.fund_code)) throw new Error(`Manifest row ${index + 1} has invalid fund_code.`);
-    if (!/^\d{4}-\d{2}-\d{2}$/u.test(normalized.published_at)) throw new Error(`Manifest row ${index + 1} has invalid published_at.`);
+    if (!this.isValidIsoDate(normalized.published_at)) throw new Error(`Manifest row ${index + 1} has invalid published_at.`);
     return normalized;
   }
 
@@ -261,5 +261,12 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
     const allowed: Array<FundReportDocument["document_kind"]> = ["periodic_report", "report_notice", "business_notice", "sales_document", "other"];
     if (allowed.includes(value as FundReportDocument["document_kind"])) return value as FundReportDocument["document_kind"];
     throw new Error(`Manifest row ${index + 1} has invalid document_kind.`);
+  }
+
+  private static isValidIsoDate(value: string): boolean {
+    if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
+    const timestamp = Date.parse(`${value}T00:00:00.000Z`);
+    if (!Number.isFinite(timestamp)) return false;
+    return new Date(timestamp).toISOString().slice(0, 10) === value;
   }
 }

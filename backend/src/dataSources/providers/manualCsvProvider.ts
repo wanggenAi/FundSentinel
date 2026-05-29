@@ -147,15 +147,17 @@ export class ManualCsvProvider implements DataProvider<FundDataSourceInput, Prov
       const date = record.date;
       const nav = Number(record.nav);
       if (!/^\d{6}$/.test(fundCode)) throw new Error(`CSV row ${index + 2} has invalid fund_code.`);
-      if (!/^\d{4}-\d{2}-\d{2}$/u.test(date)) throw new Error(`CSV row ${index + 2} has invalid date.`);
+      if (!this.isValidIsoDate(date)) throw new Error(`CSV row ${index + 2} has invalid date.`);
       if (!Number.isFinite(nav) || nav <= 0) throw new Error(`CSV row ${index + 2} has invalid nav.`);
+      const dailyReturn = record.daily_return ? Number(record.daily_return) : undefined;
+      if (dailyReturn !== undefined && !Number.isFinite(dailyReturn)) throw new Error(`CSV row ${index + 2} has invalid daily_return.`);
       return {
         fund_code: fundCode,
         date,
         nav,
         fund_name: record.fund_name || undefined,
         fund_type: record.fund_type || undefined,
-        daily_return: record.daily_return ? Number(record.daily_return) : undefined,
+        daily_return: dailyReturn,
         holding: record.holding || undefined,
         theme: record.theme || undefined
       };
@@ -183,6 +185,13 @@ export class ManualCsvProvider implements DataProvider<FundDataSourceInput, Prov
     }
     cells.push(current);
     return cells;
+  }
+
+  private static isValidIsoDate(value: string): boolean {
+    if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
+    const timestamp = Date.parse(`${value}T00:00:00.000Z`);
+    if (!Number.isFinite(timestamp)) return false;
+    return new Date(timestamp).toISOString().slice(0, 10) === value;
   }
 
   private freshnessFor(date: string): "fresh" | "acceptable" | "stale" | "unknown" {
