@@ -761,9 +761,13 @@ test("SourceRegistry opens circuit breaker after repeated provider failures", as
 
 test("DataSourceService returns gap and manual import plan", async () => {
   const service = new DataSourceService();
+  const coverage = service.coverage();
   const gap = await service.gaps("007951");
   const manualPlan = service.manualImportPlan();
 
+  assert.match(coverage.field_notes.manual_workaround_source_ids, /do not satisfy official\/strong-conclusion coverage/u);
+  assert.match(coverage.field_notes.coordinator_source_ids, /must not be counted as external source coverage/u);
+  assert.ok(coverage.coverage.some((item) => item.requirement === "official_fund_reports" && item.manual_workaround_source_ids.includes("manual-official-report-import")));
   assert.ok(gap.missing_data.length > 0);
   assert.ok(gap.recommended_solutions.length > 0);
   assert.doesNotMatch(JSON.stringify(gap), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);

@@ -31,6 +31,16 @@ export class DataSourceService {
       generated_at: nowIso(),
       note:
         "Coverage matrix shows whether Argus has implemented default providers for each data requirement. Planned sources and explicit manual-import fallbacks are not counted as integrated default coverage.",
+      field_notes: {
+        implemented_source_ids: "Default automated providers that may be used for integrated coverage; excludes demo, manual fallback, and coordinator-only sources.",
+        implemented_authoritative_source_ids: "Default automated providers that are also authoritative for the requirement.",
+        coordinator_source_ids: "Internal coordinators that reuse already collected provenance and must not be counted as external source coverage.",
+        manual_source_ids: "Manual fallback sources that directly match the non-official requirement; they are not default automated coverage.",
+        manual_workaround_source_ids: "Manual fallback sources that can bootstrap or audit the requirement but do not satisfy official/strong-conclusion coverage by themselves.",
+        planned_source_ids: "Catalogued future sources without an implemented runtime provider.",
+        blocked_source_ids: "Catalogued sources blocked by legal, access, or site-protection constraints.",
+        requires_license_source_ids: "Catalogued sources that require commercial license or credentials before integration."
+      },
       coverage: this.sourceRegistry.coverageMatrix()
     };
   }

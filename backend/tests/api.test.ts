@@ -183,6 +183,9 @@ test("data source APIs are available", async () => {
   );
   assert.doesNotMatch(JSON.stringify(catalogResponse.json()), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
   assert.equal(coverageResponse.statusCode, 200);
+  assert.match(coverageResponse.json().field_notes.implemented_source_ids, /excludes demo, manual fallback, and coordinator-only sources/u);
+  assert.match(coverageResponse.json().field_notes.manual_workaround_source_ids, /do not satisfy official\/strong-conclusion coverage/u);
+  assert.match(coverageResponse.json().field_notes.coordinator_source_ids, /must not be counted as external source coverage/u);
   assert.ok(coverageResponse.json().coverage.some((item: { requirement: string }) => item.requirement === "official_fund_reports"));
   assert.ok(coverageResponse.json().coverage.some((item: { requirement: string }) => item.requirement === "official_current_nav"));
   assert.ok(coverageResponse.json().coverage.some((item: { requirement: string }) => item.requirement === "official_nav_history"));
