@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { SourceRegistry, type DataProvider, type DataProviderResult, type DataSourceInfo, type FundDataSourceInput, type ProviderFundPayload } from "../src/dataSources/index.js";
-import { DataSourceService, FundAnalysisService, HomeService, OpportunityService, PortfolioService } from "../src/services/index.js";
+import type { FundAnalysisResponse } from "../src/schemas/index.js";
+import { DataSourceService, FundAnalysisService, HomeService, MockDataService, OpportunityService, PortfolioService, StrategyTriggerService } from "../src/services/index.js";
 
 test("default FundAnalysisResponse with live providers disabled is data unavailable, not fake analysis", async () => {
   const response = await new FundAnalysisService(new SourceRegistry({ enableLiveProviders: false })).analyzeFund("007951", "analysis-flow");
@@ -102,6 +103,56 @@ test("portfolio service uses mock holdings only in explicit demo mode", () => {
   assert.equal(snapshot.is_mock, true);
   assert.ok(snapshot.holdings.length > 0);
   assert.equal(snapshot.data_quality.is_mock, true);
+});
+
+test("strategy trigger service sanitizes home action language and preserves provenance", () => {
+  const dataPack = new MockDataService().getFundDataPack("007951");
+  const response: FundAnalysisResponse = {
+    task_id: "home-trigger",
+    fund_code: dataPack.fund_code,
+    fund_name: dataPack.fund_name,
+    is_mock: false,
+    data_pack: {
+      ...dataPack,
+      data_status: "ready",
+      allow_downstream_analysis: true,
+      is_mock: false,
+      data_quality: {
+        ...dataPack.data_quality,
+        is_mock: false
+      }
+    },
+    agent_results: {},
+    final_decision: {
+      action: "staged_buy",
+      confidence: 0.72,
+      risk_level: "medium",
+      summary: "internal action should not leak to home",
+      reasons: [],
+      risk_warnings: ["必须先核对来源和失效条件。"],
+      invalidation_conditions: [],
+      source_agents: ["Atlas"],
+      metrics: { overall_score: 72 },
+      generated_by: "Atlas",
+      generated_at: "2026-05-29T00:00:00.000Z",
+      is_mock: false
+    },
+    blackboard_snapshot: {},
+    generated_at: "2026-05-29T00:00:00.000Z"
+  };
+
+  const service = new StrategyTriggerService();
+  const triggers = service.buildTriggers([response]);
+  const alerts = service.buildHoldingAlerts([response]);
+  const focus = service.buildTodayFocus(triggers);
+  const homeText = JSON.stringify({ triggers, alerts, focus });
+
+  assert.equal(triggers[0]?.trigger_type, "observe");
+  assert.equal(triggers[0]?.related_agent, "Atlas");
+  assert.equal(triggers[0]?.is_mock, false);
+  assert.equal(alerts[0]?.is_mock, false);
+  assert.equal(focus[0]?.is_mock, false);
+  assert.doesNotMatch(homeText, /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
 });
 
 test("opportunity service does not fake candidates without real data", async () => {
