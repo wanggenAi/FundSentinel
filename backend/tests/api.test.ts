@@ -112,6 +112,19 @@ test("API unknown routes return non-mock error envelope", async () => {
   assert.equal(response.json().is_mock, false);
 });
 
+test("API internal errors return non-mock generic envelope", async () => {
+  const app = await buildApp();
+  app.get("/__test/internal-error", async () => {
+    throw new Error("secret stack detail");
+  });
+  const response = await app.inject({ method: "GET", url: "/__test/internal-error" });
+  await app.close();
+
+  assert.equal(response.statusCode, 500);
+  assert.equal(response.json().error, "Internal server error");
+  assert.equal(response.json().is_mock, false);
+});
+
 test("API analyze trims request identifiers before tracing", async () => {
   const app = await buildApp();
   const userRequest = "  request with whitespace  ";
