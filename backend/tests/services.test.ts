@@ -836,6 +836,24 @@ test("DataSourceService returns gap and manual import plan", async () => {
   assert.ok(manualPlan.warnings.some((warning) => warning.includes("官方报告 PDF manifest 不得标记为自动抓取")));
 });
 
+test("DataSourceService sanitizes provider text across public source endpoints", async () => {
+  const registry = new SourceRegistry({ providers: [new PublicTextPollutedProvider()], cacheTtlMs: 0, retryCount: 0 });
+  const service = new DataSourceService(registry);
+
+  const sources = service.listSources();
+  const health = service.health();
+  const gap = await service.gaps("007951");
+  const payload = JSON.stringify({ sources, health, gap });
+
+  assert.doesNotMatch(payload, /must buy|guaranteed|risk[-\s]?free|保证收益|无风险|必须买入|list-secret|raw-secret|warning-secret|gap-secret/iu);
+  assert.match(payload, /must review/u);
+  assert.match(payload, /requires evidence review/u);
+  assert.match(payload, /api_key=\[REDACTED\]/u);
+  assert.match(payload, /access_token=\[REDACTED\]/u);
+  assert.match(payload, /token=\[REDACTED\]/u);
+  assert.match(payload, /password=\[REDACTED\]/u);
+});
+
 function sourceInfo(sourceId: string): DataSourceInfo {
   return {
     source_id: sourceId,
@@ -1131,6 +1149,40 @@ class SensitiveProvider implements DataProvider<FundDataSourceInput, ProviderFun
       freshness: "fresh",
       warnings: ["authorization: Bearer warning-secret"],
       error: "client warning password=error-secret",
+      is_demo: false
+    };
+  }
+}
+
+class PublicTextPollutedProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("public-text-polluted-provider"),
+      source_name: "Must Buy Provider 保证收益",
+      access_method: "public endpoint https://provider.example.test?api_key=list-secret with guaranteed returns",
+      freshness_policy: "risk-free same-day claim",
+      notes: "必须买入且无风险的错误说明"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "public-text-polluted-provider",
+      source_name: "Must Buy Provider 保证收益",
+      source_type: "fund_meta",
+      trust_level: "B",
+      data_status: "unavailable",
+      success: false,
+      data: null,
+      raw_reference: "https://provider.example.test/data?access_token=raw-secret",
+      fetched_at: "2026-05-30T00:00:00.000Z",
+      freshness: "unknown",
+      warnings: ["must buy, guaranteed returns, risk-free, 保证收益 token=warning-secret"],
+      error: "upstream 必须买入 password=gap-secret",
       is_demo: false
     };
   }

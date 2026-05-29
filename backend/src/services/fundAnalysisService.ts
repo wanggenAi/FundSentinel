@@ -251,7 +251,7 @@ export class FundAnalysisService {
   }
 
   private sanitizeStructured(value: unknown): unknown {
-    if (typeof value === "string") return this.sanitizeText(value);
+    if (typeof value === "string") return sanitizePublicText(value);
     if (Array.isArray(value)) return value.map((item) => this.sanitizeStructured(item));
     if (value && typeof value === "object") {
       return Object.fromEntries(Object.entries(value).map(([key, item]) => [this.publicMetricKey(key), this.sanitizeStructured(item)]));

@@ -1,6 +1,7 @@
 import { SourceRegistry } from "../dataSources/index.js";
 import type { DataAcquisitionSolution, DataGapReport, SourceComposition } from "../schemas/index.js";
 import { nowIso } from "../schemas/index.js";
+import { sanitizePublicStructure } from "../utils/publicText.js";
 import { AIGateway } from "./aiGateway.js";
 import { FundAnalysisService } from "./fundAnalysisService.js";
 
@@ -11,22 +12,22 @@ export class DataSourceService {
   ) {}
 
   listSources() {
-    return {
+    return this.sanitize({
       demo_mode: this.sourceRegistry.isDemoMode(),
       sources: this.sourceRegistry.listSources()
-    };
+    });
   }
 
   catalog() {
-    return {
+    return this.sanitize({
       strategy: "real-data-first",
       note: "This catalog is Argus's source universe: authoritative and stable sources first, demo sources last.",
       sources: this.sourceRegistry.catalog()
-    };
+    });
   }
 
   coverage() {
-    return {
+    return this.sanitize({
       strategy: "real-data-first",
       generated_at: nowIso(),
       note:
@@ -42,15 +43,15 @@ export class DataSourceService {
         requires_license_source_ids: "Catalogued sources that require commercial license or credentials before integration."
       },
       coverage: this.sourceRegistry.coverageMatrix()
-    };
+    });
   }
 
   health() {
-    return {
+    return this.sanitize({
       demo_mode: this.sourceRegistry.isDemoMode(),
       generated_at: nowIso(),
       sources: this.sourceRegistry.health()
-    };
+    });
   }
 
   async gaps(fundCode: string): Promise<
@@ -76,7 +77,7 @@ export class DataSourceService {
         created_by: "Argus",
         created_at: nowIso()
       };
-    return {
+    return this.sanitize({
       ...gapReport,
       is_mock: analysis.is_mock || analysis.data_pack.is_mock,
       data_status: analysis.data_pack.data_status,
@@ -84,7 +85,7 @@ export class DataSourceService {
       allow_strong_conclusion: analysis.data_pack.allow_strong_conclusion,
       source_composition: analysis.data_pack.data_quality_report.source_composition,
       acquisition_solutions: analysis.data_pack.acquisition_solutions
-    };
+    });
   }
 
   manualImportPlan(): {
@@ -97,7 +98,7 @@ export class DataSourceService {
     report_manifest_filename: string;
     warnings: string[];
   } {
-    return {
+    return this.sanitize({
       required_csv_columns: ["fund_code", "date", "nav"],
       required_csv_audit_fields: ["file_path", "file_sha256", "file_size_bytes", "file_mtime", "row_count", "date_start", "date_end", "latest_date", "imported_at"],
       required_portfolio_json_fields: ["holdings[].fund_code", "holdings[].fund_name", "holdings[].holding_amount", "holdings[].cost_nav", "holdings[].current_nav"],
@@ -185,6 +186,10 @@ export class DataSourceService {
           owner_agent: "Argus"
         }
       ]
-    };
+    });
+  }
+
+  private sanitize<T>(value: T): T {
+    return sanitizePublicStructure(value);
   }
 }
