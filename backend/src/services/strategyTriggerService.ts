@@ -18,7 +18,7 @@ export class StrategyTriggerService {
         trigger_type: this.homeTriggerTypeForAction(action),
         priority: this.priorityForAction(action, analysis.final_decision.risk_level),
         reason: this.homeReason(analysis),
-        suggested_action: this.suggestedAction(action),
+        review_next_step: this.reviewNextStep(action),
         related_agent: "Atlas",
         is_mock: analysis.is_mock
       };
@@ -34,7 +34,7 @@ export class StrategyTriggerService {
         alert_type: "strategy_review",
         priority: this.priorityForAction(analysis.final_decision.action, analysis.final_decision.risk_level),
         summary: analysis.final_decision.risk_warnings[0] ?? "需要继续观察风险变化。",
-        suggested_action: this.suggestedAction(analysis.final_decision.action),
+        review_next_step: this.reviewNextStep(analysis.final_decision.action),
         related_agent: "Atlas",
         is_mock: analysis.is_mock
       }));
@@ -82,7 +82,7 @@ export class StrategyTriggerService {
     return "low";
   }
 
-  private suggestedAction(action: StrategyAction): string {
+  private reviewNextStep(action: StrategyAction): string {
     const map: Record<StrategyAction, string> = {
       avoid: "暂停形成策略结论，等待证据修复或风险释放。",
       observe: "加入观察清单，继续核对来源、估值和失效条件。",

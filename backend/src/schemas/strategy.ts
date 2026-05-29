@@ -6,7 +6,7 @@ export interface StrategyTrigger {
   trigger_type: TriggerType;
   priority: TriggerPriority;
   reason: string;
-  suggested_action: string;
+  review_next_step: string;
   related_agent: string;
   is_mock: boolean;
 }
@@ -17,7 +17,7 @@ export interface HoldingAlert {
   alert_type: string;
   priority: TriggerPriority;
   summary: string;
-  suggested_action: string;
+  review_next_step: string;
   related_agent: string;
   is_mock: boolean;
 }
@@ -29,4 +29,3 @@ export interface TodayFocusItem {
   related_funds: string[];
   is_mock: boolean;
 }
-

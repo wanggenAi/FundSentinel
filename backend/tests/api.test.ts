@@ -28,6 +28,7 @@ test("API home returns HomeDashboardResponse", async () => {
   assert.equal(payload.strategy_triggers.length, 0);
   assert.ok(payload.today_focus.some((item: { title: string }) => item.title === "真实持仓未配置"));
   assert.ok(payload.data_quality.warnings.some((warning: string) => warning.includes("FUNDSENTINEL_PORTFOLIO_FILE")));
+  assert.doesNotMatch(JSON.stringify(payload), /suggested_action/);
 });
 
 test("API agents returns public orchestration catalog", async () => {

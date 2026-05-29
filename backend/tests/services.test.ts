@@ -152,6 +152,10 @@ test("strategy trigger service sanitizes home action language and preserves prov
   assert.equal(triggers[0]?.is_mock, false);
   assert.equal(alerts[0]?.is_mock, false);
   assert.equal(focus[0]?.is_mock, false);
+  assert.equal("suggested_action" in triggers[0]!, false);
+  assert.equal("suggested_action" in alerts[0]!, false);
+  assert.match(triggers[0]?.review_next_step ?? "", /观察主题|来源复核/);
+  assert.match(alerts[0]?.review_next_step ?? "", /观察主题|来源复核/);
   assert.doesNotMatch(homeText, /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
 });
 
