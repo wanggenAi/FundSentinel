@@ -191,6 +191,100 @@ class FailingOfficialReportProvider implements DataProvider<FundDataSourceInput,
   }
 }
 
+class ReadyOfficialCoreProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "ready-official-core-test",
+      source_name: "Ready Official Core Test Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      enabled: true,
+      priority: 0,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "ready-official-core-test",
+      source_name: "Ready Official Core Test Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "ready",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "招商信用增强债券C",
+        fund_type: "债券型",
+        current_nav: 1.0799,
+        daily_return: -0.02,
+        nav_history: [1.0801, 1.0799],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        portfolio_holdings: ["国债", "政策性金融债"],
+        fund_report_refs: ["2026-04-22 招商信用增强债券C2026年第1季度报告 pdf_verified=true"],
+        fund_report_documents: [
+          {
+            title: "招商信用增强债券C2026年第1季度报告",
+            announcement_id: "verified-2026q1",
+            published_at: "2026-04-22",
+            category: null,
+            document_kind: "periodic_report",
+            detail_url: "https://official.example.test/detail",
+            pdf_url: "https://official.example.test/report.pdf",
+            pdf_verified: true,
+            pdf_content_type: "application/pdf",
+            pdf_content_length: 2048,
+            source_name: "官方披露测试源",
+            source_type: "official_disclosure",
+            trust_level: "A"
+          }
+        ],
+        policy_signals: ["2026-05-20 官方政策背景证据"],
+        macro_indicators: [
+          {
+            country_code: "CN",
+            country_name: "China",
+            indicator_id: "NY.GDP.MKTP.KD.ZG",
+            indicator_name: "GDP growth",
+            value: 5.1,
+            date: "2025",
+            unit: "percent",
+            source_url: "https://api.worldbank.org/test",
+            source_name: "World Bank",
+            fetched_at: "2026-05-28T00:00:00.000Z"
+          }
+        ],
+        news_summaries: ["2026-05-20 官方行业新闻背景证据"],
+        social_sentiment_score: 0.42
+      },
+      raw_reference: "https://official.example.test/detail",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
 test("Argus source composition separates authoritative, aggregator, manual, and macro sources", async () => {
   const registry = new SourceRegistry({
     providers: [
@@ -284,6 +378,29 @@ test("Argus records structured failed provider details in DataGapReport", async 
   assert.ok(gapReport.missing_data.includes("fund_meta"));
   assert.equal(dataPack.data_quality_report.failed_source_count, 1);
   assert.ok(dataPack.data_quality_report.source_composition.failed.includes("failing-official-report-test"));
+});
+
+test("Argus keeps provider failures in DataGapReport even when core data is ready", async () => {
+  const registry = new SourceRegistry({
+    providers: [new ReadyOfficialCoreProvider(), new FailingOfficialReportProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("ready-with-provider-failure", "007951");
+  const gapReport = dataPack.data_gap_report;
+
+  assert.equal(dataPack.data_quality_report.data_status, "ready");
+  assert.equal(dataPack.allow_downstream_analysis, true);
+  assert.equal(dataPack.allow_strong_conclusion, true);
+  assert.ok(gapReport);
+  assert.deepEqual(gapReport.missing_data, []);
+  assert.deepEqual(gapReport.blocking_downstream_agents, []);
+  assert.ok(gapReport.impact.includes("核心数据已满足当前分析"));
+  assert.ok(gapReport.failed_source_details.some((source) => source.source_id === "failing-official-report-test"));
+  assert.ok(gapReport.recommended_solutions.some((solution) => solution.includes("失败 provider")));
+  assert.equal(dataPack.acquisition_solutions[0]?.severity, "medium");
+  assert.ok(dataPack.acquisition_solutions[0]?.problem.includes("provider 获取失败"));
 });
 
 test("Argus recognizes official fund-company NAV coverage for core NAV fields", async () => {

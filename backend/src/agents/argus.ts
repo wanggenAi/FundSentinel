@@ -349,7 +349,14 @@ export class ArgusAgent extends BaseAgent {
       cache_hit: result.cache_hit ?? false,
       skipped_by_circuit_breaker: result.skipped_by_circuit_breaker ?? false
     }));
-    const missingData = [...quality.missing_core_fields, ...quality.missing_auxiliary_fields];
+    const missingData = [...new Set([...quality.missing_core_fields, ...quality.missing_auxiliary_fields])];
+    const providerFailureSolutions = failedSourceDetails.length
+      ? [
+          "排查失败 provider 的错误、attempt_count、latency_ms 与 circuit-breaker 状态；失败源不得被标记为覆盖成功。",
+          "若失败源属于官方披露、基金公司或授权数据源，补充 parser/timeout 回归测试，并保留 DataGapReport 直到可重新获取且记录 provenance。",
+          "对持续失败的数据源启用备用官方/授权 provider 或人工审计导入 workaround，不得静默回退到 demo/fixture 数据。"
+        ]
+      : [];
     const reportGapSolutions = quality.missing_auxiliary_fields.includes("official_fund_reports")
       ? [
           "official_fund_reports 缺口要求官方披露定期报告 PDF 通过元数据校验；只有提示性公告、聚合索引或未校验 PDF 不能放行强结论。",
@@ -357,31 +364,43 @@ export class ArgusAgent extends BaseAgent {
           "若官网/证监会站点防护阻断自动校验，改用运营导入官方 PDF 或授权披露 API，并保留导入审计记录。"
         ]
       : [];
-    if (quality.data_status === "ready") return null;
+    if (quality.data_status === "ready" && failedSourceDetails.length === 0) return null;
+    const dataGapSolutions =
+      quality.data_status === "ready"
+        ? []
+        : [
+            ...(quality.missing_auxiliary_fields.includes("official_current_nav")
+              ? ["接入基金公司官网、监管披露或授权数据 API 的官方当前净值 provider，补齐 official_current_nav。"]
+              : []),
+            ...(quality.missing_auxiliary_fields.includes("official_nav_history")
+              ? ["接入基金公司官网、监管披露或授权数据 API 的官方历史净值 provider，补齐 official_nav_history。"]
+              : []),
+            ...reportGapSolutions,
+            "接入基金公司官网公告/定期报告 provider，补齐官方 fund_reports。",
+            "接入官方政策与行业数据 provider，补齐 policy_evidence。",
+            "为已实现的真实 provider 增加缓存、限流、重试和第二来源交叉校验。",
+            "实现证监会基金电子披露查询 endpoint 或官方 PDF 导入归档，补齐 official_fund_reports。",
+            "支持用户或运营手动导入历史净值/持仓 CSV，并保留审计记录。",
+            "增加定时同步任务。",
+            "增加数据源监控告警。"
+          ];
+    const downstreamBlockingAgents =
+      quality.data_status === "ready" ? [] : quality.allow_downstream_analysis ? ["Logos"] : ["Logos", "Nadir", "Vega", "Aegis"];
     return {
       fund_code: fundCode,
-      missing_data: [...new Set(missingData)],
+      missing_data: missingData,
       failed_sources: failedSources,
       failed_source_details: failedSourceDetails,
-      impact: quality.allow_downstream_analysis
-        ? "只能支持弱结论，后续 Agent 必须降级。"
-        : "不能支持真实基金分析，后续 Agent 不应输出复核结论。",
-      blocking_downstream_agents: quality.allow_downstream_analysis ? ["Logos"] : ["Logos", "Nadir", "Vega", "Aegis"],
+      impact:
+        quality.data_status === "ready"
+          ? "核心数据已满足当前分析，但仍有 provider 获取失败；失败源必须审计、监控并在恢复前不得计作覆盖成功。"
+          : quality.allow_downstream_analysis
+            ? "只能支持弱结论，后续 Agent 必须降级。"
+            : "不能支持真实基金分析，后续 Agent 不应输出复核结论。",
+      blocking_downstream_agents: downstreamBlockingAgents,
       recommended_solutions: [
-        ...(quality.missing_auxiliary_fields.includes("official_current_nav")
-          ? ["接入基金公司官网、监管披露或授权数据 API 的官方当前净值 provider，补齐 official_current_nav。"]
-          : []),
-        ...(quality.missing_auxiliary_fields.includes("official_nav_history")
-          ? ["接入基金公司官网、监管披露或授权数据 API 的官方历史净值 provider，补齐 official_nav_history。"]
-          : []),
-        ...reportGapSolutions,
-        "接入基金公司官网公告/定期报告 provider，补齐官方 fund_reports。",
-        "接入官方政策与行业数据 provider，补齐 policy_evidence。",
-        "为已实现的真实 provider 增加缓存、限流、重试和第二来源交叉校验。",
-        "实现证监会基金电子披露查询 endpoint 或官方 PDF 导入归档，补齐 official_fund_reports。",
-        "支持用户或运营手动导入历史净值/持仓 CSV，并保留审计记录。",
-        "增加定时同步任务。",
-        "增加数据源监控告警。"
+        ...providerFailureSolutions,
+        ...dataGapSolutions
       ],
       created_by: "Argus",
       created_at: nowIso()
@@ -390,6 +409,30 @@ export class ArgusAgent extends BaseAgent {
 
   private buildSolutions(quality: DataQualityReport, gapReport: DataGapReport | null): DataAcquisitionSolution[] {
     if (!gapReport) return [];
+    if (quality.data_status === "ready" && gapReport.failed_source_details.length > 0) {
+      const optionalMissing = gapReport.missing_data.length ? `；非阻断缺口：${gapReport.missing_data.join(", ")}` : "";
+      return [
+        {
+          problem: `核心数据状态为 ready，但以下 provider 获取失败：${gapReport.failed_sources.join(", ")}${optionalMissing}。`,
+          severity: "medium",
+          proposed_actions: [
+            "保留失败详情供审核，不得把失败 provider 计作成功覆盖。",
+            "检查 SourceRegistry 健康状态、重试次数、延迟和 circuit-breaker 状态。",
+            "优先修复官方/授权 provider，或配置等价备用真实来源进行交叉验证。"
+          ],
+          engineering_tasks: [
+            "为失败 provider 增加错误场景 parser/timeout 回归测试。",
+            "把持续失败的官方/授权数据源纳入监控告警和 cooldown 观察。",
+            "确认失败恢复前不会用 demo/fixture 数据替代真实业务输出。"
+          ],
+          manual_workaround: [
+            "如失败源阻断官方报告或核心验证，可用人工审计导入补齐，并保留 checksum、mtime、导入时间和来源 URL。",
+            "人工导入只能作为明确 fallback，不得标记为自动 provider 成功。"
+          ],
+          owner_agent: "Argus"
+        }
+      ];
+    }
     return [
       {
         problem: `当前数据状态为 ${quality.data_status}，缺少 ${gapReport.missing_data.join(", ")}。`,
