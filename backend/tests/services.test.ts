@@ -74,6 +74,45 @@ test("home service marks dashboard mock when analysis chain uses demo data", asy
   }
 });
 
+test("home service surfaces degraded analysis gaps when downstream analysis is allowed but strong conclusions are blocked", async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "fundsentinel-home-degraded-"));
+  const portfolioFile = path.join(tempDir, "portfolio.json");
+
+  try {
+    writeFileSync(
+      portfolioFile,
+      JSON.stringify({
+        generated_at: "2026-05-28T00:00:00.000Z",
+        holdings: [
+          {
+            fund_code: "007951",
+            fund_name: "真实手动持仓基金 A",
+            holding_amount: 10000,
+            cost_nav: 1.25,
+            current_nav: 1.3
+          }
+        ]
+      })
+    );
+
+    const response = await new HomeService(
+      new PortfolioService(undefined, { portfolioFile, demoMode: false }),
+      new FundAnalysisService(new SourceRegistry({ providers: [new RealOpportunityProvider()], cacheTtlMs: 0, retryCount: 0 }))
+    ).getHomeDashboard("user-a");
+
+    assert.equal(response.is_mock, false);
+    assert.equal(response.holding_count, 1);
+    assert.equal(response.strategy_triggers.length, 1);
+    assert.equal(response.data_quality.score < 0.68, true);
+    assert.ok(response.data_quality.warnings.some((warning) => warning.includes("Argus 未允许强结论")));
+    assert.ok(response.data_quality.warnings.some((warning) => warning.includes("official_fund_reports")));
+    assert.ok(response.today_focus.some((item) => item.title === "证据降级复核" && item.related_funds.includes("007951")));
+    assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("portfolio service reads explicit manual JSON snapshot as non-mock user-provided data", () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), "fundsentinel-portfolio-"));
   const portfolioFile = path.join(tempDir, "portfolio.json");
