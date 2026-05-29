@@ -6,7 +6,7 @@ The current backend priority is:
 
 1. Home intelligence: assets, holdings, strategy triggers, risk reminders, and today's focus.
 2. Opportunity square: candidate funds selected only when Argus has enough real or explicitly demo-mode data.
-3. Single-fund analysis: full Agent snapshots for future fund detail pages.
+3. Single-fund analysis: traceable public review responses for future fund detail pages. Internal AgentResult snapshots stay stable, but public HTTP routes do not expose raw orchestration state.
 
 Atlas is not the foreground chat product in this phase. Atlas is the backend chief orchestrator that schedules specialist Agents, reviews conflicts, applies degradation, and emits structured results.
 
@@ -36,9 +36,9 @@ V0.1 is now real-data-first at the Argus boundary. Demo/fixture data exists only
 - Atlas: Chief Orchestrator Agent. Schedules specialist Agents, resolves conflicts, downgrades unsafe conclusions, and produces final structured decisions.
 - Argus: Real Data Steward Agent. Builds acquisition plans, calls data providers, validates source quality, reports data gaps, and blocks downstream strong conclusions when real data is missing.
 - Logos: Industry Logic Analyst Agent. Evaluates hard logic from policy, themes, holdings, reports/news, and treats social sentiment as weak evidence.
-- Nadir: Valuation Position Agent. Computes historical percentile, distance from high/low, drawdown, and low-position score.
-- Vega: Turning Point Signal Agent. Detects falling, stabilizing, improving, or weakening trend states from mock NAV history.
-- Aegis: Risk & Position Manager Agent. Converts Agent outputs into conservative actions such as `observe`, `trial_buy`, `staged_buy`, `hold`, `reduce`, `exit`, and `avoid`.
+- Nadir: Valuation Review Agent. Computes historical percentile, distance from high/low, drawdown, and valuation-location score.
+- Vega: Turning Point Signal Agent. Detects falling, stabilizing, improving, or weakening trend states from NAV history.
+- Aegis: Risk Review Agent. Aggregates specialist outputs, applies conservative degradation, and maps internal orchestration signals to public review states.
 
 ## Unified AI Gateway
 
@@ -76,7 +76,7 @@ Strong conclusions also require official core NAV coverage. If `current_nav` and
 
 - `ready`: real data is sufficient for downstream Agent analysis.
 - `partial`: real data is partly available; downstream Agents may run but must downgrade.
-- `insufficient`: core data is missing; downstream Agents must not output buy/sell/position conclusions.
+- `insufficient`: core data is missing; downstream Agents must not output transaction or allocation conclusions.
 - `unavailable`: real data is unavailable; the DAG stops after Argus and Atlas returns a data-unavailable result.
 - `demo`: explicit demo fixture data only; never a real business conclusion.
 
@@ -94,7 +94,7 @@ Argus also produces a structured `nav_consistency_report` inside `DataQualityRep
 
 Data providers live under `src/dataSources/`:
 
-- `EastMoneyFundProvider`: implemented real public-web provider for fund meta, current NAV, NAV history, stage returns, and limited position-code hints from EastMoney/Tiantian Fund page JavaScript.
+- `EastMoneyFundProvider`: implemented real public-web provider for fund meta, current NAV, NAV history, stage returns, and limited disclosed-security hints from EastMoney/Tiantian Fund page JavaScript.
 - `EastMoneyNavHistoryProvider`: implemented second real public-web NAV provider using the EastMoney/Tiantian F10 historical NAV endpoint. It supplies dated NAV rows for cross-checking core NAV freshness and history.
 - `EastMoneyFundArchiveProvider`: implemented real public-web provider for public stock/bond holding tables and disclosed holding dates from Tiantian Fund archive pages.
 - `EastMoneyFundAnnouncementProvider`: implemented real public-web provider for periodic fund report announcement indexes, detail URLs, PDF attachment URLs, and HEAD-based PDF availability metadata. This is a report discovery/source-reference provider, not a replacement for official report PDF parsing.
@@ -191,7 +191,7 @@ If Argus returns `insufficient` or `unavailable`, the DAG stops after Argus. Atl
 - `GET /api/data-sources/catalog`
 - `GET /api/data-sources/coverage`
 - `GET /api/data-sources/health`
-- `GET /api/data-sources/gaps/{fund_code}`
+- `GET /api/data-sources/gaps/{fund_code}` returns `DataGapReport` fields plus `acquisition_solutions`, downstream gates, and source composition for direct engineering follow-up.
 - `POST /api/data-sources/manual-import/plan`
 - `GET /api/home`
 - `GET /api/opportunities?limit=6`
@@ -203,11 +203,13 @@ Example `POST /api/analyze` body:
 ```json
 {
   "fund_code": "007951",
-  "user_request": "分析这个基金现在是否适合进入观察或试探买入"
+  "user_request": "分析这个基金现在是否适合进入观察复核"
 }
 ```
 
 V0.1 deliberately does not implement an Atlas chat endpoint.
+
+Public fund-analysis routes return a sanitized projection with `final_review`, `review_status`, `traceability.data_gap_report`, and `traceability.acquisition_solutions`. They do not return raw `final_decision`, `blackboard_snapshot`, or internal action fields. Internal services and tests still keep the `AgentResult` and DAG contracts stable for replay and orchestration.
 
 ## Live Provider Behavior
 
@@ -219,7 +221,7 @@ https://fund.eastmoney.com/pingzhongdata/{fund_code}.js
 
 The live public provider set currently includes:
 
-- `https://fund.eastmoney.com/pingzhongdata/{fund_code}.js` for fund meta, current NAV, historical NAV, stage returns, and position-code hints.
+- `https://fund.eastmoney.com/pingzhongdata/{fund_code}.js` for fund meta, current NAV, historical NAV, stage returns, and limited disclosed-security hints.
 - `https://fundf10.eastmoney.com/FundArchivesDatas.aspx` for disclosed stock/bond holding archive tables.
 - `https://api.fund.eastmoney.com/f10/JJGG` for periodic fund report announcement indexes, with the F10 referer required by the public endpoint.
 - `https://pdf.dfcfw.com/pdf/H2_{announcement_id}_1.pdf` for report PDF attachment availability checks. Argus currently records whether the latest report PDFs respond as `application/pdf` and stores content length when available.
@@ -388,7 +390,7 @@ It must be treated as operator/user verified data with audit requirements, not a
 - The backend does not guarantee returns.
 - The backend does not execute trades.
 - Low data quality forces strategy degradation.
-- Critical Agent failure prevents `trial_buy` or `staged_buy`.
+- Critical Agent failure forces conservative internal review status and prevents aggressive public conclusions.
 - Forum/social sentiment is never core evidence.
 - Agent output contracts must remain stable.
 - Argus must not fabricate data.
