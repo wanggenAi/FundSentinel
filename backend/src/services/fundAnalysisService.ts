@@ -219,7 +219,7 @@ export class FundAnalysisService {
       low_position_score: "low_nav_score",
       risk_position_score: "risk_review_score"
     };
-    return map[key] ?? this.sanitizeText(key).replace(/position/giu, "review");
+    return map[key] ?? key;
   }
 
   private sanitizeStructured(value: unknown): unknown {
@@ -234,8 +234,9 @@ export class FundAnalysisService {
   private sanitizeText(value: string): string {
     return value
       .replace(/trial_buy|staged_buy|add_position/giu, "observe")
-      .replace(/买入、卖出或仓位结论|买卖或仓位结论/gu, "交易动作结论")
-      .replace(/买卖动作|买入|卖出|仓位/gu, "交易动作")
+      .replace(/买入、卖出或仓位结论|买卖或仓位结论|买卖动作|交易动作策略|仓位策略/gu, "复核结论")
+      .replace(/输出保守交易动作动作|输出保守仓位动作/gu, "输出保守复核状态")
+      .replace(/买入|卖出|仓位|重仓|加仓|减仓/gu, "复核")
       .replace(/\b(buy|sell|position)\b/giu, "review");
   }
 }

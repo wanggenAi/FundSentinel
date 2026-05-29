@@ -193,6 +193,20 @@ test("demo mode can return demo analysis but forbids strong conclusions", async 
   assert.equal(response.is_mock, true);
 });
 
+test("public fund analysis sanitizes full demo DAG action language", async () => {
+  const response = await new FundAnalysisService(new SourceRegistry({ demoMode: true, enableLiveProviders: false })).analyzeFundPublic("007951", "demo-public-flow");
+  const payload = JSON.stringify(response);
+
+  assert.equal(response.is_mock, true);
+  assert.equal(response.data_pack.data_status, "demo");
+  assert.equal("final_decision" in response, false);
+  assert.equal("blackboard_snapshot" in response, false);
+  assert.equal("action" in response.final_review, false);
+  assert.equal("source_composition" in response.data_pack.data_quality_report, true);
+  assert.equal("source_comreview" in response.data_pack.data_quality_report, false);
+  assert.doesNotMatch(payload, /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位|重仓|加仓|减仓/iu);
+});
+
 test("SourceRegistry lists real providers and demo fixture provider", () => {
   const sources = new SourceRegistry(false).listSources();
 
