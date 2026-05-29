@@ -226,7 +226,7 @@ export class ArgusAgent extends BaseAgent {
       merged.current_nav === undefined ? "current_nav" : null,
       !merged.nav_history?.length ? "nav_history" : null
     ].filter(Boolean) as string[];
-    const hasFundReportSource = successful.some((result) => result.source_type === "fund_report" || Boolean(result.data?.fund_report_refs?.length));
+    const hasFundReportSource = successful.some((result) => this.hasFundReportEvidence(result));
     const hasAuthoritativeFundReportSource = this.hasAuthoritativeFundReportDocument(successful);
     const navConsistencyReport = this.buildNavConsistencyReport(successful);
     const missingAuxiliaryFields = [
@@ -687,6 +687,10 @@ export class ArgusAgent extends BaseAgent {
     return results.some(
       (result) => this.isAuthoritativeCoreFundSource(result) && Boolean(result.data?.fund_code?.trim()) && Boolean(result.data?.fund_name?.trim())
     );
+  }
+
+  private hasFundReportEvidence(result: DataProviderResult<ProviderFundPayload>): boolean {
+    return Boolean(result.data?.fund_report_refs?.length || result.data?.fund_report_documents?.length);
   }
 
   private hasAuthoritativeCoreField<K extends keyof ProviderFundPayload>(results: Array<DataProviderResult<ProviderFundPayload>>, field: K): boolean {

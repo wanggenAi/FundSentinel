@@ -191,6 +191,79 @@ class FailingOfficialReportProvider implements DataProvider<FundDataSourceInput,
   }
 }
 
+class EmptyFundReportProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "empty-fund-report-test",
+      source_name: "Empty Fund Report Test Provider",
+      source_type: "fund_report",
+      trust_level: "A",
+      enabled: true,
+      priority: 1,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "empty-fund-report-test",
+      source_name: "Empty Fund Report Test Provider",
+      source_type: "fund_report",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "招商信用增强债券C",
+        current_nav: 1.0799,
+        nav_history: [1.0801, 1.0799],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        policy_signals: ["2026-05-20 官方政策背景证据"],
+        news_summaries: ["2026-05-20 官方行业新闻背景证据"],
+        macro_indicators: [
+          {
+            country_code: "CN",
+            country_name: "China",
+            indicator_id: "NY.GDP.MKTP.KD.ZG",
+            indicator_name: "GDP growth",
+            value: 5.1,
+            date: "2025",
+            unit: "percent",
+            source_url: "https://api.worldbank.org/test",
+            source_name: "World Bank",
+            fetched_at: "2026-05-28T00:00:00.000Z"
+          }
+        ],
+        social_sentiment_score: 0.42
+      },
+      raw_reference: "https://official.example.test/reports",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: ["测试 provider 未返回任何报告引用或文档。"],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
 class ReadyOfficialCoreProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   sourceInfo(): DataSourceInfo {
     return {
@@ -402,6 +475,22 @@ test("Argus keeps provider failures in DataGapReport even when core data is read
   assert.ok(gapReport.recommended_solutions.some((solution) => solution.includes("失败 provider")));
   assert.equal(dataPack.acquisition_solutions[0]?.severity, "medium");
   assert.ok(dataPack.acquisition_solutions[0]?.problem.includes("provider 获取失败"));
+});
+
+test("Argus requires actual report evidence before clearing fund report gaps", async () => {
+  const registry = new SourceRegistry({
+    providers: [new EmptyFundReportProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("empty-fund-report-provider", "007951");
+
+  assert.equal(dataPack.data_quality_report.source_composition.authoritative.includes("empty-fund-report-test"), true);
+  assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.fund_reports, false);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("fund_reports"), true);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), true);
+  assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("未获取到任何基金报告文档元数据")));
 });
 
 test("Argus recognizes official fund-company NAV coverage for core NAV fields", async () => {
