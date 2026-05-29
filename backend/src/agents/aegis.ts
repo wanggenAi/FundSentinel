@@ -6,8 +6,8 @@ export class AegisAgent extends BaseAgent {
   readonly name = "Aegis";
   readonly role = "Risk & Position Manager Agent";
   readonly responsibilities = [
-    "根据专业 Agent 结果形成可执行仓位策略",
-    "输出 observe、trial_buy、staged_buy、hold、reduce、exit、avoid 等动作",
+    "根据专业 Agent 结果形成风险复核状态",
+    "输出内部 observe、trial_buy、staged_buy、hold、reduce、exit、avoid 等状态供 Atlas 降级审阅",
     "在数据质量低、模块冲突或关键 Agent 失败时降级建议"
   ];
 
@@ -62,7 +62,7 @@ export class AegisAgent extends BaseAgent {
       status: warnings.length ? "warning" : "success",
       score: Number(clamp(weightedScore).toFixed(2)),
       confidence: Number(confidence.toFixed(2)),
-      summary: `仓位策略为 ${action}；这是 mock 研究建议，不是交易指令。`,
+      summary: `风险复核状态为 ${action}；${dataPack.is_mock ? "当前基于 demo/mock 数据，仅用于流程验证。" : "仅用于证据复核排序，不是交易指令。"}`,
       evidence,
       metrics: {
         action,
@@ -78,10 +78,10 @@ export class AegisAgent extends BaseAgent {
       },
       warnings,
       nextSuggestions: [
-        "仅在用户风险预算内执行，禁止追高和冲动重仓。",
-        "基金净值重新跌破近期低点且 Vega 转为 falling。",
-        "行业硬逻辑证据被政策或产业数据证伪。",
-        "数据源质量降为 low 或关键数据超过预期更新时间。"
+        "仅作为风险复核状态，不触发真实交易或账户操作。",
+        "基金净值重新跌破近期低点且 Vega 转为 falling 时降级复核状态。",
+        "行业硬逻辑证据被政策或产业数据证伪时复核假设。",
+        "数据源质量降为 low 或关键数据超过预期更新时间时暂停强结论。"
       ],
       isMock: dataPack.is_mock
     });

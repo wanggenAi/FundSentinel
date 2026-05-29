@@ -113,6 +113,46 @@ test("low data quality prevents staged_buy", async () => {
   assert.notEqual(result.metrics.action, "staged_buy");
 });
 
+test("Aegis real-data result does not describe itself as mock research", async () => {
+  const dataPack = new MockDataService().getFundDataPack("007951");
+  dataPack.is_mock = false;
+  dataPack.data_status = "ready";
+  dataPack.data_quality = {
+    ...dataPack.data_quality,
+    is_mock: false,
+    level: "high",
+    score: 0.86
+  };
+  const baseResult: AgentResult = {
+    agent_name: "Logos",
+    agent_role: "test",
+    agent_version: "0.1",
+    task_id: "aegis-real-language",
+    fund_code: dataPack.fund_code,
+    status: "success",
+    score: 60,
+    confidence: 0.75,
+    summary: "supporting review",
+    evidence: [],
+    metrics: {},
+    warnings: [],
+    next_suggestions: [],
+    created_at: new Date().toISOString(),
+    is_mock: false
+  };
+
+  const result = await new AegisAgent().run("aegis-real-language", dataPack, {
+    Logos: baseResult,
+    Nadir: { ...baseResult, agent_name: "Nadir" },
+    Vega: { ...baseResult, agent_name: "Vega" }
+  });
+  const text = JSON.stringify({ summary: result.summary, next_suggestions: result.next_suggestions });
+
+  assert.equal(result.is_mock, false);
+  assert.doesNotMatch(text, /mock 研究建议|冲动重仓|可执行仓位策略/iu);
+  assert.match(result.summary, /不是交易指令/);
+});
+
 test("critical failed agent prevents aggressive Atlas decision", () => {
   const dataPack = new MockDataService().getFundDataPack("007951");
   const good: AgentResult = {
