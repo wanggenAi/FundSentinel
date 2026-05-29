@@ -44,7 +44,7 @@ test("API opportunities returns OpportunitySquareResponse", async () => {
   assert.doesNotMatch(JSON.stringify(payload), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
 });
 
-test("API fund analysis and analyze post return full analysis", async () => {
+test("API fund analysis and analyze post return public analysis", async () => {
   const app = await buildApp();
   const getResponse = await app.inject({ method: "GET", url: "/api/funds/007951/analysis" });
   const postResponse = await app.inject({
@@ -58,11 +58,18 @@ test("API fund analysis and analyze post return full analysis", async () => {
   const getPayload = getResponse.json();
   assert.equal(getPayload.fund_code, "007951");
   assert.deepEqual(new Set(Object.keys(getPayload.agent_results)), new Set(["Argus", "Atlas"]));
-  assert.equal(getPayload.final_decision.generated_by, "Atlas");
+  assert.equal(getPayload.final_review.generated_by, "Atlas");
+  assert.equal(getPayload.final_review.review_status, "data_gap_review");
   assert.equal(getPayload.data_pack.data_status, "unavailable");
+  assert.equal("final_decision" in getPayload, false);
+  assert.equal("blackboard_snapshot" in getPayload, false);
+  assert.equal("action" in getPayload.final_review, false);
+  assert.ok(getPayload.traceability.data_gap_report.recommended_solutions.length > 0);
+  assert.doesNotMatch(JSON.stringify(getPayload), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
 
   assert.equal(postResponse.statusCode, 200);
   assert.equal(postResponse.json().data_pack.data_status, "unavailable");
+  assert.equal(postResponse.json().final_review.review_status, "data_gap_review");
 });
 
 test("data source APIs are available", async () => {

@@ -43,7 +43,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get<{ Params: { fund_code: string } }>("/api/funds/:fund_code/analysis", async (request) =>
-    new FundAnalysisService().analyzeFund(request.params.fund_code)
+    new FundAnalysisService().analyzeFundPublic(request.params.fund_code)
   );
 
   app.post("/api/analyze", async (request, reply) => {
@@ -55,6 +55,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         is_mock: true
       });
     }
-    return new FundAnalysisService().analyzeFund(parsed.data.fund_code);
+    return new FundAnalysisService().analyzeFundPublic(parsed.data.fund_code);
   });
 }
