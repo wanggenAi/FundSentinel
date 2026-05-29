@@ -570,8 +570,13 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
 
   assert.equal(fundMeta?.implemented_source_ids.includes("manual-csv-import"), false);
   assert.ok(fundMeta?.manual_source_ids.includes("manual-csv-import"));
+  assert.ok(fundMeta?.planned_source_ids.includes("fund-company-site-adapters"));
+  assert.equal(fundMeta?.implemented_authoritative_source_ids.includes("fund-company-site-adapters"), false);
+  assert.ok(fundMeta?.implemented_authoritative_source_ids.includes("csrc-public-fund-products"));
   assert.equal(currentNav?.implemented_source_ids.includes("manual-csv-import"), false);
   assert.ok(currentNav?.manual_source_ids.includes("manual-csv-import"));
+  assert.ok(currentNav?.planned_source_ids.includes("fund-company-site-adapters"));
+  assert.equal(currentNav?.implemented_authoritative_source_ids.includes("fund-company-site-adapters"), false);
   assert.ok(officialReports?.source_ids.includes("csrc-fund-disclosure"));
   assert.ok(officialReports?.implemented_source_ids.includes("csrc-fund-disclosure"));
   assert.equal(officialReports?.implemented_source_ids.includes("fund-company-report"), false);
@@ -581,18 +586,23 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(officialReports?.coordinator_source_ids.includes("fund-company-report"));
   assert.ok(officialReports?.implemented_source_ids.includes("fullgoal-fund-official"));
   assert.ok(officialReports?.implemented_source_ids.includes("sec-edgar"));
+  assert.ok(officialReports?.implemented_authoritative_source_ids.includes("csrc-fund-disclosure"));
+  assert.equal(officialReports?.implemented_authoritative_source_ids.includes("fund-company-report"), false);
+  assert.ok(officialReports?.planned_source_ids.includes("fund-company-site-adapters"));
   assert.equal(officialReports?.gap_level, "partial");
   assert.ok(officialCurrentNav?.source_ids.includes("cmfchina-fund-official"));
   assert.ok(officialCurrentNav?.source_ids.includes("efund-official"));
   assert.ok(officialCurrentNav?.source_ids.includes("chinaamc-official"));
   assert.ok(officialCurrentNav?.source_ids.includes("harvestfund-official"));
   assert.ok(officialCurrentNav?.source_ids.includes("fullgoal-fund-official"));
+  assert.equal(officialCurrentNav?.implemented_authoritative_source_ids.includes("fund-company-site-adapters"), false);
   assert.equal(officialCurrentNav?.gap_level, "covered");
   assert.ok(officialNavHistory?.source_ids.includes("cmfchina-fund-official"));
   assert.ok(officialNavHistory?.source_ids.includes("efund-official"));
   assert.ok(officialNavHistory?.source_ids.includes("chinaamc-official"));
   assert.ok(officialNavHistory?.source_ids.includes("harvestfund-official"));
   assert.ok(officialNavHistory?.source_ids.includes("fullgoal-fund-official"));
+  assert.equal(officialNavHistory?.implemented_authoritative_source_ids.includes("fund-company-site-adapters"), false);
   assert.equal(officialNavHistory?.gap_level, "covered");
   assert.ok(navHistory?.implemented_source_ids.includes("eastmoney-fund"));
   assert.ok(navHistory?.implemented_source_ids.includes("eastmoney-nav-history"));
@@ -621,6 +631,8 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(macroData?.implemented_source_ids.includes("oecd-data-api"));
   assert.ok(macroData?.implemented_source_ids.includes("eurostat-api"));
   assert.equal(macroData?.gap_level, "covered");
+  assert.ok(social?.blocked_source_ids.includes("social-sentiment-sources"));
+  assert.equal(social?.implemented_authoritative_source_ids.length, 0);
   assert.ok(industryNews?.implemented_source_ids.includes("ndrc-official"));
   assert.ok(industryNews?.implemented_source_ids.includes("amac-public-fund-data"));
   assert.ok(industryNews?.implemented_source_ids.includes("csrc-official"));

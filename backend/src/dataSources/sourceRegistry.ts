@@ -163,6 +163,9 @@ export class SourceRegistry {
     coordinator_source_ids: string[];
     manual_source_ids: string[];
     authoritative_source_ids: string[];
+    implemented_authoritative_source_ids: string[];
+    planned_source_ids: string[];
+    blocked_source_ids: string[];
     needs_license_source_ids: string[];
     gap_level: "covered" | "partial" | "missing" | "requires_license";
     notes: string;
@@ -208,6 +211,9 @@ export class SourceRegistry {
       const coordinators = matching.filter((source) => source.integration_status === "implemented" && COORDINATOR_SOURCE_IDS.has(source.source_id));
       const manualSources = matching.filter((source) => source.source_type === "manual_import" && !source.is_demo);
       const authoritative = matching.filter((source) => source.quality_tier === "authoritative");
+      const implementedAuthoritative = implemented.filter((source) => source.quality_tier === "authoritative");
+      const planned = matching.filter((source) => source.integration_status === "planned");
+      const blocked = matching.filter((source) => source.integration_status === "blocked");
       const needsLicense = matching.filter((source) => source.integration_status === "requires_license");
       let gapLevel: "covered" | "partial" | "missing" | "requires_license" = "missing";
       if (requirement === "official_fund_reports" && implemented.length > 0) gapLevel = "partial";
@@ -222,6 +228,9 @@ export class SourceRegistry {
         coordinator_source_ids: coordinators.map((source) => source.source_id),
         manual_source_ids: manualSources.map((source) => source.source_id),
         authoritative_source_ids: authoritative.map((source) => source.source_id),
+        implemented_authoritative_source_ids: implementedAuthoritative.map((source) => source.source_id),
+        planned_source_ids: planned.map((source) => source.source_id),
+        blocked_source_ids: blocked.map((source) => source.source_id),
         needs_license_source_ids: needsLicense.map((source) => source.source_id),
         gap_level: gapLevel,
         notes: this.coverageNoteFor(requirement, gapLevel)
