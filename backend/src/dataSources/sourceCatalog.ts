@@ -293,7 +293,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     access_method: "user/operator upload",
     requires_auth: false,
     is_demo: false,
-    integration_status: "implemented",
+    integration_status: "manual",
     legal_note: "Requires audit trail, file checksum, source declaration, and import timestamp.",
     priority: 20,
     notes: "Implemented as explicit local CSV directory fallback via FUNDSENTINEL_MANUAL_CSV_DIR. Best short-term way to validate real-data flow without scraping."
@@ -309,7 +309,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     access_method: "verified local PDF manifest via FUNDSENTINEL_MANUAL_REPORT_DIR",
     requires_auth: false,
     is_demo: false,
-    integration_status: "implemented",
+    integration_status: "manual",
     legal_note: "Requires official source URL, local PDF file, SHA256 checksum, import timestamp, and operator/source audit trail.",
     priority: 21,
     notes:

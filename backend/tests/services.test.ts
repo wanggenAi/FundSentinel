@@ -534,12 +534,16 @@ test("SourceRegistry lists real providers and demo fixture provider", () => {
 
 test("SourceRegistry has runtime providers for every implemented catalog source", () => {
   const runtimeSourceIds = new Set(new SourceRegistry({ enableLiveProviders: false }).listSources().map((source) => source.source_id));
-  const missingRuntimeSources = listDataSourceCatalog()
-    .filter((source) => source.integration_status === "implemented")
-    .map((source) => source.source_id)
-    .filter((sourceId) => !runtimeSourceIds.has(sourceId));
+  const catalog = listDataSourceCatalog();
+  const implementedSourceIds = catalog.filter((source) => source.integration_status === "implemented").map((source) => source.source_id);
+  const manualSourceIds = catalog.filter((source) => source.integration_status === "manual").map((source) => source.source_id);
+  const missingRuntimeSources = implementedSourceIds.filter((sourceId) => !runtimeSourceIds.has(sourceId));
 
   assert.deepEqual(missingRuntimeSources, []);
+  assert.equal(implementedSourceIds.includes("manual-csv-import"), false);
+  assert.equal(implementedSourceIds.includes("manual-official-report-import"), false);
+  assert.deepEqual(manualSourceIds, ["manual-csv-import", "manual-official-report-import"]);
+  assert.ok(manualSourceIds.every((sourceId) => runtimeSourceIds.has(sourceId)));
 });
 
 test("data-source catalog descriptions stay in data-coverage language", () => {

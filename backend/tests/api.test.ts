@@ -175,6 +175,12 @@ test("data source APIs are available", async () => {
   assert.equal(catalogResponse.statusCode, 200);
   assert.ok(catalogResponse.json().sources.some((source: { source_id: string }) => source.source_id === "csrc-fund-disclosure"));
   assert.ok(catalogResponse.json().sources.some((source: { source_id: string }) => source.source_id === "commercial-terminal-api"));
+  assert.ok(catalogResponse.json().sources.some((source: { source_id: string; integration_status: string }) => source.source_id === "manual-csv-import" && source.integration_status === "manual"));
+  assert.ok(
+    catalogResponse
+      .json()
+      .sources.some((source: { source_id: string; integration_status: string }) => source.source_id === "manual-official-report-import" && source.integration_status === "manual")
+  );
   assert.doesNotMatch(JSON.stringify(catalogResponse.json()), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
   assert.equal(coverageResponse.statusCode, 200);
   assert.ok(coverageResponse.json().coverage.some((item: { requirement: string }) => item.requirement === "official_fund_reports"));
