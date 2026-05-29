@@ -191,7 +191,7 @@ If Argus returns `insufficient` or `unavailable`, the DAG stops after Argus. Atl
 - `GET /api/data-sources/catalog`
 - `GET /api/data-sources/coverage`
 - `GET /api/data-sources/health`
-- `GET /api/data-sources/gaps/{fund_code}` returns `DataGapReport` fields plus `acquisition_solutions`, downstream gates, and source composition for direct engineering follow-up.
+- `GET /api/data-sources/gaps/{fund_code}` returns `DataGapReport` fields plus `acquisition_solutions`, downstream gates, and source composition for direct engineering follow-up. Its `source_composition.official_core_coverage` field shows whether official fund metadata, current NAV, NAV history, holdings, and periodic-report evidence are actually covered, so aggregators or manual imports are not mistaken for official strong-conclusion coverage.
 - `POST /api/data-sources/manual-import/plan`
 - `GET /api/home`
 - `GET /api/opportunities?limit=6`
