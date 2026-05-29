@@ -52,7 +52,7 @@ export OPENAI_MODEL="..."
 export OPENAI_BASE_URL="https://api.openai.com/v1"
 ```
 
-No API key is hardcoded. If the gateway is disabled or missing config, Agents continue using deterministic mock rules.
+No API key is hardcoded. If the gateway is disabled or missing config, Agents continue using deterministic local rules without fabricating provider data.
 
 ## Argus Real Data Steward
 
