@@ -14,6 +14,7 @@ import { HuaAnFundOfficialProvider } from "./providers/huaAnFundOfficialProvider
 import { ImfDataMapperProvider } from "./providers/imfDataMapperProvider.js";
 import { ManualCsvProvider } from "./providers/manualCsvProvider.js";
 import { ManualOfficialReportProvider } from "./providers/manualOfficialReportProvider.js";
+import { MofFiscalProvider } from "./providers/mofFiscalProvider.js";
 import { PbcMacroProvider } from "./providers/pbcMacroProvider.js";
 import { PolicyNewsProvider } from "./providers/policyNewsProvider.js";
 import { SafeMacroProvider } from "./providers/safeMacroProvider.js";
@@ -91,6 +92,7 @@ export class SourceRegistry {
       new FundCompanyReportProvider(),
       new CninfoReportProvider(),
       new GovCnPolicyProvider(),
+      new MofFiscalProvider(),
       new SafeMacroProvider(),
       new PbcMacroProvider(),
       new StatsGovMacroProvider(),

@@ -377,15 +377,15 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     source_type: "macro_data",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["fiscal_policy", "government_bonds", "budget_data"],
+    coverage: ["macro_data", "fiscal_policy", "government_bonds", "budget_data", "fiscal_revenue_expenditure"],
     recommended_for: ["macro_context", "bond_fund_context", "policy_evidence"],
-    access_method: "official website",
+    access_method: "official MOF fiscal revenue/expenditure page: https://www.mof.gov.cn/zhengwuxinxi/redianzhuanti/quanguocaizhengshouzhiqingkuang/",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Use official public releases with source URL and publication date.",
     priority: 45,
-    notes: "Useful for fiscal policy and bond-market context."
+    notes: "Implemented for official monthly national fiscal revenue/expenditure releases. Budget documents and government-bond issuance tables remain future extensions."
   },
   {
     source_id: "safe-official",
