@@ -1,5 +1,5 @@
 import { SourceRegistry } from "../dataSources/index.js";
-import type { FundAnalysisResponse, OpportunityCandidate, OpportunityReviewStatus, OpportunitySquareResponse } from "../schemas/index.js";
+import type { EvidenceItem, FundAnalysisResponse, OpportunityCandidate, OpportunityReviewStatus, OpportunitySquareResponse } from "../schemas/index.js";
 import { nowIso } from "../schemas/index.js";
 import { FundAnalysisService } from "./fundAnalysisService.js";
 import { MockDataService } from "./mockDataService.js";
@@ -47,7 +47,7 @@ export class OpportunityService {
     return {
       is_mock: isMock,
       candidates,
-      summary: candidates.length ? "Atlas 已基于可用数据生成候选观察池；候选仅表示证据复核优先级，不代表交易或买卖动作。" : "真实核心数据不可用，Argus 已阻止采基广场生成伪候选基金。",
+      summary: candidates.length ? "Atlas 已基于可用数据生成候选观察池；候选仅表示证据复核优先级，不代表交易指令。" : "真实核心数据不可用，Argus 已阻止采基广场生成伪候选基金。",
       data_quality: {
         level: qualityScore >= 0.7 ? "high" : qualityScore >= 0.5 ? "medium" : "low",
         score: Number(qualityScore.toFixed(2)),
@@ -112,8 +112,8 @@ export class OpportunityService {
       review_status: this.reviewStatusForAnalysis(analysis),
       confidence: analysis.final_decision.confidence,
       reason_summary: this.reasonSummary(analysis),
-      risk_summary: risks[0] ?? "未发现高优先级风险，但仍需等待真实数据验证。",
-      key_evidence: ["Logos", "Nadir", "Vega"].flatMap((name) => analysis.agent_results[name]?.evidence.slice(0, 1) ?? []),
+      risk_summary: this.publicText(risks[0] ?? "未发现高优先级风险，但仍需等待真实数据验证。"),
+      key_evidence: ["Logos", "Nadir", "Vega"].flatMap((name) => analysis.agent_results[name]?.evidence.slice(0, 1).map((item) => this.publicEvidence(item)) ?? []),
       is_mock: analysis.is_mock
     };
   }
@@ -130,7 +130,25 @@ export class OpportunityService {
     if (status === "data_gap_review") return "真实核心数据不足，候选仅保留为数据补齐复核项。";
     if (status === "risk_review") return "Atlas 标记为高风险复核项，需先核对风险提示和失效条件。";
     if (status === "evidence_review") return "数据质量或置信度仍需复核，候选只进入观察池。";
-    return "Atlas 已完成证据审阅，候选进入观察池；不代表交易或买卖动作。";
+    return "Atlas 已完成证据审阅，候选进入观察池；不代表交易指令。";
+  }
+
+  private publicEvidence(item: EvidenceItem): EvidenceItem {
+    return {
+      ...item,
+      title: this.publicText(item.title),
+      source_name: this.publicText(item.source_name),
+      summary: this.publicText(item.summary)
+    };
+  }
+
+  private publicText(value: string): string {
+    return value
+      .replace(/trial_buy|staged_buy|add_position/giu, "observe")
+      .replace(/买入、卖出或仓位结论|买卖或仓位结论|买卖动作|交易动作策略|仓位策略/gu, "复核结论")
+      .replace(/输出保守交易动作动作|输出保守仓位动作/gu, "输出保守复核状态")
+      .replace(/买入|卖出|仓位|重仓|加仓|减仓/gu, "复核")
+      .replace(/\b(buy|sell|position)\b/giu, "review");
   }
 
   private static parseFundUniverse(value?: string): string[] {

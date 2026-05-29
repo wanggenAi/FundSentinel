@@ -220,8 +220,91 @@ test("opportunity service uses configured real universe and preserves real candi
   assert.equal("risk_position_score" in response.candidates[0]!, false);
   assert.equal(typeof response.candidates[0]?.low_nav_score, "number");
   assert.equal(typeof response.candidates[0]?.risk_review_score, "number");
-  assert.match(response.summary, /不代表交易或买卖动作/);
+  assert.match(response.summary, /不代表交易指令/);
   assert.ok(response.candidates[0]?.key_evidence.some((item) => item.is_mock === false));
+  assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
+});
+
+test("opportunity service sanitizes candidate evidence and risk text", async () => {
+  const dataPack = new MockDataService().getFundDataPack("007951");
+  const analysis: FundAnalysisResponse = {
+    task_id: "opportunity-sanitize",
+    fund_code: dataPack.fund_code,
+    fund_name: dataPack.fund_name,
+    is_mock: false,
+    data_pack: {
+      ...dataPack,
+      data_status: "ready",
+      allow_downstream_analysis: true,
+      is_mock: false,
+      data_quality: {
+        ...dataPack.data_quality,
+        level: "high",
+        score: 0.85,
+        is_mock: false
+      }
+    },
+    agent_results: {
+      Logos: {
+        agent_name: "Logos",
+        agent_role: "Hard Logic Agent",
+        agent_version: "0.1.0",
+        task_id: "opportunity-sanitize",
+        fund_code: dataPack.fund_code,
+        status: "success",
+        score: 72,
+        confidence: 0.7,
+        summary: "internal",
+        evidence: [
+          {
+            title: "staged_buy evidence",
+            source_name: "buy source",
+            source_type: "policy",
+            trust_level: "A",
+            summary: "建议买入、卖出或仓位结论 must not leak buy sell position.",
+            importance_score: 0.8,
+            related_theme: null,
+            published_at: null,
+            url: null,
+            is_mock: false
+          }
+        ],
+        metrics: {},
+        warnings: ["internal warning"],
+        next_suggestions: [],
+        created_at: "2026-05-29T00:00:00.000Z",
+        is_mock: false
+      }
+    },
+    final_decision: {
+      action: "staged_buy",
+      confidence: 0.7,
+      risk_level: "medium",
+      summary: "internal",
+      reasons: [],
+      risk_warnings: ["不能输出买入、卖出或仓位结论，也不能 leak buy sell position."],
+      invalidation_conditions: [],
+      source_agents: ["Atlas"],
+      metrics: {
+        hard_logic_score: 72,
+        low_position_score: 64,
+        turning_point_score: 58,
+        risk_position_score: 40
+      },
+      generated_by: "Atlas",
+      generated_at: "2026-05-29T00:00:00.000Z",
+      is_mock: false
+    },
+    blackboard_snapshot: {},
+    generated_at: "2026-05-29T00:00:00.000Z"
+  };
+  const fundAnalysisService = {
+    analyzeFund: async () => analysis
+  } as FundAnalysisService;
+
+  const response = await new OpportunityService(undefined, fundAnalysisService, { fundUniverse: ["007951"] }).getOpportunities(1);
+
+  assert.equal(response.candidates.length, 1);
   assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
 });
 
