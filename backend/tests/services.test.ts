@@ -174,8 +174,11 @@ test("opportunity service uses configured real universe and preserves real candi
   assert.equal(response.candidates.length, 1);
   assert.equal(response.candidates[0]?.fund_code, "007951");
   assert.equal(response.candidates[0]?.is_mock, false);
-  assert.match(response.summary, /候选不等于买入/);
+  assert.equal(response.candidates[0]?.review_status, "observe");
+  assert.equal("action" in response.candidates[0]!, false);
+  assert.match(response.summary, /不代表交易或买卖动作/);
   assert.ok(response.candidates[0]?.key_evidence.some((item) => item.is_mock === false));
+  assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
 });
 
 test("demo mode can return demo analysis but forbids strong conclusions", async () => {

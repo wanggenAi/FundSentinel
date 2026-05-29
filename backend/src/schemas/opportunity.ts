@@ -1,5 +1,7 @@
 import type { EvidenceItem } from "./agent.js";
-import type { DataQuality, StrategyAction } from "./common.js";
+import type { DataQuality } from "./common.js";
+
+export type OpportunityReviewStatus = "observe" | "evidence_review" | "risk_review" | "data_gap_review";
 
 export interface OpportunityCandidate {
   fund_code: string;
@@ -13,7 +15,7 @@ export interface OpportunityCandidate {
   turning_point_score: number;
   risk_position_score: number;
   overall_opportunity_score: number;
-  action: StrategyAction;
+  review_status: OpportunityReviewStatus;
   confidence: number;
   reason_summary: string;
   risk_summary: string;
@@ -29,4 +31,3 @@ export interface OpportunitySquareResponse {
   generated_by: "Atlas";
   generated_at: string;
 }
-

@@ -1,5 +1,5 @@
 import { SourceRegistry } from "../dataSources/index.js";
-import type { FundAnalysisResponse, OpportunityCandidate, OpportunitySquareResponse, StrategyAction } from "../schemas/index.js";
+import type { FundAnalysisResponse, OpportunityCandidate, OpportunityReviewStatus, OpportunitySquareResponse } from "../schemas/index.js";
 import { nowIso } from "../schemas/index.js";
 import { FundAnalysisService } from "./fundAnalysisService.js";
 import { MockDataService } from "./mockDataService.js";
@@ -36,7 +36,7 @@ export class OpportunityService {
     return {
       is_mock: candidates.some((candidate) => candidate.is_mock),
       candidates,
-      summary: candidates.length ? "Atlas 已基于可用数据生成候选池；候选不等于买入，动作以 Aegis 风险仓位建议为准。" : "真实核心数据不可用，Argus 已阻止采基广场生成伪候选基金。",
+      summary: candidates.length ? "Atlas 已基于可用数据生成候选观察池；候选仅表示证据复核优先级，不代表交易或买卖动作。" : "真实核心数据不可用，Argus 已阻止采基广场生成伪候选基金。",
       data_quality: {
         level: qualityScore >= 0.7 ? "high" : qualityScore >= 0.5 ? "medium" : "low",
         score: Number(qualityScore.toFixed(2)),
@@ -76,8 +76,6 @@ export class OpportunityService {
 
   private candidateFromAnalysis(analysis: FundAnalysisResponse): OpportunityCandidate {
     const metrics = analysis.final_decision.metrics;
-    let action = analysis.final_decision.action as StrategyAction;
-    if (action === "staged_buy" && analysis.data_pack.data_quality.level === "low") action = "observe";
     const overall =
       metrics.hard_logic_score * 0.28 +
       metrics.low_position_score * 0.24 +
@@ -100,13 +98,28 @@ export class OpportunityService {
       turning_point_score: Number(metrics.turning_point_score.toFixed(2)),
       risk_position_score: Number(metrics.risk_position_score.toFixed(2)),
       overall_opportunity_score: Number(Math.max(0, Math.min(100, overall)).toFixed(2)),
-      action,
+      review_status: this.reviewStatusForAnalysis(analysis),
       confidence: analysis.final_decision.confidence,
-      reason_summary: analysis.final_decision.summary,
+      reason_summary: this.reasonSummary(analysis),
       risk_summary: risks[0] ?? "未发现高优先级风险，但仍需等待真实数据验证。",
-      key_evidence: ["Logos", "Nadir", "Vega", "Aegis"].flatMap((name) => analysis.agent_results[name]?.evidence.slice(0, 1) ?? []),
+      key_evidence: ["Logos", "Nadir", "Vega"].flatMap((name) => analysis.agent_results[name]?.evidence.slice(0, 1) ?? []),
       is_mock: analysis.is_mock
     };
+  }
+
+  private reviewStatusForAnalysis(analysis: FundAnalysisResponse): OpportunityReviewStatus {
+    if (!analysis.data_pack.allow_downstream_analysis || ["unavailable", "insufficient"].includes(analysis.data_pack.data_status)) return "data_gap_review";
+    if (analysis.final_decision.risk_level === "high") return "risk_review";
+    if (analysis.data_pack.data_quality.level === "low" || analysis.final_decision.confidence < 0.55) return "evidence_review";
+    return "observe";
+  }
+
+  private reasonSummary(analysis: FundAnalysisResponse): string {
+    const status = this.reviewStatusForAnalysis(analysis);
+    if (status === "data_gap_review") return "真实核心数据不足，候选仅保留为数据补齐复核项。";
+    if (status === "risk_review") return "Atlas 标记为高风险复核项，需先核对风险提示和失效条件。";
+    if (status === "evidence_review") return "数据质量或置信度仍需复核，候选只进入观察池。";
+    return "Atlas 已完成证据审阅，候选进入观察池；不代表交易或买卖动作。";
   }
 
   private static parseFundUniverse(value?: string): string[] {
