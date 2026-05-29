@@ -34,6 +34,22 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     notes: "Implemented for official CSRC release metadata and summaries from the public searchList endpoint. It is regulatory/policy context only, not a NAV or trading source."
   },
   {
+    source_id: "csrc-public-fund-products",
+    source_name: "中国证监会公募基金产品索引",
+    source_type: "fund_meta",
+    quality_tier: "authoritative",
+    stability: "high",
+    coverage: ["fund_meta", "public_fund_product_index", "fund_establishment_date"],
+    recommended_for: ["fund_meta", "industry_baseline", "manager_validation"],
+    access_method: "official CSRC XLSX attachment: https://www.csrc.gov.cn/csrc/c101900/c1029655/content.shtml",
+    requires_auth: false,
+    is_demo: false,
+    integration_status: "implemented",
+    legal_note: "Use official public statistics and disclose source timestamp.",
+    priority: 3,
+    notes: "Implemented through the official CSRC public fund product index XLSX. It validates fund code/name/establishment date only; NAV, holdings, reports, and manager detail remain separate sources."
+  },
+  {
     source_id: "amac-public-fund-data",
     source_name: "中国证券投资基金业协会",
     source_type: "fund_meta",
@@ -46,8 +62,8 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     is_demo: false,
     integration_status: "planned",
     legal_note: "Use official public statistics and disclose source timestamp.",
-    priority: 3,
-    notes: "Best for industry-level facts and manager/public fund validation."
+    priority: 4,
+    notes: "Best for industry-level facts and manager/public fund validation. Public product query entry still needs a stable parseable endpoint before implementation."
   },
   {
     source_id: "cninfo-report",
@@ -62,7 +78,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     is_demo: false,
     integration_status: "implemented",
     legal_note: "Respect official site rules; prefer documented query endpoints if available.",
-    priority: 4,
+    priority: 5,
     notes: "Implemented for listed funds covered by CNInfo fund_stock.json, such as ETF/LOF/closed-end funds. It uses precise code/orgId matching and verifies official PDF metadata; ordinary open-end funds may be outside this source's coverage."
   },
   {
