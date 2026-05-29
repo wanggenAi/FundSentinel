@@ -598,6 +598,7 @@ test("DataSourceService returns gap and manual import plan", async () => {
 
   assert.ok(gap.missing_data.length > 0);
   assert.ok(gap.recommended_solutions.length > 0);
+  assert.doesNotMatch(JSON.stringify(gap), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
   assert.ok(Array.isArray(gap.failed_source_details));
   assert.equal(gap.allow_strong_conclusion, false);
   assert.equal(gap.source_composition.official_core_coverage.current_nav, false);

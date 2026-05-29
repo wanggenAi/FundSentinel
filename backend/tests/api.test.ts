@@ -191,6 +191,7 @@ test("data source APIs are available", async () => {
   );
   assert.equal(gapsResponse.statusCode, 200);
   assert.equal(gapsResponse.json().is_mock, false);
+  assert.doesNotMatch(JSON.stringify(gapsResponse.json()), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
   assert.ok(gapsResponse.json().recommended_solutions.length > 0);
   assert.ok(gapsResponse.json().recommended_solutions.some((solution: string) => solution.includes("official_current_nav")));
   assert.equal(gapsResponse.json().allow_strong_conclusion, false);

@@ -365,7 +365,7 @@ export class ArgusAgent extends BaseAgent {
       failed_source_details: failedSourceDetails,
       impact: quality.allow_downstream_analysis
         ? "只能支持弱结论，后续 Agent 必须降级。"
-        : "不能支持真实基金分析，后续 Agent 不应输出买卖或仓位结论。",
+        : "不能支持真实基金分析，后续 Agent 不应输出复核结论。",
       blocking_downstream_agents: quality.allow_downstream_analysis ? ["Logos"] : ["Logos", "Nadir", "Vega", "Aegis"],
       recommended_solutions: [
         ...(quality.missing_auxiliary_fields.includes("official_current_nav")
