@@ -1,0 +1,12 @@
+export function sanitizePublicText(value: string): string {
+  return value
+    .replace(/trial_buy|staged_buy|add_position/giu, "observe")
+    .replace(/\bmust\s+(buy|sell)\b/giu, "must review")
+    .replace(/\bguaranteed(?:\s+(returns?|profits?|income|yield|outcomes?))?\b/giu, "requires evidence review")
+    .replace(/\brisk[-\s]?free\b/giu, "risk-reviewed")
+    .replace(/保证收益|稳赚不赔|稳赚|保本|无风险|零风险|必买|必须买入|必须卖出|必须买|必须卖/gu, "风险复核")
+    .replace(/买入、卖出或仓位结论|买卖或仓位结论|买卖动作|交易动作策略|仓位策略/gu, "复核结论")
+    .replace(/输出保守交易动作动作|输出保守仓位动作/gu, "输出保守复核状态")
+    .replace(/买入|卖出|仓位|重仓|加仓|减仓/gu, "复核")
+    .replace(/\b(buy|sell|position)\b/giu, "review");
+}

@@ -244,7 +244,7 @@ test("strategy trigger service sanitizes home action language and preserves prov
       risk_level: "medium",
       summary: "internal action should not leak to home",
       reasons: [],
-      risk_warnings: ["必须先核对来源和仓位失效条件，不能输出买入、卖出或仓位结论。"],
+      risk_warnings: ["必须先核对来源和仓位失效条件，不能输出买入、卖出或仓位结论；不得承诺保证收益、无风险或 must buy。"],
       invalidation_conditions: [],
       source_agents: ["Atlas"],
       metrics: { overall_score: 72 },
@@ -271,7 +271,7 @@ test("strategy trigger service sanitizes home action language and preserves prov
   assert.equal("suggested_action" in alerts[0]!, false);
   assert.match(triggers[0]?.review_next_step ?? "", /观察主题|来源复核/);
   assert.match(alerts[0]?.review_next_step ?? "", /观察主题|来源复核/);
-  assert.doesNotMatch(homeText, /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
+  assert.doesNotMatch(homeText, /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|must buy|guaranteed|risk[-\s]?free|买入|卖出|仓位|保证收益|无风险/iu);
 });
 
 test("opportunity service does not fake candidates without real data", async () => {
@@ -344,7 +344,7 @@ test("opportunity service sanitizes candidate evidence and risk text", async () 
             source_name: "buy source",
             source_type: "policy",
             trust_level: "A",
-            summary: "建议买入、卖出或仓位结论 must not leak buy sell position.",
+            summary: "建议买入、卖出或仓位结论 must not leak buy sell position; guaranteed returns and risk-free yield are forbidden.",
             importance_score: 0.8,
             related_theme: null,
             published_at: null,
@@ -365,7 +365,7 @@ test("opportunity service sanitizes candidate evidence and risk text", async () 
       risk_level: "medium",
       summary: "internal",
       reasons: [],
-      risk_warnings: ["不能输出买入、卖出或仓位结论，也不能 leak buy sell position."],
+      risk_warnings: ["不能输出买入、卖出或仓位结论，也不能 leak buy sell position, must buy, guaranteed returns or risk-free claims."],
       invalidation_conditions: [],
       source_agents: ["Atlas"],
       metrics: {
@@ -388,7 +388,7 @@ test("opportunity service sanitizes candidate evidence and risk text", async () 
   const response = await new OpportunityService(undefined, fundAnalysisService, { fundUniverse: ["007951"] }).getOpportunities(1);
 
   assert.equal(response.candidates.length, 1);
-  assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
+  assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|must buy|guaranteed|risk[-\s]?free|买入|卖出|仓位|保证收益|无风险/iu);
 });
 
 test("opportunity service explicit demo mode returns only mock-marked candidates", async () => {
@@ -486,9 +486,9 @@ test("public fund analysis filters action-like final review metric keys", () => 
       confidence: 0.5,
       risk_level: "medium",
       summary: "internal final decision",
-      reasons: [],
-      risk_warnings: [],
-      invalidation_conditions: [],
+      reasons: ["must buy because guaranteed returns should not leak"],
+      risk_warnings: ["risk-free claim 和保证收益必须被清洗"],
+      invalidation_conditions: ["必须卖出或加仓这类条件不能出现在公开响应"],
       source_agents: ["Atlas"],
       metrics: {
         overall_score: 50,
@@ -516,6 +516,7 @@ test("public fund analysis filters action-like final review metric keys", () => 
   assert.equal("position" in publicResponse.final_review.metrics, false);
   assert.equal(publicResponse.final_review.metrics.low_nav_score, 42);
   assert.equal(publicResponse.final_review.metrics.risk_review_score, 36);
+  assert.doesNotMatch(JSON.stringify(publicResponse.final_review), /must buy|guaranteed|risk[-\s]?free|保证收益|必须卖出|加仓/iu);
 });
 
 test("SourceRegistry lists real providers and demo fixture provider", () => {
