@@ -54,7 +54,7 @@ export class PortfolioService {
     if (!Array.isArray(parsed.holdings)) throw new Error("Portfolio JSON must include holdings array.");
 
     const importedAt = this.now();
-    const generatedAt = typeof parsed.generated_at === "string" && parsed.generated_at.trim() ? parsed.generated_at : importedAt;
+    const generatedAt = this.generatedAtFor(parsed.generated_at, importedAt);
     const baseWarnings = [
       "手动持仓 JSON 是用户/运营维护的真实数据 workaround；不代表券商、银行或支付账户自动连接。",
       `file_sha256=${createHash("sha256").update(fileBuffer).digest("hex")}`,
@@ -144,6 +144,17 @@ export class PortfolioService {
   private normalizeConfiguredPath(value: string | null | undefined): string | null {
     const normalized = value?.trim();
     return normalized ? normalized : null;
+  }
+
+  private generatedAtFor(value: unknown, importedAt: string): string {
+    if (value === undefined || value === null || value === "") return importedAt;
+    if (typeof value !== "string" || !value.trim()) throw new Error("Portfolio JSON generated_at must be an ISO timestamp string.");
+    const trimmed = value.trim();
+    const timestamp = Date.parse(trimmed);
+    if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString() !== trimmed) {
+      throw new Error("Portfolio JSON generated_at must be a valid ISO timestamp.");
+    }
+    return trimmed;
   }
 
   private requiredString(record: Record<string, unknown>, field: string, index: number): string {

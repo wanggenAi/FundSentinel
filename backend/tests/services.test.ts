@@ -141,6 +141,38 @@ test("portfolio service degrades instead of falling back to mock when configured
   }
 });
 
+test("portfolio service rejects invalid manual JSON generated_at timestamps", () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "fundsentinel-portfolio-time-"));
+  const portfolioFile = path.join(tempDir, "portfolio.json");
+
+  try {
+    writeFileSync(
+      portfolioFile,
+      JSON.stringify({
+        generated_at: "2026-02-31T00:00:00.000Z",
+        holdings: [
+          {
+            fund_code: "007951",
+            fund_name: "真实手动持仓基金 A",
+            holding_amount: 10000,
+            cost_nav: 1.25,
+            current_nav: 1.3
+          }
+        ]
+      })
+    );
+
+    const snapshot = new PortfolioService(undefined, { portfolioFile, demoMode: false, now: () => "2026-05-29T00:00:00.000Z" }).getPortfolioSnapshot("user-a");
+
+    assert.equal(snapshot.is_mock, false);
+    assert.equal(snapshot.holdings.length, 0);
+    assert.ok(snapshot.data_quality.warnings.some((warning) => warning.includes("generated_at")));
+    assert.ok(snapshot.data_quality.warnings.some((warning) => warning.includes("未回退到 mock 持仓")));
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("portfolio service uses mock holdings only in explicit demo mode", () => {
   const snapshot = new PortfolioService(undefined, { portfolioFile: null, demoMode: true }).getPortfolioSnapshot("demo-user");
 
