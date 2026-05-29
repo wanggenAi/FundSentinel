@@ -18,7 +18,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     generated_at: nowIso()
   }));
 
-  app.get("/api/agents", async () => new AtlasOrchestrationService().listAgents());
+  app.get("/api/agents", async () => new AtlasOrchestrationService().listPublicAgents());
 
   app.get("/api/data-sources", async () => new DataSourceService().listSources());
 

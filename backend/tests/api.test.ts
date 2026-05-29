@@ -30,6 +30,20 @@ test("API home returns HomeDashboardResponse", async () => {
   assert.ok(payload.data_quality.warnings.some((warning: string) => warning.includes("FUNDSENTINEL_PORTFOLIO_FILE")));
 });
 
+test("API agents returns public orchestration catalog", async () => {
+  const app = await buildApp();
+  const response = await app.inject({ method: "GET", url: "/api/agents" });
+  await app.close();
+
+  assert.equal(response.statusCode, 200);
+  const payload = response.json();
+  const aegis = payload.find((agent: { name: string }) => agent.name === "Aegis");
+  const nadir = payload.find((agent: { name: string }) => agent.name === "Nadir");
+  assert.equal(aegis?.role, "Risk Review Agent");
+  assert.equal(nadir?.role, "Valuation Review Agent");
+  assert.doesNotMatch(JSON.stringify(payload), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
+});
+
 test("API opportunities returns OpportunitySquareResponse", async () => {
   const app = await buildApp();
   const response = await app.inject({ method: "GET", url: "/api/opportunities?limit=5" });
