@@ -279,6 +279,52 @@ test("public fund analysis sanitizes full demo DAG action language", async () =>
   assert.doesNotMatch(payload, /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位|重仓|加仓|减仓/iu);
 });
 
+test("public fund analysis filters action-like final review metric keys", () => {
+  const dataPack = new MockDataService().getFundDataPack("007951");
+  const response: FundAnalysisResponse = {
+    task_id: "public-final-metrics",
+    fund_code: dataPack.fund_code,
+    fund_name: dataPack.fund_name,
+    is_mock: true,
+    data_pack: dataPack,
+    agent_results: {},
+    final_decision: {
+      action: "observe",
+      confidence: 0.5,
+      risk_level: "medium",
+      summary: "internal final decision",
+      reasons: [],
+      risk_warnings: [],
+      invalidation_conditions: [],
+      source_agents: ["Atlas"],
+      metrics: {
+        overall_score: 50,
+        hard_logic_score: 48,
+        low_position_score: 42,
+        risk_position_score: 36,
+        action: 1,
+        buy: 1,
+        sell: 0,
+        position: 1
+      },
+      generated_by: "Atlas",
+      generated_at: "2026-05-29T00:00:00.000Z",
+      is_mock: true
+    },
+    blackboard_snapshot: {},
+    generated_at: "2026-05-29T00:00:00.000Z"
+  };
+
+  const publicResponse = new FundAnalysisService().presentPublicFundAnalysis(response);
+
+  assert.equal("action" in publicResponse.final_review.metrics, false);
+  assert.equal("buy" in publicResponse.final_review.metrics, false);
+  assert.equal("sell" in publicResponse.final_review.metrics, false);
+  assert.equal("position" in publicResponse.final_review.metrics, false);
+  assert.equal(publicResponse.final_review.metrics.low_nav_score, 42);
+  assert.equal(publicResponse.final_review.metrics.risk_review_score, 36);
+});
+
 test("SourceRegistry lists real providers and demo fixture provider", () => {
   const sources = new SourceRegistry(false).listSources();
 

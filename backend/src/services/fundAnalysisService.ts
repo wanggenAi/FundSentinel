@@ -219,7 +219,11 @@ export class FundAnalysisService {
   }
 
   private publicNumericMetrics(metrics: Record<string, number>): Record<string, number> {
-    return Object.fromEntries(Object.entries(metrics).map(([key, value]) => [this.publicMetricKey(key), value]));
+    return Object.fromEntries(
+      Object.entries(metrics)
+        .filter(([key]) => !["action", "buy", "sell", "position"].includes(key))
+        .map(([key, value]) => [this.publicMetricKey(key), value])
+    );
   }
 
   private publicMetricKey(key: string): string {
