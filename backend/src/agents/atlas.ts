@@ -40,7 +40,7 @@ export class AtlasAgent extends BaseAgent {
         related_theme: dataPack.themes[0] ?? null,
         published_at: null,
         url: null,
-        is_mock: dataPack.data_status === "demo"
+        is_mock: dataPack.is_mock
       }
     ];
 
@@ -87,7 +87,7 @@ export class AtlasAgent extends BaseAgent {
         },
         generated_by: "Atlas",
         generated_at: nowIso(),
-        is_mock: dataPack.data_status === "demo"
+        is_mock: dataPack.is_mock
       };
     }
 
@@ -132,7 +132,7 @@ export class AtlasAgent extends BaseAgent {
       },
       generated_by: "Atlas",
       generated_at: nowIso(),
-      is_mock: dataPack.data_status === "demo"
+      is_mock: dataPack.is_mock
     };
   }
 }

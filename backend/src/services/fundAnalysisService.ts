@@ -91,7 +91,7 @@ export class FundAnalysisService {
       task_id: taskId,
       fund_code: dataPack.fund_code,
       fund_name: dataPack.fund_name,
-      is_mock: dataPack.data_status === "demo",
+      is_mock: dataPack.is_mock,
       data_pack: dataPack,
       agent_results: agentResults,
       final_decision: finalDecision,

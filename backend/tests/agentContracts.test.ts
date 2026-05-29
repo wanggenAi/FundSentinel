@@ -61,6 +61,20 @@ test("demo mode allows demo dataPack but forbids strong conclusion", async () =>
   assert.equal(result.metrics.position, undefined);
 });
 
+test("Atlas uses explicit dataPack mock marker instead of status inference", async () => {
+  const dataPack = new MockDataService().getFundDataPack("007951");
+  dataPack.data_status = "partial";
+  dataPack.is_mock = true;
+  dataPack.data_quality.is_mock = true;
+  dataPack.allow_downstream_analysis = false;
+  const result = await new AtlasAgent().finalReview("explicit-mock", dataPack, {});
+  const decision = new AtlasAgent().buildFinalDecision(dataPack, {});
+
+  assert.equal(result.is_mock, true);
+  assert.equal(result.evidence[0]?.is_mock, true);
+  assert.equal(decision.is_mock, true);
+});
+
 test("low data quality prevents staged_buy", async () => {
   const dataPack = new MockDataService().getFundDataPack("007951");
   const lowQuality: DataQuality = {
