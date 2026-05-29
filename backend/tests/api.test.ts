@@ -180,6 +180,37 @@ test("API client errors redact sensitive details without hiding validation conte
   assert.match(logText, /access_token=\[REDACTED\]/u);
 });
 
+test("API client errors sanitize public investment claims", async () => {
+  const logs: string[] = [];
+  const app = await buildApp({
+    logger: {
+      level: "error",
+      stream: {
+        write: (message) => logs.push(message)
+      }
+    }
+  });
+  app.get("/__test/action-client-error", async () => {
+    const error = new Error("must buy now with guaranteed risk-free returns 保证收益 无风险 api_key=claim-secret");
+    (error as Error & { statusCode: number }).statusCode = 400;
+    throw error;
+  });
+  const response = await app.inject({ method: "GET", url: "/__test/action-client-error?token=query-secret" });
+  await app.close();
+
+  const payload = JSON.stringify(response.json());
+  const logText = logs.join("\n");
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().is_mock, false);
+  assert.doesNotMatch(payload, /must buy|guaranteed|risk[-\s]?free|保证收益|无风险|claim-secret|query-secret/iu);
+  assert.doesNotMatch(logText, /must buy|guaranteed|risk[-\s]?free|保证收益|无风险|claim-secret|query-secret/iu);
+  assert.match(response.json().error, /must review/u);
+  assert.match(response.json().error, /requires evidence review/u);
+  assert.match(response.json().error, /风险复核/u);
+  assert.match(logText, /api_key=\[REDACTED\]/u);
+  assert.match(logText, /token=\[REDACTED\]/u);
+});
+
 test("API analyze trims request identifiers before tracing", async () => {
   const app = await buildApp();
   const userRequest = "  request with whitespace  ";

@@ -2,6 +2,7 @@ import cors from "@fastify/cors";
 import Fastify from "fastify";
 import type { FastifyBaseLogger, FastifyLoggerOptions } from "fastify";
 import { registerRoutes } from "./api/routes.js";
+import { sanitizePublicText } from "./utils/publicText.js";
 import { publicErrorMessage, redactSensitiveText, safeErrorLogFields, statusCodeForError } from "./utils/safeLogging.js";
 
 type RequestLogSerializer = NonNullable<NonNullable<FastifyLoggerOptions["serializers"]>["req"]>;
@@ -21,9 +22,13 @@ const requestLogSerializer: RequestLogSerializer = (request) => ({
 
 const errorLogSerializer: ErrorLogSerializer = (error) => ({
   type: safeErrorLogFields(error).error_name,
-  message: publicErrorMessage(error, statusCodeForError(error)),
+  message: publicRequestErrorMessage(error, statusCodeForError(error)),
   stack: ""
 });
+
+function publicRequestErrorMessage(error: unknown, statusCode: number): string {
+  return sanitizePublicText(publicErrorMessage(error, statusCode));
+}
 
 function loggerOptions(overrides?: FastifyLoggerOptions): FastifyLoggerOptions {
   return {
@@ -43,7 +48,10 @@ function logRequestError(logger: Pick<FastifyBaseLogger, "error">, error: unknow
       status_code: statusCode,
       method: request.method,
       url: redactSensitiveText(request.url),
-      ...safeErrorLogFields(error, statusCode)
+      ...{
+        ...safeErrorLogFields(error, statusCode),
+        error_message: publicRequestErrorMessage(error, statusCode)
+      }
     },
     "request failed"
   );
@@ -67,7 +75,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
     const statusCode = statusCodeForError(error);
     logRequestError(request.log, error, statusCode, request);
     return reply.code(statusCode).send({
-      error: publicErrorMessage(error, statusCode),
+      error: publicRequestErrorMessage(error, statusCode),
       is_mock: false
     });
   });
