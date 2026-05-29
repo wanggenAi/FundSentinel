@@ -334,6 +334,7 @@ test("Argus source composition separates authoritative, aggregator, manual, and 
   assert.ok(composition.aggregator.includes("eastmoney-nav-history"));
   assert.ok(composition.authoritative.includes("gov-cn-policy"));
   assert.ok(composition.macro.includes("world-bank-api"));
+  assert.equal(composition.official_core_coverage.fund_meta, false);
   assert.equal(composition.official_core_coverage.current_nav, false);
   assert.equal(composition.official_core_coverage.nav_history, false);
   assert.equal(dataPack.data_quality_report.data_status, "partial");

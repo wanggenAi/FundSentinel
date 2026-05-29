@@ -578,10 +578,10 @@ export class ArgusAgent extends BaseAgent {
       demo: [...new Set(demo)],
       failed: [...new Set(failed.map((result) => result.source_id))],
       official_core_coverage: {
-        fund_meta: this.hasAuthoritativeField(successful, "fund_code") || this.hasAuthoritativeField(successful, "fund_name"),
-        current_nav: this.hasAuthoritativeField(successful, "current_nav"),
-        nav_history: successful.some((result) => this.isAuthoritative(result) && Boolean(result.data?.nav_history?.length)),
-        holdings: successful.some((result) => this.isAuthoritative(result) && Boolean(result.data?.portfolio_holdings?.length)),
+        fund_meta: this.hasAuthoritativeFundMeta(successful),
+        current_nav: this.hasAuthoritativeCoreField(successful, "current_nav"),
+        nav_history: successful.some((result) => this.isAuthoritativeCoreFundSource(result) && Boolean(result.data?.nav_history?.length)),
+        holdings: successful.some((result) => this.isAuthoritativeCoreFundSource(result) && Boolean(result.data?.portfolio_holdings?.length)),
         fund_reports: this.hasAuthoritativeFundReportDocument(successful)
       }
     };
@@ -683,12 +683,27 @@ export class ArgusAgent extends BaseAgent {
     return [...new Set(warnings)];
   }
 
-  private hasAuthoritativeField<K extends keyof ProviderFundPayload>(results: Array<DataProviderResult<ProviderFundPayload>>, field: K): boolean {
-    return results.some((result) => this.isAuthoritative(result) && result.data?.[field] !== undefined && result.data?.[field] !== null);
+  private hasAuthoritativeFundMeta(results: Array<DataProviderResult<ProviderFundPayload>>): boolean {
+    return results.some(
+      (result) => this.isAuthoritativeCoreFundSource(result) && Boolean(result.data?.fund_code?.trim()) && Boolean(result.data?.fund_name?.trim())
+    );
+  }
+
+  private hasAuthoritativeCoreField<K extends keyof ProviderFundPayload>(results: Array<DataProviderResult<ProviderFundPayload>>, field: K): boolean {
+    return results.some((result) => this.isAuthoritativeCoreFundSource(result) && result.data?.[field] !== undefined && result.data?.[field] !== null);
   }
 
   private isAuthoritative(result: DataProviderResult<ProviderFundPayload>): boolean {
     return !result.is_demo && result.source_type !== "manual_import" && (result.trust_level === "A" || ["regulatory_disclosure", "fund_company"].includes(result.source_type));
+  }
+
+  private isAuthoritativeCoreFundSource(result: DataProviderResult<ProviderFundPayload>): boolean {
+    return (
+      !result.is_demo &&
+      result.source_type !== "manual_import" &&
+      result.trust_level === "A" &&
+      ["fund_meta", "current_nav", "nav_history", "holdings", "fund_report", "regulatory_disclosure", "fund_company"].includes(result.source_type)
+    );
   }
 
   private evidenceSourceTypeFor(result: DataProviderResult<ProviderFundPayload>): EvidenceItem["source_type"] {
@@ -739,8 +754,7 @@ export class ArgusAgent extends BaseAgent {
 
   private hasAuthoritativeFundReportDocument(results: Array<DataProviderResult<ProviderFundPayload>>): boolean {
     return results.some((result) =>
-      result.source_type !== "manual_import" &&
-      result.trust_level === "A" &&
+      this.isAuthoritativeCoreFundSource(result) &&
       result.data?.fund_report_documents?.some(
         (document) =>
           document.source_type === "official_disclosure" &&
