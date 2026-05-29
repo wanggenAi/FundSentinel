@@ -1,17 +1,32 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { AtlasOrchestrationService, DataSourceService, FundAnalysisService, HomeService, OpportunityService } from "../services/index.js";
 import { nowIso } from "../schemas/index.js";
 
 const analyzeRequestSchema = z.object({
-  fund_code: z.string().min(1),
-  user_request: z.string().min(1)
+  fund_code: z.string().trim().min(1),
+  user_request: z.string().trim().min(1)
 });
+
+const fundIdentifierSchema = z.string().trim().min(1);
 
 function taskIdForAnalyzeRequest(fundCode: string, userRequest: string): string {
   const requestHash = createHash("sha256").update(userRequest.trim()).digest("hex").slice(0, 12);
   return `api-analyze-${fundCode}-${requestHash}`;
+}
+
+function parseFundIdentifier(fundCode: string, reply: FastifyReply) {
+  const parsed = fundIdentifierSchema.safeParse(fundCode);
+  if (!parsed.success) {
+    reply.code(400).send({
+      error: "Invalid fund identifier parameter",
+      details: parsed.error.flatten(),
+      is_mock: false
+    });
+    return null;
+  }
+  return parsed.data;
 }
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
@@ -34,9 +49,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/api/data-sources/health", async () => new DataSourceService().health());
 
-  app.get<{ Params: { fund_code: string } }>("/api/data-sources/gaps/:fund_code", async (request) =>
-    new DataSourceService().gaps(request.params.fund_code)
-  );
+  app.get<{ Params: { fund_code: string } }>("/api/data-sources/gaps/:fund_code", async (request, reply) => {
+    const fundCode = parseFundIdentifier(request.params.fund_code, reply);
+    if (!fundCode) return;
+    return new DataSourceService().gaps(fundCode);
+  });
 
   app.post("/api/data-sources/manual-import/plan", async () => new DataSourceService().manualImportPlan());
 
@@ -48,9 +65,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return new OpportunityService().getOpportunities(Number.isFinite(limit) ? limit : 6);
   });
 
-  app.get<{ Params: { fund_code: string } }>("/api/funds/:fund_code/analysis", async (request) =>
-    new FundAnalysisService().analyzeFundPublic(request.params.fund_code)
-  );
+  app.get<{ Params: { fund_code: string } }>("/api/funds/:fund_code/analysis", async (request, reply) => {
+    const fundCode = parseFundIdentifier(request.params.fund_code, reply);
+    if (!fundCode) return;
+    return new FundAnalysisService().analyzeFundPublic(fundCode);
+  });
 
   app.post("/api/analyze", async (request, reply) => {
     const parsed = analyzeRequestSchema.safeParse(request.body);

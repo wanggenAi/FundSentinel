@@ -89,16 +89,45 @@ test("API fund analysis and analyze post return public analysis", async () => {
   assert.equal(postPayload.data_pack.data_status, "unavailable");
   assert.equal(postPayload.final_review.review_status, "data_gap_review");
   assert.equal(postPayload.task_id, `api-analyze-007951-${createHash("sha256").update(userRequest).digest("hex").slice(0, 12)}`);
+  assert.equal(postPayload.fund_code, "007951");
   assert.doesNotMatch(postPayload.task_id, /试探买入|观察/iu);
 });
 
 test("API analyze rejects invalid request without mock data marker", async () => {
   const app = await buildApp();
-  const response = await app.inject({ method: "POST", url: "/api/analyze", payload: { fund_code: "" } });
+  const response = await app.inject({ method: "POST", url: "/api/analyze", payload: { fund_code: "   ", user_request: "  " } });
   await app.close();
 
   assert.equal(response.statusCode, 400);
   assert.equal(response.json().is_mock, false);
+});
+
+test("API analyze trims request identifiers before tracing", async () => {
+  const app = await buildApp();
+  const userRequest = "  request with whitespace  ";
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/analyze",
+    payload: { fund_code: "  SPY  ", user_request: userRequest }
+  });
+  await app.close();
+
+  assert.equal(response.statusCode, 200);
+  const payload = response.json();
+  assert.equal(payload.fund_code, "SPY");
+  assert.equal(payload.task_id, `api-analyze-SPY-${createHash("sha256").update(userRequest.trim()).digest("hex").slice(0, 12)}`);
+});
+
+test("API fund identifier routes reject blank identifiers without mock data marker", async () => {
+  const app = await buildApp();
+  const analysisResponse = await app.inject({ method: "GET", url: "/api/funds/%20%20%20/analysis" });
+  const gapResponse = await app.inject({ method: "GET", url: "/api/data-sources/gaps/%20%20%20" });
+  await app.close();
+
+  assert.equal(analysisResponse.statusCode, 400);
+  assert.equal(analysisResponse.json().is_mock, false);
+  assert.equal(gapResponse.statusCode, 400);
+  assert.equal(gapResponse.json().is_mock, false);
 });
 
 test("data source APIs are available", async () => {
