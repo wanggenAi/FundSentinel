@@ -37,7 +37,7 @@ test("API opportunities returns OpportunitySquareResponse", async () => {
   assert.equal(payload.is_mock, false);
   assert.equal(payload.generated_by, "Atlas");
   assert.equal(payload.candidates.length, 0);
-  assert.match(payload.summary, /真实核心数据不可用/);
+  assert.match(payload.summary, /未配置真实基金候选池/);
 });
 
 test("API fund analysis and analyze post return full analysis", async () => {

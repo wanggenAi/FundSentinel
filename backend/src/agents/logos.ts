@@ -39,19 +39,19 @@ export class LogosAgent extends BaseAgent {
     const evidence: EvidenceItem[] = [
       ...dataPack.policy_signals.slice(0, 2).map((signal) => ({
         title: `政策方向：${signal}`,
-        source_name: "Mock policy digest",
+        source_name: dataPack.is_mock ? "Demo policy digest" : "Argus policy evidence",
         source_type: "policy" as const,
-        trust_level: "B" as const,
+        trust_level: dataPack.is_mock ? ("B" as const) : ("A" as const),
         summary: `${signal} 与基金主题 ${dataPack.themes.slice(0, 2).join(", ")} 存在关联。`,
         importance_score: 0.82,
         related_theme: dataPack.themes[0] ?? null,
         published_at: null,
         url: null,
-        is_mock: true
+        is_mock: dataPack.is_mock
       })),
       ...dataPack.news_summaries.slice(0, 1).map((news) => ({
         title: "产业新闻摘要",
-        source_name: "Mock industry news",
+        source_name: dataPack.is_mock ? "Demo industry news" : "Argus industry evidence",
         source_type: "news" as const,
         trust_level: "C" as const,
         summary: news,
@@ -59,7 +59,7 @@ export class LogosAgent extends BaseAgent {
         related_theme: dataPack.themes[0] ?? null,
         published_at: null,
         url: null,
-        is_mock: true
+        is_mock: dataPack.is_mock
       }))
     ];
 
@@ -80,7 +80,8 @@ export class LogosAgent extends BaseAgent {
         ai_model: aiResponse.model
       },
       warnings,
-      nextSuggestions: ["后续接入基金季报持仓、产业数据和官方政策原文进行交叉验证。"]
+      nextSuggestions: ["后续接入基金季报持仓、产业数据和官方政策原文进行交叉验证。"],
+      isMock: dataPack.is_mock
     });
   }
 }

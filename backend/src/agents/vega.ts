@@ -61,15 +61,15 @@ export class VegaAgent extends BaseAgent {
     const evidence: EvidenceItem[] = [
       {
         title: "短期趋势信号",
-        source_name: "Mock NAV history",
+        source_name: dataPack.is_mock ? "Demo NAV history" : "Argus NAV history",
         source_type: "industry_data",
-        trust_level: "C",
-        summary: `趋势状态为 ${trendStatus}，仅代表 mock 净值序列中的技术信号。`,
+        trust_level: dataPack.is_mock ? "C" : "B",
+        summary: `趋势状态为 ${trendStatus}，仅代表净值序列中的技术信号。`,
         importance_score: 0.7,
         related_theme: dataPack.themes[0] ?? null,
         published_at: null,
         url: null,
-        is_mock: true
+        is_mock: dataPack.is_mock
       }
     ];
 
@@ -83,7 +83,8 @@ export class VegaAgent extends BaseAgent {
       evidence,
       metrics: { ...metrics, trend_status: trendStatus, ai_gateway_available: aiResponse.available, ai_model: aiResponse.model },
       warnings,
-      nextSuggestions: ["后续接入成交、规模变化、同类指数和市场宽度信号。"]
+      nextSuggestions: ["后续接入成交、规模变化、同类指数和市场宽度信号。"],
+      isMock: dataPack.is_mock
     });
   }
 }
@@ -91,4 +92,3 @@ export class VegaAgent extends BaseAgent {
 function mean(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
-

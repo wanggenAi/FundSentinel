@@ -44,15 +44,15 @@ export class NadirAgent extends BaseAgent {
     const evidence: EvidenceItem[] = [
       {
         title: "历史净值位置",
-        source_name: "Mock NAV history",
+        source_name: dataPack.is_mock ? "Demo NAV history" : "Argus NAV history",
         source_type: "industry_data",
-        trust_level: "C",
+        trust_level: dataPack.is_mock ? "C" : "B",
         summary: `当前净值分位约 ${percentile.toFixed(2)}，距离历史高点 ${(distanceFromHigh * 100).toFixed(1)}%。`,
         importance_score: 0.78,
         related_theme: dataPack.themes[0] ?? null,
         published_at: null,
         url: null,
-        is_mock: true
+        is_mock: dataPack.is_mock
       }
     ];
 
@@ -74,7 +74,8 @@ export class NadirAgent extends BaseAgent {
         ai_model: aiResponse.model
       },
       warnings,
-      nextSuggestions: ["后续接入更长周期复权净值和同类基金估值分位。"]
+      nextSuggestions: ["后续接入更长周期复权净值和同类基金估值分位。"],
+      isMock: dataPack.is_mock
     });
   }
 
@@ -88,4 +89,3 @@ export class NadirAgent extends BaseAgent {
     return maxDd;
   }
 }
-

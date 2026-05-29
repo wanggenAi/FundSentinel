@@ -28,7 +28,23 @@ test("opportunity service does not fake candidates without real data", async () 
   const response = await new OpportunityService().getOpportunities(5);
 
   assert.equal(response.candidates.length, 0);
-  assert.match(response.summary, /真实核心数据不可用/);
+  assert.match(response.summary, /未配置真实基金候选池/);
+});
+
+test("opportunity service uses configured real universe and preserves real candidate provenance", async () => {
+  const registry = new SourceRegistry({
+    providers: [new RealOpportunityProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+  const response = await new OpportunityService(undefined, new FundAnalysisService(registry), { fundUniverse: ["007951"] }).getOpportunities(5);
+
+  assert.equal(response.is_mock, false);
+  assert.equal(response.candidates.length, 1);
+  assert.equal(response.candidates[0]?.fund_code, "007951");
+  assert.equal(response.candidates[0]?.is_mock, false);
+  assert.match(response.summary, /候选不等于买入/);
+  assert.ok(response.candidates[0]?.key_evidence.some((item) => item.is_mock === false));
 });
 
 test("demo mode can return demo analysis but forbids strong conclusions", async () => {
@@ -270,6 +286,55 @@ class CountingProvider implements DataProvider<FundDataSourceInput, ProviderFund
   async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
     this.callCount += 1;
     return providerResult(this.sourceId, true);
+  }
+}
+
+class RealOpportunityProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("real-opportunity-provider"),
+      source_name: "Real Opportunity Fixture Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      priority: 1
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "real-opportunity-provider",
+      source_name: "Real Opportunity Fixture Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "真实机会测试基金",
+        fund_type: "mixed",
+        current_nav: 1.08,
+        daily_return: 0.42,
+        nav_history: [1.4, 1.28, 1.16, 1.08, 1.02, 1, 1.01, 1.03, 1.05, 1.08],
+        nav_history_dates: ["2026-05-15", "2026-05-16", "2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-27", "2026-05-28"],
+        portfolio_holdings: ["新能源设备(300001)", "电力运营(600001)", "储能系统(300002)"],
+        holdings_as_of: "2026-03-31",
+        holdings_source: "official fixture",
+        themes: ["新能源", "电力"],
+        policy_signals: ["2026-05-22 国家发展改革委新型电力系统政策发布"],
+        news_summaries: ["国家发展改革委：能源结构调整公开新闻（2026-05-22）"],
+        social_sentiment_score: 0.4
+      },
+      raw_reference: "https://official.example.test/fund/007951",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
   }
 }
 

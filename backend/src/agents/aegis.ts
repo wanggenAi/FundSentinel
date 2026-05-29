@@ -44,15 +44,15 @@ export class AegisAgent extends BaseAgent {
     const evidence: EvidenceItem[] = [
       {
         title: "仓位策略综合规则",
-        source_name: "Aegis V0.1 mock rules",
-        source_type: "mock",
+        source_name: dataPack.is_mock ? "Aegis V0.1 demo rules" : "Aegis V0.1 rules",
+        source_type: dataPack.is_mock ? "mock" : "official",
         trust_level: "C",
         summary: "综合硬逻辑、低位、拐点和数据质量，输出保守仓位动作。",
         importance_score: 0.82,
         related_theme: dataPack.themes[0] ?? null,
         published_at: null,
         url: null,
-        is_mock: true
+        is_mock: dataPack.is_mock
       }
     ];
 
@@ -82,7 +82,8 @@ export class AegisAgent extends BaseAgent {
         "基金净值重新跌破近期低点且 Vega 转为 falling。",
         "行业硬逻辑证据被政策或产业数据证伪。",
         "数据源质量降为 low 或关键数据超过预期更新时间。"
-      ]
+      ],
+      isMock: dataPack.is_mock
     });
   }
 
@@ -96,4 +97,3 @@ export class AegisAgent extends BaseAgent {
     return "avoid";
   }
 }
-
