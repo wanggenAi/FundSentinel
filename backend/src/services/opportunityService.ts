@@ -44,16 +44,21 @@ export class OpportunityService {
       .sort((a, b) => b.overall_opportunity_score - a.overall_opportunity_score);
     const qualityScore = candidates.length ? Math.min(...candidates.map((candidate) => candidate.confidence)) : 0;
     const isMock = candidates.some((candidate) => candidate.is_mock);
+    const degradedWarnings = this.degradedAnalysisWarnings(analyses);
     return {
       is_mock: isMock,
       candidates,
-      summary: candidates.length ? "Atlas 已基于可用数据生成候选观察池；候选仅表示证据复核优先级，不代表交易指令。" : "真实核心数据不可用，Argus 已阻止采基广场生成伪候选基金。",
+      summary: candidates.length
+        ? degradedWarnings.length
+          ? "Atlas 已生成候选复核池；部分候选存在数据缺口或强结论限制，仅作为证据补齐优先级，不代表交易指令。"
+          : "Atlas 已基于可用数据生成候选观察池；候选仅表示证据复核优先级，不代表交易指令。"
+        : "真实核心数据不可用，Argus 已阻止采基广场生成伪候选基金。",
       data_quality: {
         level: qualityScore >= 0.7 ? "high" : qualityScore >= 0.5 ? "medium" : "low",
         score: Number(qualityScore.toFixed(2)),
         source: "Atlas + Argus SourceRegistry",
         updated_at: nowIso(),
-        warnings: candidates.length ? [] : ["没有真实可用核心数据，采基广场不会输出伪推荐。"],
+        warnings: candidates.length ? degradedWarnings : ["没有真实可用核心数据，采基广场不会输出伪推荐。"],
         is_mock: isMock
       },
       generated_by: "Atlas",
@@ -120,6 +125,7 @@ export class OpportunityService {
 
   private reviewStatusForAnalysis(analysis: FundAnalysisResponse): OpportunityReviewStatus {
     if (!analysis.data_pack.allow_downstream_analysis || ["unavailable", "insufficient"].includes(analysis.data_pack.data_status)) return "data_gap_review";
+    if (!analysis.data_pack.allow_strong_conclusion) return "evidence_review";
     if (analysis.final_decision.risk_level === "high") return "risk_review";
     if (analysis.data_pack.data_quality.level === "low" || analysis.final_decision.confidence < 0.55) return "evidence_review";
     return "observe";
@@ -129,8 +135,38 @@ export class OpportunityService {
     const status = this.reviewStatusForAnalysis(analysis);
     if (status === "data_gap_review") return "真实核心数据不足，候选仅保留为数据补齐复核项。";
     if (status === "risk_review") return "Atlas 标记为高风险复核项，需先核对风险提示和失效条件。";
-    if (status === "evidence_review") return "数据质量或置信度仍需复核，候选只进入观察池。";
+    if (status === "evidence_review") {
+      if (!analysis.data_pack.allow_strong_conclusion) {
+        const missing = [
+          ...analysis.data_pack.data_quality_report.missing_core_fields,
+          ...analysis.data_pack.data_quality_report.missing_auxiliary_fields
+        ];
+        return `Argus 未允许强结论；候选仅作为证据补齐复核项${missing.length ? `，优先修复 ${missing.slice(0, 4).join(", ")}` : ""}。`;
+      }
+      return "数据质量或置信度仍需复核，候选只进入观察池。";
+    }
     return "Atlas 已完成证据审阅，候选进入观察池；不代表交易指令。";
+  }
+
+  private degradedAnalysisWarnings(analyses: FundAnalysisResponse[]): string[] {
+    return [
+      ...new Set(
+        analyses
+          .filter((analysis) => analysis.data_pack.allow_downstream_analysis && !analysis.data_pack.allow_strong_conclusion)
+          .flatMap((analysis) => {
+            const quality = analysis.data_pack.data_quality_report;
+            const missing = [...new Set([...quality.missing_core_fields, ...quality.missing_auxiliary_fields])];
+            const warnings = [
+              `${analysis.fund_code} 仅进入证据复核：Argus 未允许强结论${
+                missing.length ? `，缺口=${missing.slice(0, 5).join(", ")}` : ""
+              }。`
+            ];
+            if (quality.stale_sources.length) warnings.push(`${analysis.fund_code} 存在 stale 数据源：${quality.stale_sources.join(", ")}。`);
+            if (quality.nav_consistency_report.status === "conflict") warnings.push(`${analysis.fund_code} 存在 NAV 跨源冲突，需先复核净值来源。`);
+            return warnings;
+          })
+      )
+    ].map((warning) => this.publicText(warning));
   }
 
   private publicEvidence(item: EvidenceItem): EvidenceItem {
