@@ -30,6 +30,42 @@ test("home service does not fake holdings or strategy triggers without a configu
   assert.ok(response.data_quality.warnings.some((warning) => warning.includes("FUNDSENTINEL_PORTFOLIO_FILE")));
 });
 
+test("home service marks dashboard mock when analysis chain uses demo data", async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "fundsentinel-home-"));
+  const portfolioFile = path.join(tempDir, "portfolio.json");
+
+  try {
+    writeFileSync(
+      portfolioFile,
+      JSON.stringify({
+        generated_at: "2026-05-28T00:00:00.000Z",
+        holdings: [
+          {
+            fund_code: "007951",
+            fund_name: "真实手动持仓基金 A",
+            holding_amount: 10000,
+            cost_nav: 1.25,
+            current_nav: 1.3
+          }
+        ]
+      })
+    );
+
+    const response = await new HomeService(
+      new PortfolioService(undefined, { portfolioFile, demoMode: false }),
+      new FundAnalysisService(new SourceRegistry({ demoMode: true, enableLiveProviders: false }))
+    ).getHomeDashboard("user-a");
+
+    assert.equal(response.total_assets, 10000);
+    assert.equal(response.holding_count, 1);
+    assert.equal(response.is_mock, true);
+    assert.equal(response.data_quality.is_mock, true);
+    assert.ok(response.data_quality.warnings.some((warning) => warning.includes("demo/mock 数据")));
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("portfolio service reads explicit manual JSON snapshot as non-mock user-provided data", () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), "fundsentinel-portfolio-"));
   const portfolioFile = path.join(tempDir, "portfolio.json");

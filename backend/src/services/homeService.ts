@@ -18,6 +18,16 @@ export class HomeService {
     const actionableAnalyses = analyses.filter((analysis) => analysis.data_pack.allow_downstream_analysis);
     const strategyTriggers = this.strategyTriggerService.buildTriggers(actionableAnalyses);
     const blockedFunds = analyses.filter((analysis) => !analysis.data_pack.allow_downstream_analysis);
+    const analysisIsMock = analyses.some((analysis) => analysis.is_mock || analysis.data_pack.is_mock || analysis.data_pack.data_quality.is_mock);
+    const homeIsMock = portfolio.is_mock || analysisIsMock;
+    const homeDataQuality = {
+      ...portfolio.data_quality,
+      warnings: [
+        ...portfolio.data_quality.warnings,
+        ...(analysisIsMock ? ["首页基金分析链路包含 demo/mock 数据；首页整体仅可作为本地演示或测试输出。"] : [])
+      ],
+      is_mock: homeIsMock
+    };
     const portfolioGapFocus =
       portfolio.holdings.length === 0 && portfolio.data_quality.warnings.length
         ? [
@@ -31,7 +41,7 @@ export class HomeService {
           ]
         : [];
     return {
-      is_mock: portfolio.is_mock,
+      is_mock: homeIsMock,
       total_assets: portfolio.total_assets,
       daily_pnl: portfolio.daily_pnl,
       daily_pnl_ratio: portfolio.daily_pnl_ratio,
@@ -50,7 +60,7 @@ export class HomeService {
           is_mock: analysis.is_mock
         }))
       ],
-      data_quality: portfolio.data_quality,
+      data_quality: homeDataQuality,
       generated_by: "Atlas",
       generated_at: portfolio.generated_at
     };
