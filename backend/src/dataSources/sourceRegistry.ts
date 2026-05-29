@@ -21,6 +21,7 @@ import { PbcMacroProvider } from "./providers/pbcMacroProvider.js";
 import { PolicyNewsProvider } from "./providers/policyNewsProvider.js";
 import { SafeMacroProvider } from "./providers/safeMacroProvider.js";
 import { StatsGovMacroProvider } from "./providers/statsGovMacroProvider.js";
+import { SseMarketCalendarProvider } from "./providers/sseMarketCalendarProvider.js";
 import { WorldBankMacroProvider } from "./providers/worldBankMacroProvider.js";
 import type { DataProvider } from "./providers/baseProvider.js";
 import type { DataProviderResult, DataSourceInfo, FundDataSourceInput, ProviderFundPayload } from "./sourceTypes.js";
@@ -105,6 +106,7 @@ export class SourceRegistry {
       new ImfDataMapperProvider(),
       new EurostatProvider(),
       new PolicyNewsProvider(),
+      new SseMarketCalendarProvider(),
       new ManualOfficialReportProvider(),
       new ManualCsvProvider(),
       new DemoFixtureProvider()

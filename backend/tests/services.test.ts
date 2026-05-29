@@ -88,6 +88,7 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.equal(macroData?.gap_level, "covered");
   assert.ok(industryNews?.implemented_source_ids.includes("policy-news"));
   assert.ok(industryNews?.implemented_source_ids.includes("csrc-official"));
+  assert.ok(industryNews?.implemented_source_ids.includes("sse-szse-official"));
   assert.equal(industryNews?.gap_level, "covered");
   assert.equal(social?.gap_level, "missing");
 });
