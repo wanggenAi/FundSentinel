@@ -56,7 +56,7 @@ export class PortfolioService {
     const importedAt = this.now();
     const generatedAt = this.generatedAtFor(parsed.generated_at, importedAt);
     const baseWarnings = [
-      "手动持仓 JSON 是用户/运营维护的真实数据 workaround；不代表券商、银行或支付账户自动连接。",
+      "手动持仓 JSON 是用户/运营维护的真实数据 workaround；仅代表离线快照来源。",
       `file_sha256=${createHash("sha256").update(fileBuffer).digest("hex")}`,
       `file_size_bytes=${fileStats.size}`,
       `file_mtime=${fileStats.mtime.toISOString()}`,
@@ -64,7 +64,7 @@ export class PortfolioService {
     ];
     if (generatedAt === importedAt) baseWarnings.push("手动持仓文件未提供 generated_at，已使用导入时间。");
     if (typeof parsed.user_id === "string" && parsed.user_id.trim() && parsed.user_id !== userId) {
-      baseWarnings.push(`手动持仓文件 user_id=${parsed.user_id}，当前请求 user_id=${userId}；V0.1 未实现账户连接或多账户鉴权。`);
+      baseWarnings.push(`手动持仓文件 user_id=${parsed.user_id}，当前请求 user_id=${userId}；V0.1 未实现多身份授权或自动同步。`);
     }
 
     const holdings = parsed.holdings.map((item, index) => this.parseManualHolding(item, index));

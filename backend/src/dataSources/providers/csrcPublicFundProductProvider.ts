@@ -50,7 +50,7 @@ export class CsrcPublicFundProductProvider implements DataProvider<FundDataSourc
       circuit_open_count: 0,
       freshness_policy: "official public fund product index should be refreshed within 210 days and acceptable within 420 days",
       notes:
-        "Fetches the official CSRC public fund product index attachment and parses fund code/name/establishment date. It provides fund metadata only, not NAV, holdings, reports, trading access, or advice."
+        "Fetches the official CSRC public fund product index attachment and parses fund code/name/establishment date. It provides fund metadata only; NAV, holdings, and reports remain separate requirements."
     };
   }
 
@@ -99,8 +99,8 @@ export class CsrcPublicFundProductProvider implements DataProvider<FundDataSourc
       const asOf = CsrcPublicFundProductProvider.asOfDateFrom(`${attachment.title} ${pageText}`) ?? product.established_at;
       const freshness = this.freshnessFor(asOf);
       const warnings = [
-        "中国证监会公募基金产品索引仅提供官方基金元数据，不提供净值、持仓、定期报告或交易信号。",
-        "该 provider 不构成投资建议、买卖结论或账户连接能力。"
+        "中国证监会公募基金产品索引仅提供官方基金元数据，不能补齐净值、持仓或定期报告证据。",
+        "该 provider 的覆盖范围应在 DataGapReport 中保持可审计。"
       ];
       if (freshness === "stale") warnings.push("中国证监会公募基金产品索引日期偏旧，基金元数据应降级并交叉验证。");
 

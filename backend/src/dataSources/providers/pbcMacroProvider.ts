@@ -47,7 +47,7 @@ export class PbcMacroProvider implements DataProvider<FundDataSourceInput, Provi
       circuit_open_until: null,
       circuit_open_count: 0,
       freshness_policy: "monthly PBC money supply data should be fresh within 75 days and acceptable within 150 days",
-      notes: "Fetches official PBC money supply statistics from public HTML tables. It is macro/liquidity context only, not fund NAV or advice."
+      notes: "Fetches official PBC money supply statistics from public HTML tables. It is macro/liquidity context only; fund NAV, holdings, and reports remain separate requirements."
     };
   }
 
@@ -82,7 +82,7 @@ export class PbcMacroProvider implements DataProvider<FundDataSourceInput, Provi
       const freshness = this.freshnessFor(latestDate);
       const warnings = [
         "中国人民银行货币供应量统计是官方宏观/流动性背景，只能辅助 Logos/Atlas 判断环境，不代表单只基金投资结论。",
-        "PBC 货币统计不可替代基金净值、持仓、定期报告或交易信号。"
+        "PBC 货币统计不可替代基金净值、持仓、定期报告等核心基金证据。"
       ];
       if (freshness === "stale") warnings.push("中国人民银行货币供应量数据最新月份偏旧，后续硬逻辑判断必须降级。");
 

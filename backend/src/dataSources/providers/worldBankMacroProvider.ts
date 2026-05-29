@@ -60,7 +60,7 @@ export class WorldBankMacroProvider implements DataProvider<FundDataSourceInput,
       circuit_open_until: null,
       circuit_open_count: 0,
       freshness_policy: "annual macro indicators should be fresh within 18 months and acceptable within 30 months",
-      notes: "Fetches official World Bank macro indicators for broad country/global context. It does not provide fund NAV or investment advice."
+      notes: "Fetches official World Bank macro indicators for broad country/global context. Fund NAV, holdings, and reports remain separate requirements."
     };
   }
 
@@ -88,7 +88,7 @@ export class WorldBankMacroProvider implements DataProvider<FundDataSourceInput,
       const freshness = this.freshnessFor(latestDate);
       const warnings = [
         "World Bank 宏观指标是官方宏观背景，只能辅助 Logos/Atlas 判断环境，不代表单只基金投资结论。",
-        "World Bank 指标为年度/低频数据，不可替代基金净值、持仓、定期报告或交易信号。"
+        "World Bank 指标为年度/低频数据，不可替代基金净值、持仓、定期报告等核心基金证据。"
       ];
       if (freshness === "stale") warnings.push("World Bank 宏观指标最新年份偏旧，后续硬逻辑判断必须降级。");
 

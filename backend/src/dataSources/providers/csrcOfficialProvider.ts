@@ -85,7 +85,7 @@ export class CsrcOfficialProvider implements DataProvider<FundDataSourceInput, P
       circuit_open_count: 0,
       freshness_policy: "official CSRC release evidence is fresh within 45 days and acceptable within 120 days",
       notes:
-        "Fetches official CSRC releases from the public searchList endpoint. It is regulatory/policy context only, not fund NAV, holdings, trading access, or advice."
+        "Fetches official CSRC releases from the public searchList endpoint. It is regulatory/policy context only; fund NAV, holdings, and reports remain separate requirements."
     };
   }
 
@@ -117,8 +117,8 @@ export class CsrcOfficialProvider implements DataProvider<FundDataSourceInput, P
       const latestDate = items.map((item) => item.published_at).filter(Boolean).sort().at(-1);
       const freshness = this.freshnessFor(latestDate);
       const warnings = [
-        "中国证监会官网发布仅作为监管/政策背景证据，不代表单只基金投资建议或买卖结论。",
-        "监管发布不可替代基金净值、持仓、定期报告或交易信号。"
+        "中国证监会官网发布仅作为监管/政策背景证据，不能直接补齐单只基金核心证据。",
+        "监管发布不可替代基金净值、持仓或定期报告。"
       ];
       if (!keywords.length) warnings.push("缺少基金真实上下文监管关键词，返回最新证监会发布作为弱监管背景。");
       else if (!matched.length) warnings.push("未能按基金真实上下文匹配监管关键词，返回最新证监会发布作为弱监管背景。");

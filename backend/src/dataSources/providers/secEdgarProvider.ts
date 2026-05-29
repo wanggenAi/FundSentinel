@@ -73,7 +73,7 @@ export class SecEdgarProvider implements DataProvider<FundDataSourceInput, Provi
       circuit_open_count: 0,
       freshness_policy: "SEC fund filings should be fresh within 150 days and acceptable within 365 days for QDII/global ETF context",
       notes:
-        "Fetches SEC EDGAR official submissions metadata for US tickers/CIKs and records recent fund disclosure filings. It does not parse filing body text, provide NAV, or make advice."
+        "Fetches SEC EDGAR official submissions metadata for US tickers/CIKs and records recent fund disclosure filings. Filing body text and NAV remain separate coverage."
     };
   }
 
@@ -112,7 +112,7 @@ export class SecEdgarProvider implements DataProvider<FundDataSourceInput, Provi
       const freshness = this.freshnessFor(latestDate);
       const warnings = [
         "SEC EDGAR 是美国官方披露来源；当前 provider 只记录 filings 元数据和官方 URL，不解析正文、不生成基金净值或持仓结论。",
-        "SEC EDGAR 跨境披露上下文不可替代国内基金净值、持仓、定期报告正文或交易信号。"
+        "SEC EDGAR 跨境披露上下文不可替代国内基金净值、持仓、定期报告正文等核心基金证据。"
       ];
       if (freshness === "stale") warnings.push("SEC EDGAR 最新基金披露日期偏旧，QDII/海外 ETF 相关结论必须降级。");
 

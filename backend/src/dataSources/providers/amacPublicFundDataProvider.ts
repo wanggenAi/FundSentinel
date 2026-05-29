@@ -44,7 +44,7 @@ export class AmacPublicFundDataProvider implements DataProvider<FundDataSourceIn
       circuit_open_count: 0,
       freshness_policy: "official monthly public-fund market data should be fresh within 75 days and acceptable within 150 days",
       notes:
-        "Fetches AMAC official public-fund market-data report references as industry baseline context. It does not provide fund NAV, holdings, report bodies, trading access, or advice."
+        "Fetches AMAC official public-fund market-data report references as industry baseline context. Fund NAV, holdings, and report bodies remain separate requirements."
     };
   }
 
@@ -74,8 +74,8 @@ export class AmacPublicFundDataProvider implements DataProvider<FundDataSourceIn
       const latestDate = reports.map((report) => report.published_at).filter(Boolean).sort().at(-1);
       const freshness = this.freshnessFor(latestDate);
       const warnings = [
-        "中国证券投资基金业协会公募基金市场数据仅作为行业规模/结构背景证据，不代表单只基金投资建议或买卖结论。",
-        "AMAC 行业统计不可替代基金净值、持仓、基金公司定期报告或交易信号。"
+        "中国证券投资基金业协会公募基金市场数据仅作为行业规模/结构背景证据，不能直接补齐单只基金核心证据。",
+        "AMAC 行业统计不可替代基金净值、持仓或基金公司定期报告。"
       ];
       if (freshness === "stale") warnings.push("基金业协会公募基金市场数据最新发布日期偏旧，行业背景证据应降级。");
 

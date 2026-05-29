@@ -91,7 +91,7 @@ export class EurostatProvider implements DataProvider<FundDataSourceInput, Provi
       circuit_open_until: null,
       circuit_open_count: 0,
       freshness_policy: "annual Eurostat macro series should be fresh within 18 months and acceptable within 30 months",
-      notes: "Fetches official Eurostat JSON-stat macro indicators for EU/euro-area context. It does not provide fund NAV, holdings, or investment advice."
+      notes: "Fetches official Eurostat JSON-stat macro indicators for EU/euro-area context. Fund NAV, holdings, and reports remain separate requirements."
     };
   }
 
@@ -143,7 +143,7 @@ export class EurostatProvider implements DataProvider<FundDataSourceInput, Provi
     const resultWarnings = [
       ...warnings,
       "Eurostat 指标是欧盟官方宏观背景，只能辅助 Logos/Atlas 判断环境，不代表单只基金投资结论。",
-      "Eurostat 指标不可替代基金净值、持仓、定期报告或交易信号。"
+      "Eurostat 指标不可替代基金净值、持仓、定期报告等核心基金证据。"
     ];
     if (freshness === "stale") resultWarnings.push("Eurostat 宏观指标最新年份偏旧，后续硬逻辑判断必须降级。");
 

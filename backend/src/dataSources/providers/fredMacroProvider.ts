@@ -121,7 +121,7 @@ export class FredMacroProvider implements DataProvider<FundDataSourceInput, Prov
     const resultWarnings = [
       ...warnings,
       "FRED 官方宏观指标只能作为美国利率、通胀、就业和全球风险背景，不代表单只基金投资结论。",
-      "FRED 指标不可替代基金净值、持仓、定期报告或交易信号。"
+      "FRED 指标不可替代基金净值、持仓、定期报告等核心基金证据。"
     ];
     if (freshness === "stale") resultWarnings.push("FRED 宏观指标最新观测日期偏旧，后续硬逻辑判断必须降级。");
 

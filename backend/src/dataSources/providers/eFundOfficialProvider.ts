@@ -52,7 +52,7 @@ export class EFundOfficialProvider implements DataProvider<FundDataSourceInput, 
       circuit_open_count: 0,
       freshness_policy: "official company NAV rows should be fresh within 10 days and acceptable within 30 days",
       notes:
-        "Parses E Fund official fund pages, official CDN NAV history JS, disclosed holdings, and announcement PDF metadata. It does not parse PDF body text or make fund advice."
+        "Parses E Fund official fund pages, official CDN NAV history JS, disclosed holdings, and announcement PDF metadata. PDF body text remains separate coverage."
     };
   }
 

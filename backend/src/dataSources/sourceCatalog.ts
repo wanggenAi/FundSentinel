@@ -31,7 +31,8 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     integration_status: "implemented",
     legal_note: "Use public official releases with source URL and publication date.",
     priority: 2,
-    notes: "Implemented for official CSRC release metadata and summaries from the public searchList endpoint. It is regulatory/policy context only, not a NAV or trading source."
+    notes:
+      "Implemented for official CSRC release metadata and summaries from the public searchList endpoint. It is regulatory/policy context only; NAV, holdings, and fund-report coverage remain separate requirements."
   },
   {
     source_id: "csrc-public-fund-products",
@@ -64,7 +65,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     legal_note: "Use official public statistics and disclose source timestamp.",
     priority: 4,
     notes:
-      "Implemented for official monthly public-fund market-data PDF references as industry baseline evidence. It does not supply fund-specific NAV, holdings, or trading signals."
+      "Implemented for official monthly public-fund market-data PDF references as industry baseline evidence. It does not supply fund-specific NAV, holdings, or report-body evidence."
   },
   {
     source_id: "cninfo-report",
@@ -195,10 +196,10 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     requires_auth: false,
     is_demo: false,
     integration_status: "implemented",
-    legal_note: "Use public official company pages respectfully; cache and rate-limit. Do not use login, account, payment, or transaction paths.",
+    legal_note: "Use public official company pages respectfully; cache, rate-limit, and stay on public disclosure/NAV pages.",
     priority: 7,
     notes:
-      "Fifth per-company official adapter. It parses Harvest Fund official product pages, the current NAV list, and the NAV history table; it does not parse holdings, report PDF bodies, or transaction features."
+      "Fifth per-company official adapter. It parses Harvest Fund official product pages, the current NAV list, and the NAV history table; holdings and report PDF bodies remain separate coverage."
   },
   {
     source_id: "fullgoal-fund-official",
@@ -212,7 +213,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     requires_auth: false,
     is_demo: false,
     integration_status: "implemented",
-    legal_note: "Use public official company pages respectfully; cache and rate-limit. Do not use login, account, payment, or transaction paths.",
+    legal_note: "Use public official company pages respectfully; cache, rate-limit, and stay on public disclosure/NAV pages.",
     priority: 7,
     notes:
       "Sixth per-company official adapter. It parses Fullgoal SSR fund pages, NAV rows, announcement detail pages, and PDF metadata without treating PDF bodies as parsed report text."
@@ -368,7 +369,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     source_type: "news",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["exchange_announcements", "trading_calendar", "market_rules"],
+    coverage: ["exchange_announcements", "market_calendar", "market_rules"],
     recommended_for: ["market_calendar", "official_market_events", "policy_evidence", "industry_news"],
     access_method:
       "official SSE market-calendar endpoints plus SZSE official news/notice pages: https://www.sse.com.cn/disclosure/dealinstruc/calendar/index.shtml and https://www.szse.cn/aboutus/trends/news/",
@@ -378,7 +379,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     legal_note: "Use public official releases with timestamps and links.",
     priority: 35,
     notes:
-      "Implemented for Shanghai Stock Exchange official market-calendar events and Shenzhen Stock Exchange official news/notice pages. Exchange events are context only, not NAV, holdings, reports, or advice."
+      "Implemented for Shanghai Stock Exchange official market-calendar events and Shenzhen Stock Exchange official news/notice pages. Exchange events are context only; NAV, holdings, and fund-report coverage remain separate requirements."
   },
   {
     source_id: "official-policy-sites",
@@ -411,7 +412,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     legal_note: "Use official public releases with publication date and URL.",
     priority: 42,
     notes:
-      "Implemented by parsing MIIT official homepage policy-file, policy-interpretation, industry-data, industry-news, and consultation/publication lists. It is supporting evidence only, not fund NAV, holdings, reports, or advice."
+      "Implemented by parsing MIIT official homepage policy-file, policy-interpretation, industry-data, industry-news, and consultation/publication lists. It is supporting evidence only; fund NAV, holdings, and reports remain separate requirements."
   },
   {
     source_id: "pbc-official",
@@ -525,7 +526,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     legal_note: "Use public disclosure pages respectfully; licensed data products may be required for systematic market data.",
     priority: 52,
     notes:
-      "Implemented as Hong Kong listed-company announcement metadata for QDII/H-share context only. It does not provide fund NAV, fund reports, holdings, market data products, or investment advice."
+      "Implemented as Hong Kong listed-company announcement metadata for QDII/H-share context only. It records market-context metadata; fund NAV, fund reports, and holdings remain separate requirements."
   },
   {
     source_id: "fred-official",
@@ -589,7 +590,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     integration_status: "implemented",
     legal_note: "Keep dataset identifiers, dimensions, release date, and query URL.",
     priority: 56,
-    notes: "Implemented for monthly OECD Composite Leading Indicator rows for configured countries. It is macro context only, not fund NAV, holdings, reports, or advice."
+    notes: "Implemented for monthly OECD Composite Leading Indicator rows for configured countries. It is macro context only; fund NAV, holdings, and reports remain separate requirements."
   },
   {
     source_id: "eurostat-api",

@@ -96,8 +96,8 @@ export class MiitOfficialProvider implements DataProvider<FundDataSourceInput, P
       const latestDate = items.map((item) => item.published_at).filter(Boolean).sort().at(-1);
       const freshness = this.freshnessFor(latestDate);
       const warnings = [
-        "工业和信息化部官网发布仅作为制造业、数字经济、通信、产业政策背景证据，不代表单只基金投资建议或买卖结论。",
-        "工信部政策/行业数据不可替代基金净值、持仓、定期报告或交易信号。"
+        "工业和信息化部官网发布仅作为制造业、数字经济、通信、产业政策背景证据，不能直接补齐单只基金核心证据。",
+        "工信部政策/行业数据不可替代基金净值、持仓或定期报告。"
       ];
       if (!keywords.length) warnings.push("缺少基金真实上下文产业关键词，返回最新工信部发布作为弱产业背景。");
       else if (!matched.length) warnings.push("未能按基金真实上下文匹配工信部产业关键词，返回最新工信部发布作为弱产业背景。");

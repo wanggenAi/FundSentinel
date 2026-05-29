@@ -70,7 +70,7 @@ test("MiitOfficialProvider returns official industry-policy evidence without adv
   assert.ok(result.data?.policy_signals?.some((signal) => signal.includes("工业互联网与油气储运")));
   assert.ok(result.data?.policy_signals?.some((signal) => signal.includes("通信业经济运行情况")));
   assert.ok(result.data?.news_summaries?.some((summary) => summary.includes("工业和信息化部/")));
-  assert.ok(result.warnings.some((warning) => warning.includes("不代表单只基金投资建议或买卖结论")));
+  assert.ok(result.warnings.some((warning) => warning.includes("不能直接补齐单只基金核心证据")));
   assert.match(result.raw_reference ?? "", /miit\.gov\.cn\/index\.html/);
   assert.doesNotMatch(JSON.stringify(result), /trial_buy|staged_buy|\b(buy|sell)\b/i);
 });

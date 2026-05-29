@@ -73,7 +73,7 @@ test("AmacPublicFundDataProvider returns official industry evidence without fund
   assert.ok(result.data?.policy_signals?.some((signal) => signal.includes("2026-05-27 基金业协会公募基金市场数据 2026-04")));
   assert.ok(result.data?.news_summaries?.some((summary) => summary.includes("中国证券投资基金业协会/公募基金统计")));
   assert.match(result.raw_reference ?? "", /amac\.org\.cn\/sjtj\/tjbg\/gmjj/);
-  assert.ok(result.warnings.some((warning) => warning.includes("不代表单只基金投资建议或买卖结论")));
+  assert.ok(result.warnings.some((warning) => warning.includes("不能直接补齐单只基金核心证据")));
   assert.doesNotMatch(JSON.stringify(result), /trial_buy|staged_buy|\b(buy|sell|position)\b/i);
 });
 

@@ -73,7 +73,7 @@ export class HkexOfficialProvider implements DataProvider<FundDataSourceInput, P
       circuit_open_count: 0,
       freshness_policy: "HKEX issuer announcements are fresh within 14 days and acceptable within 45 days for market context",
       notes:
-        "Fetches official HKEXnews listed-company announcement metadata for Hong Kong/QDII context. It records official links but does not parse document bodies, provide fund NAV, provide fund reports, or make investment advice."
+        "Fetches official HKEXnews listed-company announcement metadata for Hong Kong/QDII context. It records official links; fund NAV, fund reports, and holdings remain separate requirements."
     };
   }
 
@@ -119,8 +119,8 @@ export class HkexOfficialProvider implements DataProvider<FundDataSourceInput, P
     const freshness = this.freshnessFor(latestRelease);
     const resultWarnings = [
       ...warnings,
-      "HKEXnews 公告是香港上市公司/跨境市场背景，不代表单只基金投资建议或买卖结论。",
-      "HKEXnews 公告元数据不可替代基金净值、持仓、基金定期报告或交易信号，也不会补齐 official_fund_reports。"
+      "HKEXnews 公告是香港上市公司/跨境市场背景，不能直接补齐单只基金核心证据。",
+      "HKEXnews 公告元数据不可替代基金净值、持仓或基金定期报告，也不会补齐 official_fund_reports。"
     ];
     if (freshness === "stale") resultWarnings.push("HKEXnews 最新公告偏旧，跨境市场背景证据应降级。");
 

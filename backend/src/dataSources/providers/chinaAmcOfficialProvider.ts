@@ -57,7 +57,7 @@ export class ChinaAmcOfficialProvider implements DataProvider<FundDataSourceInpu
       circuit_open_count: 0,
       freshness_policy: "official company NAV rows should be fresh within 10 days and acceptable within 30 days",
       notes:
-        "Parses ChinaAMC official fund pages, official NAV iframe endpoint, asset-composition page, announcement list, and PDF metadata. It does not parse PDF body text or provide fund advice."
+        "Parses ChinaAMC official fund pages, official NAV iframe endpoint, asset-composition page, announcement list, and PDF metadata. PDF body text remains separate coverage."
     };
   }
 

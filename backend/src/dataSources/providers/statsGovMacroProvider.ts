@@ -129,7 +129,7 @@ export class StatsGovMacroProvider implements DataProvider<FundDataSourceInput, 
     const resultWarnings = [
       ...warnings,
       "国家统计局宏观指标是官方宏观/行业背景，只能辅助 Logos/Atlas 判断环境，不代表单只基金投资结论。",
-      "国家统计局指标不可替代基金净值、持仓、定期报告或交易信号。"
+      "国家统计局指标不可替代基金净值、持仓、定期报告等核心基金证据。"
     ];
     if (freshness === "stale") resultWarnings.push("国家统计局宏观指标最新期偏旧，后续硬逻辑判断必须降级。");
 

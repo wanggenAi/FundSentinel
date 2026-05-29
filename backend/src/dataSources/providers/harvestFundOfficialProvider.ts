@@ -62,7 +62,7 @@ export class HarvestFundOfficialProvider implements DataProvider<FundDataSourceI
       circuit_open_count: 0,
       freshness_policy: "official company NAV rows should be fresh within 10 days and acceptable within 30 days",
       notes:
-        "Parses Harvest Fund official product pages, the official current NAV list, and the official NAV history table. It does not parse holdings, report PDF bodies, account, or transaction features."
+        "Parses Harvest Fund official product pages, the official current NAV list, and the official NAV history table. Holdings and report PDF bodies remain separate coverage."
     };
   }
 
@@ -80,8 +80,8 @@ export class HarvestFundOfficialProvider implements DataProvider<FundDataSourceI
     const listUrl = HarvestFundOfficialProvider.productListUrl;
     const historyUrl = this.navHistoryUrl(input.fund_code);
     const warnings = [
-      "嘉实基金官网是基金公司官方来源；当前 provider 仅解析官网产品页、当前净值列表和历史净值表，不解析持仓、PDF 正文或交易功能。",
-      "嘉实基金官网页面可能包含登录或申赎入口；Argus 只读取公开披露数据，不接入交易、账户或支付功能。"
+      "嘉实基金官网是基金公司官方来源；当前 provider 仅解析官网产品页、当前净值列表和历史净值表，不解析持仓或 PDF 正文。",
+      "嘉实基金官网页面可能包含非披露入口；Argus 只读取公开披露数据和净值表。"
     ];
 
     try {

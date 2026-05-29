@@ -472,6 +472,25 @@ test("SourceRegistry has runtime providers for every implemented catalog source"
   assert.deepEqual(missingRuntimeSources, []);
 });
 
+test("data-source catalog descriptions stay in data-coverage language", () => {
+  const descriptionText = listDataSourceCatalog()
+    .map((source) => [source.notes, source.legal_note, source.access_method].join("\n"))
+    .join("\n");
+
+  assert.doesNotMatch(descriptionText, /trading access|trading signals|investment advice|\badvice\b|buy\/sell|brokerage|payment (?:account|path|feature)|transaction features/iu);
+  assert.doesNotMatch(descriptionText, /买卖结论|交易信号|交易功能|交易指令|账户连接|账户授权|券商|支付宝/u);
+});
+
+test("runtime data source descriptions stay in data-coverage language", () => {
+  const descriptionText = new SourceRegistry({ enableLiveProviders: false })
+    .listSources()
+    .map((source) => [source.notes, source.access_method, source.freshness_policy].join("\n"))
+    .join("\n");
+
+  assert.doesNotMatch(descriptionText, /trading access|trading signals|investment advice|\badvice\b|buy\/sell|brokerage|payment (?:account|path|feature)|transaction features/iu);
+  assert.doesNotMatch(descriptionText, /买卖结论|交易信号|交易功能|交易指令|账户连接|账户授权|券商|支付宝/u);
+});
+
 test("SourceRegistry coverage matrix distinguishes implemented and gap requirements", () => {
   const coverage = new SourceRegistry({ enableLiveProviders: false }).coverageMatrix();
   const officialReports = coverage.find((item) => item.requirement === "official_fund_reports");

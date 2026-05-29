@@ -63,7 +63,7 @@ export class OecdCliProvider implements DataProvider<FundDataSourceInput, Provid
       circuit_open_count: 0,
       freshness_policy: "monthly OECD CLI observations should be fresh within 4 months and acceptable within 8 months",
       notes:
-        "Fetches official OECD SDMX monthly Composite Leading Indicator rows for global/QDII macro context. It does not provide fund NAV, holdings, report evidence, or investment advice."
+        "Fetches official OECD SDMX monthly Composite Leading Indicator rows for global/QDII macro context. Fund NAV, holdings, and report evidence remain separate requirements."
     };
   }
 
@@ -133,7 +133,7 @@ export class OecdCliProvider implements DataProvider<FundDataSourceInput, Provid
     const resultWarnings = [
       ...warnings,
       "OECD CLI 是官方短期宏观领先指标，只能辅助 Logos/Atlas 判断全球环境，不代表单只基金投资结论。",
-      "OECD CLI 不可替代基金净值、持仓、定期报告或交易信号。"
+      "OECD CLI 不可替代基金净值、持仓、定期报告等核心基金证据。"
     ];
     if (freshness === "stale") resultWarnings.push("OECD CLI 最新月度数据偏旧，后续硬逻辑判断必须降级。");
 

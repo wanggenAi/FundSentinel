@@ -70,7 +70,7 @@ export class FullgoalFundOfficialProvider implements DataProvider<FundDataSource
       circuit_open_count: 0,
       freshness_policy: "official company NAV rows should be fresh within 10 days and acceptable within 30 days",
       notes:
-        "Parses Fullgoal official SSR fund pages, NAV rows, disclosure detail pages, and official PDF metadata. It does not parse PDF body text or provide account/transaction features."
+        "Parses Fullgoal official SSR fund pages, NAV rows, disclosure detail pages, and official PDF metadata. It does not parse PDF body text beyond metadata."
     };
   }
 
@@ -87,7 +87,7 @@ export class FullgoalFundOfficialProvider implements DataProvider<FundDataSource
     const detailUrl = this.fundDetailUrl(input.fund_code);
     const warnings = [
       "富国基金官网是基金公司官方来源；当前 provider 解析官网 SSR 详情页、净值表、公告详情和 PDF 元数据，PDF 正文仍需后续解析。",
-      "富国基金官网页面包含交易/登录入口；Argus 仅读取公开披露数据，不接入交易、账户或支付功能。"
+      "富国基金官网页面可能包含非披露入口；Argus 仅读取公开详情、净值和公告 PDF 元数据。"
     ];
 
     try {

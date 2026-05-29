@@ -82,7 +82,7 @@ export class SafeMacroProvider implements DataProvider<FundDataSourceInput, Prov
       circuit_open_count: 0,
       freshness_policy: "monthly SAFE reserve-assets data should be fresh within 75 days and acceptable within 150 days",
       notes:
-        "Fetches official SAFE reserve-asset statistics from public HTML tables. It is cross-border macro context only, not fund NAV, holdings, or advice."
+        "Fetches official SAFE reserve-asset statistics from public HTML tables. It is cross-border macro context only; fund NAV, holdings, and reports remain separate requirements."
     };
   }
 
@@ -118,7 +118,7 @@ export class SafeMacroProvider implements DataProvider<FundDataSourceInput, Prov
       const freshness = this.freshnessFor(latestDate);
       const warnings = [
         "国家外汇管理局官方储备资产统计是官方跨境宏观背景，只能辅助 Logos/Atlas 判断外汇与 QDII 环境，不代表单只基金投资结论。",
-        "SAFE 储备资产统计不可替代基金净值、持仓、定期报告或交易信号。"
+        "SAFE 储备资产统计不可替代基金净值、持仓、定期报告等核心基金证据。"
       ];
       if (freshness === "stale") warnings.push("国家外汇管理局官方储备资产最新月份偏旧，后续硬逻辑判断必须降级。");
 

@@ -63,7 +63,7 @@ export class ImfDataMapperProvider implements DataProvider<FundDataSourceInput, 
       circuit_open_until: null,
       circuit_open_count: 0,
       freshness_policy: "World Economic Outlook macro series should be fresh within 18 months and acceptable within 30 months",
-      notes: "Fetches official IMF DataMapper macro indicators for global/QDII context. It does not provide fund NAV, holdings, or investment advice."
+      notes: "Fetches official IMF DataMapper macro indicators for global/QDII context. Fund NAV, holdings, and reports remain separate requirements."
     };
   }
 
@@ -115,7 +115,7 @@ export class ImfDataMapperProvider implements DataProvider<FundDataSourceInput, 
     const resultWarnings = [
       ...warnings,
       "IMF DataMapper 指标是官方全球宏观背景，只能辅助 Logos/Atlas 判断环境，不代表单只基金投资结论。",
-      "IMF 指标不可替代基金净值、持仓、定期报告或交易信号。"
+      "IMF 指标不可替代基金净值、持仓、定期报告等核心基金证据。"
     ];
     if (freshness === "stale") resultWarnings.push("IMF 宏观指标最新年份偏旧，后续硬逻辑判断必须降级。");
 

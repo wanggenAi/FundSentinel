@@ -51,7 +51,7 @@ export class PolicyNewsProvider implements DataProvider<FundDataSourceInput, Pro
       circuit_open_until: null,
       circuit_open_count: 0,
       freshness_policy: "official policy/news evidence is fresh within 45 days and acceptable within 120 days",
-      notes: "Fetches official NDRC policy/news releases as industry-policy context. It is supporting evidence only, never fund advice."
+      notes: "Fetches official NDRC policy/news releases as industry-policy context. It is supporting evidence only, not core fund evidence."
     };
   }
 
@@ -79,7 +79,7 @@ export class PolicyNewsProvider implements DataProvider<FundDataSourceInput, Pro
       const selected = (matched.length ? matched : items).slice(0, 6);
       const latestDate = items.map((item) => item.published_at).filter(Boolean).sort().at(-1);
       const freshness = this.freshnessFor(latestDate);
-      const warnings = ["官方政策/行业新闻只能作为 Logos 的背景证据，不代表单只基金投资建议或买卖结论。"];
+      const warnings = ["官方政策/行业新闻只能作为 Logos 的背景证据，不能直接补齐单只基金核心证据。"];
       if (!matched.length) warnings.push("未能按基金真实上下文匹配行业关键词，返回最新官方新闻作为弱宏观背景。");
       if (freshness === "stale") warnings.push("国家发展改革委新闻发布页最新日期偏旧，行业新闻证据应降级。");
 
@@ -249,7 +249,7 @@ export class NdrcOfficialProvider extends PolicyNewsProvider {
       source_id: "ndrc-official",
       source_name: "国家发展改革委官方政策 Provider",
       priority: 30,
-      notes: "Fetches official NDRC news releases as industry-policy context. It is supporting evidence only, never fund advice."
+      notes: "Fetches official NDRC news releases as industry-policy context. It is supporting evidence only, not core fund evidence."
     };
   }
 }

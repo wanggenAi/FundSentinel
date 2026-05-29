@@ -79,7 +79,7 @@ export class SseMarketCalendarProvider implements DataProvider<FundDataSourceInp
       circuit_open_count: 0,
       freshness_policy: "official exchange calendar events should be same-day fresh and acceptable within 10 days",
       notes:
-        "Fetches official SSE market-calendar events and SZSE official news/notice items. It is market context only, not NAV, holdings, fund reports, trading access, or advice."
+        "Fetches official SSE market-calendar events and SZSE official news/notice items. It is market context only; NAV, holdings, and fund reports remain separate requirements."
     };
   }
 
@@ -111,8 +111,8 @@ export class SseMarketCalendarProvider implements DataProvider<FundDataSourceInp
     const freshness = this.freshnessFor(this.isoDateFromCompact(this.calendarDate));
     const resultWarnings = [
       ...warnings,
-      "上交所/深交所官方市场事件仅作为市场背景，不代表单只基金投资建议或买卖结论。",
-      "交易所市场事件不可替代基金净值、持仓、定期报告或交易信号。"
+      "上交所/深交所官方市场事件仅作为市场背景，不能直接补齐单只基金核心证据。",
+      "交易所市场事件不可替代基金净值、持仓或定期报告。"
     ];
     if (!events.length) resultWarnings.push("上交所/深交所官方市场事件源未返回可归档事件，行业新闻/市场事件证据仍应降级。");
     if (freshness === "stale") resultWarnings.push("交易所市场事件查询日期偏旧，市场事件证据应降级。");

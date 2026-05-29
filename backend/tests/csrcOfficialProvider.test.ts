@@ -91,7 +91,7 @@ test("CsrcOfficialProvider returns official regulatory evidence without advice",
   assert.equal(result.is_demo, false);
   assert.ok(result.data?.policy_signals?.some((signal) => signal.includes("非法跨境证券期货基金")));
   assert.ok(result.data?.news_summaries?.[0]?.includes("证监会"));
-  assert.ok(result.warnings.some((warning) => warning.includes("不代表单只基金投资建议或买卖结论")));
+  assert.ok(result.warnings.some((warning) => warning.includes("不能直接补齐单只基金核心证据")));
   assert.match(result.raw_reference ?? "", /csrc\.gov\.cn\/searchList/);
   assert.doesNotMatch(JSON.stringify(result.data), /trial_buy|staged_buy|\b(buy|sell)\b/i);
 });

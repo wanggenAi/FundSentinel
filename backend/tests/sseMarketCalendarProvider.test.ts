@@ -146,7 +146,7 @@ test("SseMarketCalendarProvider returns official market events without advice", 
   assert.ok(result.data?.news_summaries?.some((summary) => summary.includes("深圳证券交易所/市场日历")));
   assert.ok(result.data?.news_summaries?.some((summary) => summary.includes("基金产品临时停牌")));
   assert.match(result.raw_reference ?? "", /sse\.com\.cn\/disclosure\/dealinstruc\/calendar/);
-  assert.ok(result.warnings.some((warning) => warning.includes("不代表单只基金投资建议或买卖结论")));
+  assert.ok(result.warnings.some((warning) => warning.includes("不能直接补齐单只基金核心证据")));
   assert.doesNotMatch(JSON.stringify(result), /trial_buy|staged_buy|\b(buy|sell)\b/i);
 });
 

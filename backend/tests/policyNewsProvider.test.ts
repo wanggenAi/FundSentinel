@@ -49,7 +49,7 @@ test("NDRC official provider returns official industry-policy evidence without a
   assert.equal(result.trust_level, "A");
   assert.ok(result.data?.policy_signals?.some((signal) => signal.includes("成品油价格调整")));
   assert.ok(result.data?.news_summaries?.[0]?.includes("国家发展改革委"));
-  assert.ok(result.warnings.some((warning) => warning.includes("不代表单只基金投资建议")));
+  assert.ok(result.warnings.some((warning) => warning.includes("不能直接补齐单只基金核心证据")));
   assert.match(result.raw_reference ?? "", /ndrc\.gov\.cn/);
 });
 
