@@ -254,6 +254,7 @@ test("Argus keeps mixed demo and real provider output marked as demo", async () 
 
   assert.equal(response.is_mock, true);
   assert.equal(response.data_pack.is_mock, true);
+  assert.equal(response.agent_results.Argus?.is_mock, true);
   assert.equal(response.data_pack.data_status, "demo");
   assert.equal(response.data_pack.data_quality.is_mock, true);
   assert.equal(response.data_pack.allow_strong_conclusion, false);

@@ -42,6 +42,7 @@ export class ArgusAgent extends BaseAgent {
     const status: AgentStatus = quality.data_status === "ready" ? "success" : quality.allow_downstream_analysis ? "warning" : "failed";
     const evidence = this.buildEvidence(providerResults);
     const confidence = this.confidenceFor(quality.data_status, quality.score);
+    const isMock = this.isMockQuality(quality);
 
     return {
       dataPack,
@@ -74,7 +75,7 @@ export class ArgusAgent extends BaseAgent {
         },
         warnings: [...quality.warnings, ...quality.blocking_issues],
         nextSuggestions: dataPack.acquisition_solutions.flatMap((solution) => solution.proposed_actions),
-        isMock: quality.data_status === "demo"
+        isMock
       })
     };
   }
@@ -107,6 +108,7 @@ export class ArgusAgent extends BaseAgent {
     const quality = this.buildQualityReport(providerResults, merged);
     const gapReport = this.buildGapReport(fundCode, quality, providerResults);
     const solutions = this.buildSolutions(quality, gapReport);
+    const isMock = this.isMockQuality(quality);
     const now = nowIso();
     return {
       fund_code: merged.fund_code ?? fundCode,
@@ -163,12 +165,16 @@ export class ArgusAgent extends BaseAgent {
         source: "Argus SourceRegistry",
         updated_at: quality.generated_at,
         warnings: quality.warnings,
-        is_mock: quality.data_status === "demo"
+        is_mock: isMock
       },
       updated_at: now,
       generated_at: now,
-      is_mock: quality.data_status === "demo"
+      is_mock: isMock
     };
+  }
+
+  private isMockQuality(quality: DataQualityReport): boolean {
+    return quality.data_status === "demo" || quality.demo_source_count > 0;
   }
 
   private mergeProviderPayloads(payloads: ProviderFundPayload[]): ProviderFundPayload {
