@@ -32,7 +32,8 @@ export class EastMoneyFundProvider implements DataProvider<FundDataSourceInput, 
       circuit_open_until: null,
       circuit_open_count: 0,
       freshness_policy: "current_nav should be same trading day; nav_history acceptable within 1 trading day",
-      notes: "Fetches public Tiantian/EastMoney fund page JavaScript and parses fund meta, current NAV, NAV history, stage returns, and limited position codes."
+      notes:
+        "Fetches public Tiantian/EastMoney fund page JavaScript and parses fund meta, current NAV, NAV history, stage returns, and limited disclosed holding security codes."
     };
   }
 
