@@ -14,7 +14,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     service: "FundSentinel AI backend",
     version: "0.1.0",
     runtime: "typescript-fastify",
-    is_mock: true,
+    is_mock: false,
     generated_at: nowIso()
   }));
 
@@ -52,7 +52,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({
         error: "Invalid request body",
         details: parsed.error.flatten(),
-        is_mock: true
+        is_mock: false
       });
     }
     return new FundAnalysisService().analyzeFundPublic(parsed.data.fund_code);

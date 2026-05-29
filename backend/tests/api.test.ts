@@ -11,7 +11,7 @@ test("API returns health", async () => {
   const payload = response.json();
   assert.equal(payload.status, "ok");
   assert.equal(payload.runtime, "typescript-fastify");
-  assert.equal(payload.is_mock, true);
+  assert.equal(payload.is_mock, false);
 });
 
 test("API home returns HomeDashboardResponse", async () => {
@@ -84,6 +84,15 @@ test("API fund analysis and analyze post return public analysis", async () => {
   assert.equal(postResponse.statusCode, 200);
   assert.equal(postResponse.json().data_pack.data_status, "unavailable");
   assert.equal(postResponse.json().final_review.review_status, "data_gap_review");
+});
+
+test("API analyze rejects invalid request without mock data marker", async () => {
+  const app = await buildApp();
+  const response = await app.inject({ method: "POST", url: "/api/analyze", payload: { fund_code: "" } });
+  await app.close();
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().is_mock, false);
 });
 
 test("data source APIs are available", async () => {
