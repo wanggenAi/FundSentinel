@@ -160,3 +160,26 @@ test("Argus keeps manual official report import as audited fallback without offi
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("ManualOfficialReportProvider remains available when external live providers are disabled", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fundsentinel-manual-report-disabled-live-"));
+  try {
+    const sha256 = createHash("sha256").update(pdfBytes).digest("hex");
+    await writeFile(path.join(dir, "007951-2026q1.pdf"), pdfBytes);
+    await writeManifest(dir, sha256);
+    const registry = new SourceRegistry({
+      enableLiveProviders: false,
+      providers: [new ManualOfficialReportProvider(dir)],
+      cacheTtlMs: 0
+    });
+
+    const result = (await registry.fetchAll({ fund_code: "007951", required_data: ["fund_reports"], demo_mode: false }))[0];
+
+    assert.equal(result.source_id, "manual-official-report-import");
+    assert.equal(result.success, true);
+    assert.equal(result.data?.fund_report_documents?.[0]?.pdf_verified, true);
+    assert.equal(result.data?.manual_report_import_audit?.verified_pdf_count, 1);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
