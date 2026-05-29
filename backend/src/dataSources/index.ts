@@ -20,5 +20,6 @@ export * from "./providers/manualCsvProvider.js";
 export * from "./providers/manualOfficialReportProvider.js";
 export * from "./providers/pbcMacroProvider.js";
 export * from "./providers/policyNewsProvider.js";
+export * from "./providers/safeMacroProvider.js";
 export * from "./providers/statsGovMacroProvider.js";
 export * from "./providers/worldBankMacroProvider.js";

@@ -393,15 +393,15 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     source_type: "macro_data",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["fx_data", "cross_border_capital", "balance_of_payments"],
+    coverage: ["macro_data", "fx_data", "official_reserve_assets", "cross_border_capital", "balance_of_payments"],
     recommended_for: ["qdii_context", "macro_context"],
-    access_method: "official website",
+    access_method: "official SAFE reserve-assets HTML list: https://www.safe.gov.cn/safe/gfcbzc/index.html",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Use official public statistics and keep release date.",
     priority: 46,
-    notes: "Useful for QDII and exchange-rate related context."
+    notes: "Implemented for official reserve-asset monthly USD indicators. Additional balance-of-payments and capital-flow tables remain future extensions."
   },
   {
     source_id: "commercial-terminal-api",

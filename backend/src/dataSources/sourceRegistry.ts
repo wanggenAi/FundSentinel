@@ -16,6 +16,7 @@ import { ManualCsvProvider } from "./providers/manualCsvProvider.js";
 import { ManualOfficialReportProvider } from "./providers/manualOfficialReportProvider.js";
 import { PbcMacroProvider } from "./providers/pbcMacroProvider.js";
 import { PolicyNewsProvider } from "./providers/policyNewsProvider.js";
+import { SafeMacroProvider } from "./providers/safeMacroProvider.js";
 import { StatsGovMacroProvider } from "./providers/statsGovMacroProvider.js";
 import { WorldBankMacroProvider } from "./providers/worldBankMacroProvider.js";
 import type { DataProvider } from "./providers/baseProvider.js";
@@ -90,6 +91,7 @@ export class SourceRegistry {
       new FundCompanyReportProvider(),
       new CninfoReportProvider(),
       new GovCnPolicyProvider(),
+      new SafeMacroProvider(),
       new PbcMacroProvider(),
       new StatsGovMacroProvider(),
       new FredMacroProvider(),
