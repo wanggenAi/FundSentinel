@@ -197,6 +197,7 @@ export class FundAnalysisService {
 
   private reviewStatusForAnalysis(response: FundAnalysisResponse): OpportunityReviewStatus {
     if (!response.data_pack.allow_downstream_analysis || ["unavailable", "insufficient"].includes(response.data_pack.data_status)) return "data_gap_review";
+    if (!response.data_pack.allow_strong_conclusion) return "evidence_review";
     if (response.final_decision.risk_level === "high") return "risk_review";
     if (response.data_pack.data_quality.level === "low" || response.final_decision.confidence < 0.55) return "evidence_review";
     return "observe";
@@ -206,8 +207,22 @@ export class FundAnalysisService {
     const status = this.reviewStatusForAnalysis(response);
     if (status === "data_gap_review") return `${response.fund_code} 真实核心数据不足，仅返回数据缺口、来源和补齐方案。`;
     if (status === "risk_review") return `${response.fund_name} 被 Atlas 标记为高风险复核项，需先核对证据链和失效条件。`;
-    if (status === "evidence_review") return `${response.fund_name} 的数据质量或置信度仍需复核，仅进入观察。`;
+    if (status === "evidence_review") {
+      if (!response.data_pack.allow_strong_conclusion) return this.degradedFinalReviewSummary(response);
+      return `${response.fund_name} 的数据质量或置信度仍需复核，仅进入观察。`;
+    }
     return `${response.fund_name} 已完成证据审阅，仅进入观察；不代表交易动作。`;
+  }
+
+  private degradedFinalReviewSummary(response: FundAnalysisResponse): string {
+    const quality = response.data_pack.data_quality_report;
+    const missing = [...new Set([...quality.missing_core_fields, ...quality.missing_auxiliary_fields])];
+    const details = [
+      missing.length ? `缺口=${missing.slice(0, 5).join(", ")}` : null,
+      quality.stale_sources.length ? `stale_sources=${quality.stale_sources.join(", ")}` : null,
+      quality.nav_consistency_report.status === "conflict" ? "nav_consistency=conflict" : null
+    ].filter(Boolean);
+    return `${response.fund_name} 仅进入证据复核：Argus 未允许强结论${details.length ? `，${details.join("；")}` : ""}。`;
   }
 
   private publicMetrics(metrics: Record<string, unknown>): Record<string, unknown> {

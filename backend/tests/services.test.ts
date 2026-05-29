@@ -445,6 +445,26 @@ test("public fund analysis sanitizes full demo DAG action language", async () =>
   assert.doesNotMatch(payload, /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位|重仓|加仓|减仓/iu);
 });
 
+test("public fund analysis surfaces degraded strong-conclusion blocks in final review", async () => {
+  const registry = new SourceRegistry({
+    providers: [new RealOpportunityProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+  const response = await new FundAnalysisService(registry).analyzeFundPublic("007951", "degraded-public-flow");
+
+  assert.equal(response.is_mock, false);
+  assert.equal(response.data_pack.data_status, "partial");
+  assert.equal(response.data_pack.allow_downstream_analysis, true);
+  assert.equal(response.data_pack.allow_strong_conclusion, false);
+  assert.equal(response.final_review.review_status, "evidence_review");
+  assert.match(response.final_review.summary, /Argus 未允许强结论/);
+  assert.match(response.final_review.summary, /official_fund_reports/);
+  assert.ok(response.traceability.data_gap_report?.missing_data.includes("official_fund_reports"));
+  assert.ok(response.traceability.acquisition_solutions.some((solution) => solution.engineering_tasks.length > 0));
+  assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位|重仓|加仓|减仓/iu);
+});
+
 test("public fund analysis filters action-like final review metric keys", () => {
   const dataPack = new MockDataService().getFundDataPack("007951");
   const response: FundAnalysisResponse = {
