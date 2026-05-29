@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ArgusAgent } from "../src/agents/index.js";
-import { PolicyNewsProvider, SourceRegistry } from "../src/dataSources/index.js";
+import { NdrcOfficialProvider, PolicyNewsProvider, SourceRegistry } from "../src/dataSources/index.js";
 
 const ndrcNewsHtml = `
 <ul class="u-list">
@@ -22,14 +22,14 @@ test("PolicyNewsProvider parses official NDRC news releases", () => {
   assert.equal(items[0]?.source_name, "国家发展改革委");
 });
 
-test("PolicyNewsProvider returns official industry-policy evidence without advice", async () => {
+test("NDRC official provider returns official industry-policy evidence without advice", async () => {
   const fetchImpl = (async () =>
     new Response(ndrcNewsHtml, {
       status: 200,
       headers: { "content-type": "text/html" }
     })) as typeof fetch;
 
-  const provider = new PolicyNewsProvider(fetchImpl, 1000);
+  const provider = new NdrcOfficialProvider(fetchImpl, 1000);
   const result = await provider.fetch({
     fund_code: "012414",
     required_data: ["policy_evidence", "industry_news"],
@@ -44,7 +44,8 @@ test("PolicyNewsProvider returns official industry-policy evidence without advic
 
   assert.equal(result.success, true);
   assert.equal(result.is_demo, false);
-  assert.equal(result.source_id, "policy-news");
+  assert.equal(result.source_id, "ndrc-official");
+  assert.equal(result.source_name, "国家发展改革委官方政策 Provider");
   assert.equal(result.trust_level, "A");
   assert.ok(result.data?.policy_signals?.some((signal) => signal.includes("成品油价格调整")));
   assert.ok(result.data?.news_summaries?.[0]?.includes("国家发展改革委"));
@@ -52,14 +53,14 @@ test("PolicyNewsProvider returns official industry-policy evidence without advic
   assert.match(result.raw_reference ?? "", /ndrc\.gov\.cn/);
 });
 
-test("PolicyNewsProvider records explicit official-site failures", async () => {
+test("NDRC official provider records explicit official-site failures", async () => {
   const fetchImpl = (async () =>
     new Response("forbidden", {
       status: 403,
       headers: { "content-type": "text/html" }
     })) as typeof fetch;
 
-  const provider = new PolicyNewsProvider(fetchImpl, 1000);
+  const provider = new NdrcOfficialProvider(fetchImpl, 1000);
   const result = await provider.fetch({
     fund_code: "007951",
     required_data: ["policy_evidence", "industry_news"],
@@ -73,7 +74,7 @@ test("PolicyNewsProvider records explicit official-site failures", async () => {
   assert.equal(result.raw_reference, "https://www.ndrc.gov.cn/xwdt/xwfb/");
 });
 
-test("Argus surfaces PolicyNewsProvider failures in DataGapReport details", async () => {
+test("Argus surfaces NDRC official provider failures in DataGapReport details", async () => {
   const fetchImpl = (async () =>
     new Response("forbidden", {
       status: 403,
@@ -81,16 +82,16 @@ test("Argus surfaces PolicyNewsProvider failures in DataGapReport details", asyn
     })) as typeof fetch;
 
   const registry = new SourceRegistry({
-    providers: [new PolicyNewsProvider(fetchImpl, 1000)],
+    providers: [new NdrcOfficialProvider(fetchImpl, 1000)],
     cacheTtlMs: 0,
     retryCount: 0
   });
 
-  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("policy-news-failure-gap", "007951");
-  const detail = dataPack.data_gap_report?.failed_source_details.find((source) => source.source_id === "policy-news");
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("ndrc-official-failure-gap", "007951");
+  const detail = dataPack.data_gap_report?.failed_source_details.find((source) => source.source_id === "ndrc-official");
 
   assert.ok(detail);
-  assert.equal(detail.source_name, "Official Policy and Industry News Provider");
+  assert.equal(detail.source_name, "国家发展改革委官方政策 Provider");
   assert.equal(detail.trust_level, "A");
   assert.match(detail.error ?? "", /HTTP 403/);
   assert.ok(detail.warnings.some((warning) => warning.includes("国家发展改革委新闻发布页返回 HTTP 403")));

@@ -331,12 +331,12 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     notes: "Maps latest official national policy titles to broad fund themes as weak policy background evidence."
   },
   {
-    source_id: "policy-news",
-    source_name: "官方政策与行业新闻",
+    source_id: "ndrc-official",
+    source_name: "国家发展改革委官方政策与新闻",
     source_type: "policy",
     quality_tier: "authoritative",
     stability: "medium",
-    coverage: ["policy_evidence", "industry_news", "industry_policy"],
+    coverage: ["policy_evidence", "industry_news", "industry_policy", "macro_policy", "investment_policy"],
     recommended_for: ["policy_evidence", "industry_news", "industry_logic", "Logos_policy_background"],
     access_method: "official NDRC news page: https://www.ndrc.gov.cn/xwdt/xwfb/",
     requires_auth: false,
@@ -395,22 +395,6 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     legal_note: "Prefer official pages; keep publication date and URL.",
     priority: 40,
     notes: "Primary source for Logos hard logic evidence."
-  },
-  {
-    source_id: "ndrc-official",
-    source_name: "国家发展改革委",
-    source_type: "policy",
-    quality_tier: "authoritative",
-    stability: "high",
-    coverage: ["industry_policy", "macro_policy", "investment_policy"],
-    recommended_for: ["policy_evidence", "industry_logic"],
-    access_method: "official website",
-    requires_auth: false,
-    is_demo: false,
-    integration_status: "planned",
-    legal_note: "Use official public releases with publication date and URL.",
-    priority: 41,
-    notes: "Important for industry direction and policy-side hard logic."
   },
   {
     source_id: "miit-official",

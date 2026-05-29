@@ -46,6 +46,7 @@ test("SourceRegistry lists real providers and demo fixture provider", () => {
   assert.ok(sources.some((source) => source.source_id === "eastmoney-fund" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "eastmoney-nav-history" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "cmfchina-fund-official" && source.trust_level === "A" && !source.is_demo));
+  assert.ok(sources.some((source) => source.source_id === "ndrc-official" && source.trust_level === "A" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "harvestfund-official" && source.trust_level === "A" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "fullgoal-fund-official" && source.trust_level === "A" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "hkex-official" && source.trust_level === "A" && !source.is_demo));
@@ -101,7 +102,7 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(macroData?.implemented_source_ids.includes("oecd-data-api"));
   assert.ok(macroData?.implemented_source_ids.includes("eurostat-api"));
   assert.equal(macroData?.gap_level, "covered");
-  assert.ok(industryNews?.implemented_source_ids.includes("policy-news"));
+  assert.ok(industryNews?.implemented_source_ids.includes("ndrc-official"));
   assert.ok(industryNews?.implemented_source_ids.includes("amac-public-fund-data"));
   assert.ok(industryNews?.implemented_source_ids.includes("csrc-official"));
   assert.ok(industryNews?.implemented_source_ids.includes("sse-szse-official"));

@@ -241,3 +241,15 @@ export class PolicyNewsProvider implements DataProvider<FundDataSourceInput, Pro
       .replace(/&#39;/gu, "'");
   }
 }
+
+export class NdrcOfficialProvider extends PolicyNewsProvider {
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...super.sourceInfo(),
+      source_id: "ndrc-official",
+      source_name: "国家发展改革委官方政策 Provider",
+      priority: 30,
+      notes: "Fetches official NDRC news releases as industry-policy context. It is supporting evidence only, never fund advice."
+    };
+  }
+}

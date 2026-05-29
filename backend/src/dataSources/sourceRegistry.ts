@@ -26,7 +26,7 @@ import { MiitOfficialProvider } from "./providers/miitOfficialProvider.js";
 import { MofFiscalProvider } from "./providers/mofFiscalProvider.js";
 import { OecdCliProvider } from "./providers/oecdCliProvider.js";
 import { PbcMacroProvider } from "./providers/pbcMacroProvider.js";
-import { PolicyNewsProvider } from "./providers/policyNewsProvider.js";
+import { NdrcOfficialProvider } from "./providers/policyNewsProvider.js";
 import { SafeMacroProvider } from "./providers/safeMacroProvider.js";
 import { SecEdgarProvider } from "./providers/secEdgarProvider.js";
 import { StatsGovMacroProvider } from "./providers/statsGovMacroProvider.js";
@@ -122,7 +122,7 @@ export class SourceRegistry {
       new ImfDataMapperProvider(),
       new OecdCliProvider(),
       new EurostatProvider(),
-      new PolicyNewsProvider(),
+      new NdrcOfficialProvider(),
       new MiitOfficialProvider(),
       new SseMarketCalendarProvider(),
       new ManualOfficialReportProvider(),
