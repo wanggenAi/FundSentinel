@@ -3,7 +3,15 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { SourceRegistry, type DataProvider, type DataProviderResult, type DataSourceInfo, type FundDataSourceInput, type ProviderFundPayload } from "../src/dataSources/index.js";
+import {
+  listDataSourceCatalog,
+  SourceRegistry,
+  type DataProvider,
+  type DataProviderResult,
+  type DataSourceInfo,
+  type FundDataSourceInput,
+  type ProviderFundPayload
+} from "../src/dataSources/index.js";
 import type { FundAnalysisResponse } from "../src/schemas/index.js";
 import { DataSourceService, FundAnalysisService, HomeService, MockDataService, OpportunityService, PortfolioService, StrategyTriggerService } from "../src/services/index.js";
 
@@ -420,6 +428,16 @@ test("SourceRegistry lists real providers and demo fixture provider", () => {
   assert.ok(sources.some((source) => source.source_id === "fullgoal-fund-official" && source.trust_level === "A" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "hkex-official" && source.trust_level === "A" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "demo-fixture" && source.is_demo && !source.enabled));
+});
+
+test("SourceRegistry has runtime providers for every implemented catalog source", () => {
+  const runtimeSourceIds = new Set(new SourceRegistry({ enableLiveProviders: false }).listSources().map((source) => source.source_id));
+  const missingRuntimeSources = listDataSourceCatalog()
+    .filter((source) => source.integration_status === "implemented")
+    .map((source) => source.source_id)
+    .filter((sourceId) => !runtimeSourceIds.has(sourceId));
+
+  assert.deepEqual(missingRuntimeSources, []);
 });
 
 test("SourceRegistry coverage matrix distinguishes implemented and gap requirements", () => {
