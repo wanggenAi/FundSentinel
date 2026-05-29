@@ -18,6 +18,18 @@ export class HomeService {
     const actionableAnalyses = analyses.filter((analysis) => analysis.data_pack.allow_downstream_analysis);
     const strategyTriggers = this.strategyTriggerService.buildTriggers(actionableAnalyses);
     const blockedFunds = analyses.filter((analysis) => !analysis.data_pack.allow_downstream_analysis);
+    const portfolioGapFocus =
+      portfolio.holdings.length === 0 && portfolio.data_quality.warnings.length
+        ? [
+            {
+              title: "真实持仓未配置",
+              summary: portfolio.data_quality.warnings[0] ?? "首页持仓缺少真实来源，Atlas 已返回降级状态。",
+              priority: "high" as const,
+              related_funds: [],
+              is_mock: portfolio.is_mock
+            }
+          ]
+        : [];
     return {
       is_mock: portfolio.is_mock,
       total_assets: portfolio.total_assets,
@@ -28,6 +40,7 @@ export class HomeService {
       strategy_triggers: strategyTriggers,
       holding_alerts: this.strategyTriggerService.buildHoldingAlerts(actionableAnalyses),
       today_focus: [
+        ...portfolioGapFocus,
         ...this.strategyTriggerService.buildTodayFocus(strategyTriggers),
         ...blockedFunds.slice(0, 3).map((analysis) => ({
           title: "真实数据不足",

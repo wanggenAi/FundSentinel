@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 import { SourceRegistry, type DataProvider, type DataProviderResult, type DataSourceInfo, type FundDataSourceInput, type ProviderFundPayload } from "../src/dataSources/index.js";
-import { DataSourceService, FundAnalysisService, HomeService, OpportunityService } from "../src/services/index.js";
+import { DataSourceService, FundAnalysisService, HomeService, OpportunityService, PortfolioService } from "../src/services/index.js";
 
 test("default FundAnalysisResponse with live providers disabled is data unavailable, not fake analysis", async () => {
   const response = await new FundAnalysisService(new SourceRegistry({ enableLiveProviders: false })).analyzeFund("007951", "analysis-flow");
@@ -15,13 +18,90 @@ test("default FundAnalysisResponse with live providers disabled is data unavaila
   assert.ok(response.data_pack.acquisition_solutions[0].engineering_tasks.length);
 });
 
-test("home service does not fake strategy triggers when live providers are disabled", async () => {
+test("home service does not fake holdings or strategy triggers without a configured portfolio source", async () => {
   const response = await new HomeService().getHomeDashboard();
 
-  assert.equal(response.is_mock, true);
-  assert.ok(response.holding_count > 0);
+  assert.equal(response.is_mock, false);
+  assert.equal(response.holding_count, 0);
+  assert.equal(response.total_assets, 0);
   assert.equal(response.strategy_triggers.length, 0);
-  assert.ok(response.today_focus.some((item) => item.title === "真实数据不足"));
+  assert.ok(response.today_focus.some((item) => item.title === "真实持仓未配置"));
+  assert.ok(response.data_quality.warnings.some((warning) => warning.includes("FUNDSENTINEL_PORTFOLIO_FILE")));
+});
+
+test("portfolio service reads explicit manual JSON snapshot as non-mock user-provided data", () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "fundsentinel-portfolio-"));
+  const portfolioFile = path.join(tempDir, "portfolio.json");
+
+  try {
+    writeFileSync(
+      portfolioFile,
+      JSON.stringify({
+        generated_at: "2026-05-28T00:00:00.000Z",
+        holdings: [
+          {
+            fund_code: "007951",
+            fund_name: "真实手动持仓基金 A",
+            holding_amount: 10000,
+            cost_nav: 1.25,
+            current_nav: 1.3,
+            daily_pnl: 25
+          },
+          {
+            fund_code: "161725",
+            fund_name: "真实手动持仓基金 B",
+            holding_amount: "5000",
+            cost_nav: "0.9",
+            current_nav: "0.85",
+            daily_pnl: "-10",
+            unrealized_pnl_ratio: "-0.0556"
+          }
+        ]
+      })
+    );
+
+    const snapshot = new PortfolioService(undefined, { portfolioFile, demoMode: false, now: () => "2026-05-29T00:00:00.000Z" }).getPortfolioSnapshot("user-a");
+
+    assert.equal(snapshot.is_mock, false);
+    assert.equal(snapshot.data_quality.is_mock, false);
+    assert.equal(snapshot.data_quality.source, `ManualPortfolioJsonProvider:${portfolioFile}`);
+    assert.equal(snapshot.total_assets, 15000);
+    assert.equal(snapshot.daily_pnl, 15);
+    assert.equal(snapshot.daily_pnl_ratio, 0.001);
+    assert.equal(snapshot.holdings[0]?.weight, 0.6667);
+    assert.equal(snapshot.holdings[1]?.weight, 0.3333);
+    assert.equal(snapshot.holdings[0]?.is_mock, false);
+    assert.ok(snapshot.data_quality.warnings.some((warning) => warning.startsWith("file_sha256=")));
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("portfolio service degrades instead of falling back to mock when configured manual JSON is invalid", () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "fundsentinel-portfolio-"));
+  const portfolioFile = path.join(tempDir, "portfolio.json");
+
+  try {
+    writeFileSync(portfolioFile, JSON.stringify({ holdings: [{ fund_code: "bad-code" }] }));
+
+    const snapshot = new PortfolioService(undefined, { portfolioFile, demoMode: false, now: () => "2026-05-29T00:00:00.000Z" }).getPortfolioSnapshot("user-a");
+
+    assert.equal(snapshot.is_mock, false);
+    assert.equal(snapshot.total_assets, 0);
+    assert.equal(snapshot.holdings.length, 0);
+    assert.ok(snapshot.data_quality.warnings.some((warning) => warning.includes("手动持仓文件不可用")));
+    assert.ok(snapshot.data_quality.warnings.some((warning) => warning.includes("未回退到 mock 持仓")));
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("portfolio service uses mock holdings only in explicit demo mode", () => {
+  const snapshot = new PortfolioService(undefined, { portfolioFile: null, demoMode: true }).getPortfolioSnapshot("demo-user");
+
+  assert.equal(snapshot.is_mock, true);
+  assert.ok(snapshot.holdings.length > 0);
+  assert.equal(snapshot.data_quality.is_mock, true);
 });
 
 test("opportunity service does not fake candidates without real data", async () => {
@@ -212,8 +292,10 @@ test("DataSourceService returns gap and manual import plan", async () => {
   assert.ok(gap.recommended_solutions.length > 0);
   assert.ok(Array.isArray(gap.failed_source_details));
   assert.ok(manualPlan.solutions[0].engineering_tasks.length > 0);
+  assert.ok(manualPlan.required_portfolio_json_fields.includes("holdings[].holding_amount"));
   assert.ok(manualPlan.required_report_manifest_fields.includes("pdf_sha256"));
   assert.equal(manualPlan.report_manifest_filename, "{fund_code}.reports.json");
+  assert.ok(manualPlan.solutions.some((solution) => solution.proposed_actions.some((action) => action.includes("FUNDSENTINEL_PORTFOLIO_FILE"))));
   assert.ok(manualPlan.solutions.some((solution) => solution.proposed_actions.some((action) => action.includes("FUNDSENTINEL_MANUAL_REPORT_DIR"))));
   assert.ok(manualPlan.warnings.some((warning) => warning.includes("官方报告 PDF manifest 不得标记为自动抓取")));
 });

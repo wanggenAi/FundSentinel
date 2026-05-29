@@ -21,10 +21,13 @@ test("API home returns HomeDashboardResponse", async () => {
 
   assert.equal(response.statusCode, 200);
   const payload = response.json();
-  assert.equal(payload.is_mock, true);
+  assert.equal(payload.is_mock, false);
   assert.equal(payload.generated_by, "Atlas");
+  assert.equal(payload.holding_count, 0);
+  assert.equal(payload.total_assets, 0);
   assert.equal(payload.strategy_triggers.length, 0);
-  assert.ok(payload.today_focus.some((item: { title: string }) => item.title === "真实数据不足"));
+  assert.ok(payload.today_focus.some((item: { title: string }) => item.title === "真实持仓未配置"));
+  assert.ok(payload.data_quality.warnings.some((warning: string) => warning.includes("FUNDSENTINEL_PORTFOLIO_FILE")));
 });
 
 test("API opportunities returns OpportunitySquareResponse", async () => {
@@ -91,7 +94,9 @@ test("data source APIs are available", async () => {
   assert.ok(gapsResponse.json().recommended_solutions.some((solution: string) => solution.includes("official_current_nav")));
   assert.equal(manualPlanResponse.statusCode, 200);
   assert.ok(manualPlanResponse.json().solutions[0].engineering_tasks.length > 0);
+  assert.ok(manualPlanResponse.json().required_portfolio_json_fields.includes("holdings[].current_nav"));
   assert.ok(manualPlanResponse.json().required_report_manifest_fields.includes("pdf_sha256"));
   assert.equal(manualPlanResponse.json().report_manifest_filename, "{fund_code}.reports.json");
+  assert.ok(manualPlanResponse.json().warnings.some((warning: string) => warning.includes("FUNDSENTINEL_PORTFOLIO_FILE")));
   assert.ok(manualPlanResponse.json().warnings.some((warning: string) => warning.includes("FUNDSENTINEL_MANUAL_REPORT_DIR")));
 });

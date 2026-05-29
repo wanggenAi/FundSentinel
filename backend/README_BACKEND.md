@@ -349,6 +349,37 @@ Manual CSV data is marked as `source_type=manual_import`, `is_demo=false`, and i
 - `latest_date`
 - `imported_at`
 
+## Manual Portfolio Snapshot
+
+Home intelligence does not use demo holdings as business output. Without an explicit source it returns an empty portfolio snapshot with low data quality and a `FUNDSENTINEL_PORTFOLIO_FILE` warning. For local demo holdings, use `FUNDSENTINEL_DEMO_MODE=true`.
+
+To provide a user-confirmed manual snapshot, set:
+
+```bash
+export FUNDSENTINEL_PORTFOLIO_FILE="/absolute/path/to/portfolio.json"
+```
+
+Required JSON fields:
+
+```json
+{
+  "generated_at": "2026-05-28T00:00:00.000Z",
+  "holdings": [
+    {
+      "fund_code": "007951",
+      "fund_name": "Example Fund",
+      "holding_amount": 10000,
+      "cost_nav": 1.25,
+      "current_nav": 1.3
+    }
+  ]
+}
+```
+
+Optional per-holding fields are `daily_pnl` and `unrealized_pnl_ratio`. `PortfolioService` computes total assets, daily PnL ratio, and holding weights, marks the snapshot as `is_mock=false`, and records file SHA256, size, mtime, and import time in `data_quality.warnings`.
+
+This is a manual data workaround only. It does not connect to trading, brokerage, bank, Alipay, payment, or account authorization systems.
+
 It must be treated as operator/user verified data with audit requirements, not as automatic internet acquisition.
 
 ## Reliability Rules
