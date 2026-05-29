@@ -251,7 +251,8 @@ export class ArgusAgent extends BaseAgent {
       merged.social_sentiment_score === undefined ? "social_sentiment" : null
     ].filter(Boolean) as string[];
     const staleSources = providerResults.filter((result) => result.freshness === "stale").map((result) => result.source_name);
-    const warnings = providerResults.flatMap((result) => result.warnings);
+    const ignoredCoreFieldWarnings = successful.flatMap((result) => this.ignoredFundCoreFieldWarnings(result));
+    const warnings = [...providerResults.flatMap((result) => result.warnings), ...ignoredCoreFieldWarnings];
     const freshnessGapFields = staleSources.length > 0 ? ["data_freshness"] : [];
     const blockingIssues: string[] = [];
     let dataStatus: DataStatus = "ready";
@@ -586,6 +587,24 @@ export class ArgusAgent extends BaseAgent {
       conflicts,
       status: conflicts.length ? "conflict" : "consistent"
     };
+  }
+
+  private ignoredFundCoreFieldWarnings(result: DataProviderResult<ProviderFundPayload>): string[] {
+    if (this.canMergeFundCorePayload(result) || !result.data) return [];
+
+    const payload = result.data;
+    const ignoredFieldGroups = [
+      payload.fund_name || payload.fund_type ? "fund_meta" : null,
+      payload.current_nav !== undefined || payload.daily_return !== undefined ? "current_nav" : null,
+      payload.nav_history?.length || payload.nav_history_dates?.length || payload.stage_returns ? "nav_history" : null,
+      payload.portfolio_holdings?.length || payload.holdings_as_of || payload.holdings_source ? "holdings" : null,
+      payload.fund_report_refs?.length || payload.fund_report_documents?.length ? "fund_reports" : null
+    ].filter(Boolean) as string[];
+
+    if (!ignoredFieldGroups.length) return [];
+    return [
+      `${result.source_name} 返回基金核心字段（${[...new Set(ignoredFieldGroups)].join(", ")}），但 source_type=${result.source_type} 只允许作为上下文证据；Argus 已忽略这些核心字段。`
+    ];
   }
 
   private navConsistencyNotCheckedReasons(

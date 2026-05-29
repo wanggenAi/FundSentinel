@@ -518,6 +518,14 @@ test("Argus ignores fund core fields accidentally returned by macro providers", 
   assert.ok(dataPack.data_quality_report.missing_core_fields.includes("fund_meta"));
   assert.ok(dataPack.data_quality_report.missing_core_fields.includes("current_nav"));
   assert.ok(dataPack.data_quality_report.missing_core_fields.includes("nav_history"));
+  assert.ok(
+    dataPack.data_quality_report.warnings.some(
+      (warning) =>
+        warning.includes("source_type=macro_data") &&
+        warning.includes("只允许作为上下文证据") &&
+        warning.includes("Argus 已忽略这些核心字段")
+    )
+  );
   assert.deepEqual(dataPack.data_quality_report.nav_consistency_report.compared_sources, []);
   assert.ok(dataPack.data_quality_report.nav_consistency_report.not_checked_reasons.includes("no_real_nav_sources"));
 });
