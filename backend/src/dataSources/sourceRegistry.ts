@@ -1,4 +1,5 @@
 import { AmacPublicFundDataProvider } from "./providers/amacPublicFundDataProvider.js";
+import { ChinaAmcOfficialProvider } from "./providers/chinaAmcOfficialProvider.js";
 import { CninfoReportProvider } from "./providers/cninfoReportProvider.js";
 import { CmfChinaFundOfficialProvider } from "./providers/cmfChinaFundOfficialProvider.js";
 import { CsrcFundDisclosureProvider } from "./providers/csrcFundDisclosureProvider.js";
@@ -100,6 +101,7 @@ export class SourceRegistry {
       new CmfChinaFundOfficialProvider(),
       new HuaAnFundOfficialProvider(),
       new EFundOfficialProvider(),
+      new ChinaAmcOfficialProvider(),
       new FundCompanyReportProvider(),
       new CninfoReportProvider(),
       new GovCnPolicyProvider(),

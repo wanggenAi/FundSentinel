@@ -101,6 +101,7 @@ Data providers live under `src/dataSources/`:
 - `CmfChinaFundOfficialProvider`: implemented first fund-company official-site adapter. It parses CMF China official fund detail pages, product notices, current NAV snippets, SSR-embedded recent NAV history, and report-prompt notices. It records official provenance, but report-prompt notices are not treated as full report bodies.
 - `HuaAnFundOfficialProvider`: implemented second fund-company official-site adapter. It parses HuaAn official fund detail pages, the official NAV table endpoint, top holding names, and disclosure links. It contributes to `official_current_nav` / `official_nav_history` coverage for HuaAn funds, while still requiring CSRC/company PDF parsing for full report-body evidence.
 - `EFundOfficialProvider`: implemented third fund-company official-site adapter. It parses E Fund official product pages, official CDN NAV history JavaScript, disclosed holdings, and announcement PDF metadata for official NAV/holding/report cross-checks.
+- `ChinaAmcOfficialProvider`: implemented fourth fund-company official-site adapter. It parses ChinaAMC official GBK/UTF-8 fund pages, official NAV iframe rows, asset-composition holdings, announcement detail pages, and PDF metadata for official NAV/holding/report cross-checks.
 - `CsrcFundDisclosureProvider`: implemented first official disclosure probe for the CSRC fund e-disclosure site. It parses official periodic-report links when reachable and records site-protection or endpoint failures as explicit `DataGapReport` evidence.
 - `CsrcOfficialProvider`: implemented official CSRC regulatory-release provider. It uses the CSRC public `searchList` JSON endpoint for regulatory releases, including fund-regulation and investor-protection context, and treats them as policy evidence only.
 - `CsrcPublicFundProductProvider`: implemented official CSRC public fund product index provider. It locates the CSRC product-index XLSX attachment, parses fund code/name/establishment date metadata, and treats it as official fund metadata only.
@@ -222,6 +223,7 @@ The live public provider set currently includes:
 - `https://www.cmfchina.com/web/fundDetail/{fund_code}/index.html` for CMF China official fund-company product details, SSR-embedded recent NAV rows, and official notice/report-prompt references.
 - `https://www.huaan.com.cn/funds/{fund_code}/index.shtml` plus `https://www.huaan.com.cn/funddetail/selectFundayByCode.do?fd.fundcode={fund_code}` for HuaAn official fund details, recent NAV table rows, holdings names, and disclosure links.
 - `https://www.efunds.com.cn/fund/{fund_code}.shtml` plus `https://cdn.efunds.com.cn/market/2.0/his/{fund_code}_all.js` for E Fund official fund details, NAV history rows, disclosed holdings, and announcement PDF links.
+- `https://www.chinaamc.com/fund/{fund_code}/index.shtml` plus `https://www.chinaamc.com/product/fundLishijingzhi.do?fundcode={fund_code}` / `https://www.chinaamc.com/product/publishGgList.do?fundcode={fund_code}` for ChinaAMC official fund details, NAV rows, holdings, announcement detail pages, and PDF links.
 - `http://eid.csrc.gov.cn/fund` for the CSRC fund e-disclosure official entrypoint. The provider records official-site blocking or endpoint failures rather than silently ignoring them.
 - `https://www.csrc.gov.cn/searchList/a1a078ee0bc54721ab6b148884c784a8` for CSRC official regulatory release metadata and summaries. Argus treats this as regulatory/policy context only.
 - `https://www.csrc.gov.cn/csrc/c101900/c1029655/content.shtml` plus its `公募基金产品索引` XLSX attachment for official public-fund code/name/establishment-date metadata.
@@ -366,7 +368,7 @@ Recommended next steps:
 
 1. Cross-check EastMoney NAV data against a second real source.
 2. Keep `FundDataPack` as the canonical input contract to specialist Agents.
-3. Add more official fund-company adapters for holdings, NAV, and reports, especially broadening from CMF China/HuaAn to more top fund companies and cross-checking with CSRC disclosure systems and CNInfo where available.
+3. Add more official fund-company adapters for holdings, NAV, and reports, especially broadening from CMF China/HuaAn/E Fund/ChinaAMC to more top fund companies and cross-checking with CSRC disclosure systems and CNInfo where available.
 4. Add policy/news providers with official-source priority and media as secondary evidence only.
 5. Implement `ManualCsvProvider` only as verified fallback/bootstrap import.
 6. Persist blackboard and provider health snapshots with SQLite or Postgres once real data enters.

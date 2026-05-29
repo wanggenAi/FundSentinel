@@ -165,6 +165,24 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
       "Third per-company official adapter. It parses E Fund official product pages, official CDN NAV history, disclosed holdings, and announcement PDF links without treating PDF bodies as parsed report text."
   },
   {
+    source_id: "chinaamc-official",
+    source_name: "华夏基金官网官方净值与披露",
+    source_type: "fund_company",
+    quality_tier: "authoritative",
+    stability: "medium",
+    coverage: ["fund_meta", "current_nav", "nav_history", "holdings", "official_company_notices", "fund_reports"],
+    recommended_for: ["current_nav", "nav_history", "fund_meta", "holdings", "fund_reports", "official_fund_reports", "official_evidence"],
+    access_method:
+      "official website adapter: https://www.chinaamc.com/fund/{fund_code}/index.shtml plus /product/fundLishijingzhi.do and /product/publishGgList.do endpoints",
+    requires_auth: false,
+    is_demo: false,
+    integration_status: "implemented",
+    legal_note: "Use public official company pages respectfully; cache and rate-limit. Cross-check report links against CSRC official disclosure when possible.",
+    priority: 7,
+    notes:
+      "Fourth per-company official adapter. It handles ChinaAMC GBK/UTF-8 pages, parses official NAV rows, asset-composition holdings, announcement detail pages, and PDF metadata without treating PDF bodies as parsed report text."
+  },
+  {
     source_id: "eastmoney-fund",
     source_name: "东方财富/天天基金基金数据",
     source_type: "nav_history",

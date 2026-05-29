@@ -66,9 +66,11 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.equal(officialReports?.gap_level, "partial");
   assert.ok(officialCurrentNav?.source_ids.includes("cmfchina-fund-official"));
   assert.ok(officialCurrentNav?.source_ids.includes("efund-official"));
+  assert.ok(officialCurrentNav?.source_ids.includes("chinaamc-official"));
   assert.equal(officialCurrentNav?.gap_level, "covered");
   assert.ok(officialNavHistory?.source_ids.includes("cmfchina-fund-official"));
   assert.ok(officialNavHistory?.source_ids.includes("efund-official"));
+  assert.ok(officialNavHistory?.source_ids.includes("chinaamc-official"));
   assert.equal(officialNavHistory?.gap_level, "covered");
   assert.ok(navHistory?.implemented_source_ids.includes("eastmoney-fund"));
   assert.ok(navHistory?.implemented_source_ids.includes("eastmoney-nav-history"));
