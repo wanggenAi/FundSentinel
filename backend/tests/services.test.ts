@@ -204,6 +204,8 @@ test("public fund analysis sanitizes full demo DAG action language", async () =>
   assert.equal("action" in response.final_review, false);
   assert.equal("source_composition" in response.data_pack.data_quality_report, true);
   assert.equal("source_comreview" in response.data_pack.data_quality_report, false);
+  assert.equal(response.agent_results.Aegis?.agent_role, "Risk Review Agent");
+  assert.equal(response.agent_results.Nadir?.agent_role, "Valuation Review Agent");
   assert.doesNotMatch(payload, /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位|重仓|加仓|减仓/iu);
 });
 

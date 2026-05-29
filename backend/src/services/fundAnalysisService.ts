@@ -155,7 +155,7 @@ export class FundAnalysisService {
   private publicAgentResult(result: AgentResult): PublicAgentResult {
     return {
       ...result,
-      agent_role: this.sanitizeText(result.agent_role),
+      agent_role: this.publicAgentRole(result),
       summary: this.sanitizeText(result.summary),
       metrics: this.publicMetrics(result.metrics),
       warnings: result.warnings.map((warning) => this.sanitizeText(warning)),
@@ -167,6 +167,14 @@ export class FundAnalysisService {
         summary: this.sanitizeText(item.summary)
       }))
     };
+  }
+
+  private publicAgentRole(result: AgentResult): string {
+    const map: Record<string, string> = {
+      Aegis: "Risk Review Agent",
+      Nadir: "Valuation Review Agent"
+    };
+    return map[result.agent_name] ?? this.sanitizeText(result.agent_role);
   }
 
   private publicFinalReview(response: FundAnalysisResponse): PublicFinalReview {
