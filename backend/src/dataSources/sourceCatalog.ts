@@ -317,13 +317,15 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     stability: "high",
     coverage: ["exchange_announcements", "trading_calendar", "market_rules"],
     recommended_for: ["market_calendar", "official_market_events", "policy_evidence", "industry_news"],
-    access_method: "official SSE market-calendar endpoints: https://www.sse.com.cn/disclosure/dealinstruc/calendar/index.shtml",
+    access_method:
+      "official SSE market-calendar endpoints plus SZSE official news/notice pages: https://www.sse.com.cn/disclosure/dealinstruc/calendar/index.shtml and https://www.szse.cn/aboutus/trends/news/",
     requires_auth: false,
     is_demo: false,
     integration_status: "implemented",
     legal_note: "Use public official releases with timestamps and links.",
     priority: 35,
-    notes: "Implemented for Shanghai Stock Exchange official market-calendar events, including shareholder meetings, IPO calendar items, and roadshow/event listings. Shenzhen Stock Exchange support remains a planned extension."
+    notes:
+      "Implemented for Shanghai Stock Exchange official market-calendar events and Shenzhen Stock Exchange official news/notice pages. Exchange events are context only, not NAV, holdings, reports, or advice."
   },
   {
     source_id: "official-policy-sites",

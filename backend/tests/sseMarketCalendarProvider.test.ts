@@ -43,6 +43,43 @@ const meetingJsonp = `jsonpCallback({
   "pageHelp": { "total": 1 }
 })`;
 
+const szseNewsHtml = `
+<ul class="newslist date-right">
+  <li>
+    <div class="title">
+      <script>
+        var curHref = './t20260528_620796.html';
+        var curTitle ='相聚鹏城话机遇，创新成长向未来——深交所举办2026全球投资者大会';
+      </script>
+      <span class="time">2026-05-28</span>
+    </div>
+  </li>
+  <li>
+    <div class="title">
+      <script>
+        var curHref = './t20260522_620628.html';
+        var curTitle ='惠康科技在深交所上市';
+      </script>
+      <span class="time">2026-05-22</span>
+    </div>
+  </li>
+</ul>
+`;
+
+const szseNoticeHtml = `
+<ul class="newslist date-right">
+  <li>
+    <div class="title">
+      <script>
+        var curHref = './t20260528_620776.html';
+        var curTitle ='关于深市基金产品临时停牌的公告';
+      </script>
+      <span class="time">2026-05-28</span>
+    </div>
+  </li>
+</ul>
+`;
+
 test("SseMarketCalendarProvider parses SSE calendar JSONP events", () => {
   const events = SseMarketCalendarProvider.parseCalendarResponse(ipoJsonp, "ipo", "https://query.sse.com.cn/commonSoaQuery.do");
 
@@ -65,6 +102,21 @@ test("SseMarketCalendarProvider parses SSE shareholder meeting JSONP", () => {
   assert.ok(events[0]?.title.includes("股东会"));
 });
 
+test("SseMarketCalendarProvider parses SZSE official news and notice pages", () => {
+  const news = SseMarketCalendarProvider.parseSzseListPage(szseNewsHtml, "https://www.szse.cn/aboutus/trends/news/", "exchange_news");
+  const notices = SseMarketCalendarProvider.parseSzseListPage(szseNoticeHtml, "https://www.szse.cn/disclosure/notice/general/", "exchange_notice");
+
+  assert.equal(news.length, 2);
+  assert.equal(news[0]?.event_type, "exchange_news");
+  assert.equal(news[0]?.event_date, "2026-05-28");
+  assert.equal(news[0]?.source_name, "深圳证券交易所");
+  assert.equal(news[0]?.source_url, "https://www.szse.cn/aboutus/trends/news/t20260528_620796.html");
+  assert.ok(news[0]?.title.includes("全球投资者大会"));
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0]?.event_type, "exchange_notice");
+  assert.ok(notices[0]?.title.includes("基金产品临时停牌"));
+});
+
 test("SseMarketCalendarProvider returns official market events without advice", async () => {
   const fetchImpl = (async (url: string | URL | Request) => {
     const target = String(url);
@@ -73,6 +125,8 @@ test("SseMarketCalendarProvider returns official market events without advice", 
     if (target.includes("COMMON_SSE_SCFW_TZZFW_GDDHWLTPZL_L")) {
       return new Response(meetingJsonp, { status: 200, headers: { "content-type": "text/javascript" } });
     }
+    if (target.includes("szse.cn/aboutus/trends/news")) return new Response(szseNewsHtml, { status: 200, headers: { "content-type": "text/html" } });
+    if (target.includes("szse.cn/disclosure/notice/general")) return new Response(szseNoticeHtml, { status: 200, headers: { "content-type": "text/html" } });
     return new Response("not found", { status: 404 });
   }) as typeof fetch;
 
@@ -89,6 +143,8 @@ test("SseMarketCalendarProvider returns official market events without advice", 
   assert.equal(result.is_demo, false);
   assert.ok(result.data?.news_summaries?.some((summary) => summary.includes("华兴科技网上申购")));
   assert.ok(result.data?.news_summaries?.some((summary) => summary.includes("首创环保")));
+  assert.ok(result.data?.news_summaries?.some((summary) => summary.includes("深圳证券交易所/市场日历")));
+  assert.ok(result.data?.news_summaries?.some((summary) => summary.includes("基金产品临时停牌")));
   assert.match(result.raw_reference ?? "", /sse\.com\.cn\/disclosure\/dealinstruc\/calendar/);
   assert.ok(result.warnings.some((warning) => warning.includes("不代表单只基金投资建议或买卖结论")));
   assert.doesNotMatch(JSON.stringify(result), /trial_buy|staged_buy|\b(buy|sell)\b/i);
@@ -106,7 +162,7 @@ test("SseMarketCalendarProvider fails explicitly when all official calendar endp
   assert.equal(result.success, false);
   assert.equal(result.data_status, "unavailable");
   assert.match(result.error ?? "", /HTTP 502/);
-  assert.ok(result.warnings.some((warning) => warning.includes("上交所官方市场日历接口未返回可用事件")));
+  assert.ok(result.warnings.some((warning) => warning.includes("上交所/深交所官方市场事件来源未返回可用事件")));
 });
 
 test("Argus preserves SSE market events without allowing core fund analysis", async () => {
@@ -117,6 +173,8 @@ test("Argus preserves SSE market events without allowing core fund analysis", as
     if (target.includes("COMMON_SSE_SCFW_TZZFW_GDDHWLTPZL_L")) {
       return new Response(meetingJsonp, { status: 200, headers: { "content-type": "text/javascript" } });
     }
+    if (target.includes("szse.cn/aboutus/trends/news")) return new Response(szseNewsHtml, { status: 200, headers: { "content-type": "text/html" } });
+    if (target.includes("szse.cn/disclosure/notice/general")) return new Response(szseNoticeHtml, { status: 200, headers: { "content-type": "text/html" } });
     return new Response("not found", { status: 404 });
   }) as typeof fetch;
   const registry = new SourceRegistry({
@@ -130,5 +188,6 @@ test("Argus preserves SSE market events without allowing core fund analysis", as
   assert.equal(dataPack.data_status, "insufficient");
   assert.equal(dataPack.allow_downstream_analysis, false);
   assert.ok(dataPack.news_summaries.some((summary) => summary.includes("上海证券交易所/市场日历")));
-  assert.ok(dataPack.data_sources.some((source) => source.source_id === "sse-szse-official" && source.record_count === 2));
+  assert.ok(dataPack.news_summaries.some((summary) => summary.includes("深圳证券交易所/市场日历")));
+  assert.ok(dataPack.data_sources.some((source) => source.source_id === "sse-szse-official" && source.record_count === 5));
 });
