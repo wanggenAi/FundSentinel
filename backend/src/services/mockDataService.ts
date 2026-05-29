@@ -230,6 +230,7 @@ export class MockDataService {
         max_current_nav_delta_ratio: null,
         latest_nav_date: null,
         compared_sources: [],
+        not_checked_reasons: ["demo_fixture_excluded"],
         conflicts: [],
         status: "not_checked"
       },

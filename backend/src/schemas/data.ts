@@ -75,6 +75,7 @@ export interface NavConsistencyReport {
     latest_date: string | null;
     nav_points: number;
   }>;
+  not_checked_reasons: string[];
   conflicts: string[];
   status: "not_checked" | "consistent" | "conflict";
 }

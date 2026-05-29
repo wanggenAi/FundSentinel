@@ -454,16 +454,18 @@ export class ArgusAgent extends BaseAgent {
 
     const navSources = comparedSources.filter((source) => source.current_nav !== null);
     const latestDate = this.latestDateFor(comparedSources.map((source) => source.latest_date));
-    const comparableNavSources = latestDate ? navSources.filter((source) => source.latest_date === latestDate) : navSources;
-    if (comparableNavSources.length < 2) {
+    const comparableNavSources = latestDate ? navSources.filter((source) => source.latest_date === latestDate) : [];
+    if (!latestDate || comparableNavSources.length < 2) {
+      const notCheckedReasons = this.navConsistencyNotCheckedReasons(comparedSources, navSources, comparableNavSources, latestDate);
       return {
         checked_source_count: comparedSources.length,
         max_current_nav_delta: null,
         max_current_nav_delta_ratio: null,
         latest_nav_date: latestDate,
         compared_sources: comparedSources,
+        not_checked_reasons: notCheckedReasons,
         conflicts: [],
-        status: comparedSources.length ? "consistent" : "not_checked"
+        status: "not_checked"
       };
     }
 
@@ -491,9 +493,24 @@ export class ArgusAgent extends BaseAgent {
       max_current_nav_delta_ratio: Number(maxDeltaRatio.toFixed(6)),
       latest_nav_date: latestDate,
       compared_sources: comparedSources,
+      not_checked_reasons: [],
       conflicts,
       status: conflicts.length ? "conflict" : "consistent"
     };
+  }
+
+  private navConsistencyNotCheckedReasons(
+    comparedSources: Array<{ current_nav: number | null; latest_date: string | null }>,
+    navSources: Array<{ current_nav: number | null; latest_date: string | null }>,
+    comparableNavSources: Array<{ current_nav: number | null; latest_date: string | null }>,
+    latestDate: string | null
+  ): string[] {
+    const reasons: string[] = [];
+    if (!comparedSources.length) reasons.push("no_real_nav_sources");
+    if (comparedSources.length && navSources.length < 2) reasons.push("fewer_than_two_current_nav_sources");
+    if (navSources.some((source) => !source.latest_date)) reasons.push("missing_nav_dates_for_cross_source_check");
+    if (navSources.length >= 2 && latestDate && comparableNavSources.length < 2) reasons.push("fewer_than_two_same_date_nav_sources");
+    return [...new Set(reasons)];
   }
 
   private buildSourceComposition(
