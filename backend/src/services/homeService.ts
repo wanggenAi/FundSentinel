@@ -13,8 +13,19 @@ export class HomeService {
 
   async getHomeDashboard(userId = "mock-user"): Promise<HomeDashboardResponse> {
     const portfolio = this.portfolioService.getPortfolioSnapshot(userId);
-    const analyses = await Promise.all(
+    const analysisSettlements = await Promise.allSettled(
       portfolio.holdings.map((holding) => this.fundAnalysisService.analyzeFund(holding.fund_code, `home-${holding.fund_code}`))
+    );
+    const analyses = analysisSettlements.flatMap((settlement) => (settlement.status === "fulfilled" ? [settlement.value] : []));
+    const failedAnalyses = analysisSettlements.flatMap((settlement, index) =>
+      settlement.status === "rejected"
+        ? [
+            {
+              fund_code: portfolio.holdings[index]?.fund_code ?? "unknown",
+              error: this.publicFailureMessage(settlement.reason)
+            }
+          ]
+        : []
     );
     const actionableAnalyses = analyses.filter((analysis) => analysis.data_pack.allow_downstream_analysis);
     const strategyTriggers = this.strategyTriggerService.buildTriggers(actionableAnalyses);
@@ -23,14 +34,16 @@ export class HomeService {
     const analysisIsMock = analyses.some((analysis) => analysis.is_mock || analysis.data_pack.is_mock || analysis.data_pack.data_quality.is_mock);
     const analysisWarnings = this.analysisQualityWarnings(analyses);
     const homeQualityScore = this.homeQualityScore(portfolio.data_quality.score, analyses);
+    const adjustedHomeQualityScore = failedAnalyses.length ? Math.min(homeQualityScore, 0.4) : homeQualityScore;
     const homeIsMock = portfolio.is_mock || analysisIsMock;
     const homeDataQuality = {
       ...portfolio.data_quality,
-      level: this.dataQualityLevel(homeQualityScore),
-      score: homeQualityScore,
+      level: this.dataQualityLevel(adjustedHomeQualityScore),
+      score: adjustedHomeQualityScore,
       warnings: [
         ...portfolio.data_quality.warnings,
         ...analysisWarnings,
+        ...failedAnalyses.map((failure) => `${failure.fund_code} 首页分析失败：${failure.error}；该基金已从策略触发中剔除并保留复核任务。`),
         ...(analysisIsMock ? ["首页基金分析链路包含 demo/mock 数据；首页整体仅可作为本地演示或测试输出。"] : [])
       ],
       is_mock: homeIsMock
@@ -66,6 +79,13 @@ export class HomeService {
           priority: "high" as const,
           related_funds: [analysis.fund_code],
           is_mock: analysis.is_mock
+        })),
+        ...failedAnalyses.slice(0, 3).map((failure) => ({
+          title: "分析链路失败",
+          summary: `${failure.fund_code} 分析链路异常，首页已降级并等待后端复核。`,
+          priority: "high" as const,
+          related_funds: [failure.fund_code],
+          is_mock: false
         }))
       ],
       data_quality: homeDataQuality,
@@ -133,5 +153,9 @@ export class HomeService {
         is_mock: analysis.is_mock || analysis.data_pack.is_mock
       };
     });
+  }
+
+  private publicFailureMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 }

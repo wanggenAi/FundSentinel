@@ -38,28 +38,43 @@ export class OpportunityService {
     const universe = this.activeFundUniverse().slice(0, boundedLimit);
     if (!universe.length) return this.emptyResponse("采基广场未配置真实基金候选池；设置 FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE 后才会请求真实 provider。");
 
-    const analyses = await Promise.all(universe.map((fundCode) => this.fundAnalysisService.analyzeFund(fundCode, `opportunity-${fundCode}`)));
+    const analysisSettlements = await Promise.allSettled(universe.map((fundCode) => this.fundAnalysisService.analyzeFund(fundCode, `opportunity-${fundCode}`)));
+    const analyses = analysisSettlements.flatMap((settlement) => (settlement.status === "fulfilled" ? [settlement.value] : []));
+    const failedAnalyses = analysisSettlements.flatMap((settlement, index) =>
+      settlement.status === "rejected"
+        ? [
+            {
+              fund_code: universe[index] ?? "unknown",
+              error: this.publicText(settlement.reason instanceof Error ? settlement.reason.message : String(settlement.reason))
+            }
+          ]
+        : []
+    );
     const candidates = analyses
       .filter((analysis) => analysis.data_pack.allow_downstream_analysis)
       .map((analysis) => this.candidateFromAnalysis(analysis))
       .sort((a, b) => b.overall_opportunity_score - a.overall_opportunity_score);
-    const qualityScore = candidates.length ? Math.min(...candidates.map((candidate) => candidate.confidence)) : 0;
+    const candidateQualityScore = candidates.length ? Math.min(...candidates.map((candidate) => candidate.confidence)) : 0;
+    const qualityScore = failedAnalyses.length ? Math.min(candidateQualityScore, 0.4) : candidateQualityScore;
     const isMock = candidates.some((candidate) => candidate.is_mock);
     const degradedWarnings = this.degradedAnalysisWarnings(analyses);
+    const failureWarnings = failedAnalyses.map((failure) => `${failure.fund_code} 候选分析失败：${failure.error}；该基金已从候选池剔除并保留数据源复核。`);
     return this.publicResponse({
       is_mock: isMock,
       candidates,
       summary: candidates.length
-        ? degradedWarnings.length
+        ? degradedWarnings.length || failureWarnings.length
           ? "Atlas 已生成候选复核池；部分候选存在数据缺口或强结论限制，仅作为证据补齐优先级，不代表交易指令。"
           : "Atlas 已基于可用数据生成候选观察池；候选仅表示证据复核优先级，不代表交易指令。"
-        : "真实核心数据不可用，Argus 已阻止采基广场生成伪候选基金。",
+        : failedAnalyses.length
+          ? "部分或全部基金分析链路失败，Argus 已阻止采基广场生成伪候选基金。"
+          : "真实核心数据不可用，Argus 已阻止采基广场生成伪候选基金。",
       data_quality: {
         level: qualityScore >= 0.7 ? "high" : qualityScore >= 0.5 ? "medium" : "low",
         score: Number(qualityScore.toFixed(2)),
         source: "Atlas + Argus SourceRegistry",
         updated_at: nowIso(),
-        warnings: candidates.length ? degradedWarnings : ["没有真实可用核心数据，采基广场不会输出伪推荐。"],
+        warnings: candidates.length || failureWarnings.length ? [...degradedWarnings, ...failureWarnings] : ["没有真实可用核心数据，采基广场不会输出伪推荐。"],
         is_mock: isMock
       },
       generated_by: "Atlas",

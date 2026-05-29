@@ -113,6 +113,54 @@ test("home service surfaces degraded analysis gaps when downstream analysis is a
   }
 });
 
+test("home service degrades individual analysis failures without dropping the dashboard", async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "fundsentinel-home-partial-failure-"));
+  const portfolioFile = path.join(tempDir, "portfolio.json");
+
+  try {
+    writeFileSync(
+      portfolioFile,
+      JSON.stringify({
+        generated_at: "2026-05-28T00:00:00.000Z",
+        holdings: [
+          {
+            fund_code: "007951",
+            fund_name: "真实手动持仓基金 A",
+            holding_amount: 10000,
+            cost_nav: 1.25,
+            current_nav: 1.3
+          },
+          {
+            fund_code: "161725",
+            fund_name: "真实手动持仓基金 B",
+            holding_amount: 5000,
+            cost_nav: 0.9,
+            current_nav: 0.85
+          }
+        ]
+      })
+    );
+
+    const response = await new HomeService(
+      new PortfolioService(undefined, { portfolioFile, demoMode: false }),
+      new PartiallyFailingFundAnalysisService(new Set(["161725"]))
+    ).getHomeDashboard("user-a");
+    const payload = JSON.stringify(response);
+
+    assert.equal(response.is_mock, true);
+    assert.equal(response.holding_count, 2);
+    assert.equal(response.total_assets, 15000);
+    assert.equal(response.data_quality.level, "low");
+    assert.equal(response.data_quality.score, 0.35);
+    assert.ok(response.data_quality.warnings.some((warning) => warning.includes("161725 首页分析失败")));
+    assert.ok(response.today_focus.some((item) => item.title === "分析链路失败" && item.related_funds.includes("161725")));
+    assert.ok(response.strategy_triggers.some((trigger) => trigger.fund_code === "007951"));
+    assert.doesNotMatch(payload, /must buy|guaranteed|risk[-\s]?free|保证收益|无风险|home-failure-secret/iu);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("portfolio service reads explicit manual JSON snapshot as non-mock user-provided data", () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), "fundsentinel-portfolio-"));
   const portfolioFile = path.join(tempDir, "portfolio.json");
@@ -318,6 +366,22 @@ test("opportunity service uses configured real universe and preserves real candi
   assert.ok(response.data_quality.warnings.some((warning) => warning.includes("official_fund_reports")));
   assert.ok(response.candidates[0]?.key_evidence.some((item) => item.is_mock === false));
   assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
+});
+
+test("opportunity service skips failed fund analyses while preserving successful candidates", async () => {
+  const response = await new OpportunityService(undefined, new PartiallyFailingFundAnalysisService(new Set(["161725"])), {
+    fundUniverse: ["007951", "161725"]
+  }).getOpportunities(5);
+  const payload = JSON.stringify(response);
+
+  assert.equal(response.is_mock, true);
+  assert.equal(response.candidates.length, 1);
+  assert.equal(response.candidates[0]?.fund_code, "007951");
+  assert.equal(response.data_quality.level, "low");
+  assert.ok(response.data_quality.score <= 0.4);
+  assert.ok(response.data_quality.warnings.some((warning) => warning.includes("161725 候选分析失败")));
+  assert.match(response.summary, /候选复核池/);
+  assert.doesNotMatch(payload, /must buy|guaranteed|risk[-\s]?free|保证收益|无风险|home-failure-secret/iu);
 });
 
 test("opportunity service sanitizes candidate evidence and risk text", async () => {
@@ -996,6 +1060,21 @@ class CountingProvider implements DataProvider<FundDataSourceInput, ProviderFund
   async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
     this.callCount += 1;
     return providerResult(this.sourceId, true);
+  }
+}
+
+class PartiallyFailingFundAnalysisService extends FundAnalysisService {
+  private readonly fallbackService = new FundAnalysisService(new SourceRegistry({ demoMode: true, enableLiveProviders: false }));
+
+  constructor(private readonly failingFundCodes: Set<string>) {
+    super(new SourceRegistry({ enableLiveProviders: false }));
+  }
+
+  override async analyzeFund(fundCode: string, taskId?: string): Promise<FundAnalysisResponse> {
+    if (this.failingFundCodes.has(fundCode)) {
+      throw new Error(`${fundCode} provider failed must buy guaranteed risk-free 保证收益 无风险 token=home-failure-secret`);
+    }
+    return this.fallbackService.analyzeFund(fundCode, taskId);
   }
 }
 
