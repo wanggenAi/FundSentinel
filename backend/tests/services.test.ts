@@ -572,6 +572,7 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   const holdings = coverage.find((item) => item.requirement === "holdings");
   const fundReports = coverage.find((item) => item.requirement === "fund_reports");
   const macroData = coverage.find((item) => item.requirement === "macro_data");
+  const benchmark = coverage.find((item) => item.requirement === "benchmark");
   const social = coverage.find((item) => item.requirement === "social_sentiment");
   const industryNews = coverage.find((item) => item.requirement === "industry_news");
 
@@ -638,6 +639,12 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(macroData?.implemented_source_ids.includes("oecd-data-api"));
   assert.ok(macroData?.implemented_source_ids.includes("eurostat-api"));
   assert.equal(macroData?.gap_level, "covered");
+  assert.equal(benchmark?.gap_level, "requires_license");
+  assert.ok(benchmark?.requires_license_source_ids.includes("csi-index"));
+  assert.ok(benchmark?.requires_license_source_ids.includes("commercial-terminal-api"));
+  assert.deepEqual(benchmark?.requires_license_source_ids, benchmark?.needs_license_source_ids);
+  assert.deepEqual(benchmark?.implemented_source_ids, []);
+  assert.match(benchmark?.notes ?? "", /授权数据源/);
   assert.ok(social?.blocked_source_ids.includes("social-sentiment-sources"));
   assert.equal(social?.implemented_authoritative_source_ids.length, 0);
   assert.ok(industryNews?.implemented_source_ids.includes("ndrc-official"));

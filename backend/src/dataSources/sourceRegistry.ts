@@ -166,6 +166,7 @@ export class SourceRegistry {
     implemented_authoritative_source_ids: string[];
     planned_source_ids: string[];
     blocked_source_ids: string[];
+    requires_license_source_ids: string[];
     needs_license_source_ids: string[];
     gap_level: "covered" | "partial" | "missing" | "requires_license";
     notes: string;
@@ -231,6 +232,7 @@ export class SourceRegistry {
         implemented_authoritative_source_ids: implementedAuthoritative.map((source) => source.source_id),
         planned_source_ids: planned.map((source) => source.source_id),
         blocked_source_ids: blocked.map((source) => source.source_id),
+        requires_license_source_ids: needsLicense.map((source) => source.source_id),
         needs_license_source_ids: needsLicense.map((source) => source.source_id),
         gap_level: gapLevel,
         notes: this.coverageNoteFor(requirement, gapLevel)
