@@ -107,6 +107,7 @@ export interface FailedSourceDetail {
   latency_ms: number | null;
   cache_hit: boolean;
   skipped_by_circuit_breaker: boolean;
+  circuit_open_until: string | null;
 }
 
 export interface DataAcquisitionSolution {

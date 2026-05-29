@@ -350,7 +350,8 @@ export class ArgusAgent extends BaseAgent {
       attempt_count: result.attempt_count ?? 1,
       latency_ms: result.latency_ms ?? null,
       cache_hit: result.cache_hit ?? false,
-      skipped_by_circuit_breaker: result.skipped_by_circuit_breaker ?? false
+      skipped_by_circuit_breaker: result.skipped_by_circuit_breaker ?? false,
+      circuit_open_until: this.sourceRegistry.listSources().find((source) => source.source_id === result.source_id)?.circuit_open_until ?? null
     }));
     const missingData = [...new Set([...quality.missing_core_fields, ...quality.missing_auxiliary_fields])];
     const providerFailureSolutions = failedSourceDetails.length

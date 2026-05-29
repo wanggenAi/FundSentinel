@@ -448,12 +448,35 @@ test("Argus records structured failed provider details in DataGapReport", async 
     attempt_count: 1,
     latency_ms: gapReport.failed_source_details[0]?.latency_ms ?? null,
     cache_hit: false,
-    skipped_by_circuit_breaker: false
+    skipped_by_circuit_breaker: false,
+    circuit_open_until: null
   });
   assert.equal(typeof gapReport.failed_source_details[0]?.latency_ms, "number");
   assert.ok(gapReport.missing_data.includes("fund_meta"));
   assert.equal(dataPack.data_quality_report.failed_source_count, 1);
   assert.ok(dataPack.data_quality_report.source_composition.failed.includes("failing-official-report-test"));
+});
+
+test("Argus surfaces SourceRegistry circuit-breaker cooldown in DataGapReport details", async () => {
+  const registry = new SourceRegistry({
+    providers: [new FailingOfficialReportProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0,
+    failureThreshold: 1,
+    failureCooldownMs: 60_000
+  });
+
+  await new ArgusAgent(registry).prepareDataPack("open-circuit", "007951");
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("circuit-gap-details", "007951");
+  const detail = dataPack.data_gap_report?.failed_source_details.find((source) => source.source_id === "failing-official-report-test");
+
+  assert.ok(detail);
+  assert.equal(detail.skipped_by_circuit_breaker, true);
+  assert.equal(detail.attempt_count, 0);
+  assert.equal(detail.error, "Provider skipped by circuit breaker after repeated failures.");
+  assert.ok(detail.circuit_open_until);
+  assert.equal(Number.isNaN(Date.parse(detail.circuit_open_until)), false);
+  assert.ok(detail.warnings.some((warning) => warning.includes("circuit breaker is open")));
 });
 
 test("Argus keeps provider failures in DataGapReport even when core data is ready", async () => {
