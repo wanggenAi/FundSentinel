@@ -265,6 +265,8 @@ class EmptyFundReportProvider implements DataProvider<FundDataSourceInput, Provi
 }
 
 class ReadyOfficialCoreProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  constructor(private readonly freshness: DataProviderResult<ProviderFundPayload>["freshness"] = "fresh") {}
+
   sourceInfo(): DataSourceInfo {
     return {
       source_id: "ready-official-core-test",
@@ -350,8 +352,8 @@ class ReadyOfficialCoreProvider implements DataProvider<FundDataSourceInput, Pro
       },
       raw_reference: "https://official.example.test/detail",
       fetched_at: "2026-05-28T00:00:00.000Z",
-      freshness: "fresh",
-      warnings: [],
+      freshness: this.freshness,
+      warnings: this.freshness === "stale" ? ["测试官方核心数据已过期，强结论应降级。"] : [],
       error: null,
       is_demo: false
     };
@@ -475,6 +477,28 @@ test("Argus keeps provider failures in DataGapReport even when core data is read
   assert.ok(gapReport.recommended_solutions.some((solution) => solution.includes("失败 provider")));
   assert.equal(dataPack.acquisition_solutions[0]?.severity, "medium");
   assert.ok(dataPack.acquisition_solutions[0]?.problem.includes("provider 获取失败"));
+});
+
+test("Argus surfaces stale successful providers as data freshness gaps", async () => {
+  const registry = new SourceRegistry({
+    providers: [new ReadyOfficialCoreProvider("stale")],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("stale-ready-core", "007951");
+  const gapReport = dataPack.data_gap_report;
+
+  assert.equal(dataPack.data_quality_report.data_status, "partial");
+  assert.equal(dataPack.allow_downstream_analysis, true);
+  assert.equal(dataPack.allow_strong_conclusion, false);
+  assert.deepEqual(dataPack.data_quality_report.stale_sources, ["Ready Official Core Test Provider"]);
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("data_freshness"));
+  assert.ok(gapReport?.missing_data.includes("data_freshness"));
+  assert.ok(gapReport?.recommended_solutions.some((solution) => solution.includes("freshness=stale")));
+  assert.ok(dataPack.acquisition_solutions[0]?.problem.includes("data_freshness"));
+  assert.ok(dataPack.acquisition_solutions[0]?.proposed_actions.some((action) => action.includes("stale")));
+  assert.ok(dataPack.acquisition_solutions[0]?.engineering_tasks.some((task) => task.includes("freshness fixture")));
 });
 
 test("Argus requires actual report evidence before clearing fund report gaps", async () => {

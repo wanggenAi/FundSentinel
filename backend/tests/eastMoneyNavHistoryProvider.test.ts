@@ -184,5 +184,9 @@ var Data_netWorthTrend = [
   assert.deepEqual(dataPack.data_quality_report.nav_consistency_report.not_checked_reasons, []);
   assert.equal(dataPack.allow_strong_conclusion, false);
   assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("nav_consistency"));
+  assert.ok(dataPack.data_gap_report?.missing_data.includes("nav_consistency"));
+  assert.ok(dataPack.data_gap_report?.recommended_solutions.some((solution) => solution.includes("同日当前净值跨源冲突")));
+  assert.ok(dataPack.acquisition_solutions[0]?.proposed_actions.some((action) => action.includes("同日净值跨源冲突")));
+  assert.ok(dataPack.acquisition_solutions[0]?.engineering_tasks.some((task) => task.includes("同日 NAV 交叉校验测试")));
   assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("核心净值跨源校验冲突")));
 });

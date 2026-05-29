@@ -242,6 +242,7 @@ export class ArgusAgent extends BaseAgent {
     ].filter(Boolean) as string[];
     const staleSources = providerResults.filter((result) => result.freshness === "stale").map((result) => result.source_name);
     const warnings = providerResults.flatMap((result) => result.warnings);
+    const freshnessGapFields = staleSources.length > 0 ? ["data_freshness"] : [];
     const blockingIssues: string[] = [];
     let dataStatus: DataStatus = "ready";
     let allowDownstreamAnalysis = true;
@@ -314,7 +315,9 @@ export class ArgusAgent extends BaseAgent {
       source_composition: sourceComposition,
       missing_core_fields: missingCoreFields,
       missing_auxiliary_fields:
-        navConsistencyReport.status === "conflict" ? [...new Set([...missingAuxiliaryFields, "nav_consistency"])] : missingAuxiliaryFields,
+        navConsistencyReport.status === "conflict"
+          ? [...new Set([...missingAuxiliaryFields, ...freshnessGapFields, "nav_consistency"])]
+          : [...new Set([...missingAuxiliaryFields, ...freshnessGapFields])],
       stale_sources: staleSources,
       warnings,
       blocking_issues: blockingIssues,
@@ -364,6 +367,19 @@ export class ArgusAgent extends BaseAgent {
           "若官网/证监会站点防护阻断自动校验，改用运营导入官方 PDF 或授权披露 API，并保留导入审计记录。"
         ]
       : [];
+    const freshnessGapSolutions = quality.stale_sources.length
+      ? [
+          `data_freshness 缺口：以下数据源 freshness=stale：${quality.stale_sources.join(", ")}；强结论必须降级，直到重新获取新鲜官方/授权数据或记录人工审计来源。`,
+          "修复 stale provider 的 freshness_policy、parser 或定时同步任务；补充 freshness 回归测试，并在恢复前持续保留 DataGapReport。"
+        ]
+      : [];
+    const navConsistencyGapSolutions =
+      quality.nav_consistency_report.status === "conflict"
+        ? [
+            `nav_consistency 缺口：同日当前净值跨源冲突（${quality.nav_consistency_report.conflicts.join("；")}）；解决前不得允许强结论。`,
+            "复核冲突 provider 的日期、单位净值字段和解析逻辑；优先使用官方/授权当前净值交叉验证，并保留 nav_consistency_report 供审核。"
+          ]
+        : [];
     if (quality.data_status === "ready" && failedSourceDetails.length === 0) return null;
     const dataGapSolutions =
       quality.data_status === "ready"
@@ -376,6 +392,8 @@ export class ArgusAgent extends BaseAgent {
               ? ["接入基金公司官网、监管披露或授权数据 API 的官方历史净值 provider，补齐 official_nav_history。"]
               : []),
             ...reportGapSolutions,
+            ...freshnessGapSolutions,
+            ...navConsistencyGapSolutions,
             "接入基金公司官网公告/定期报告 provider，补齐官方 fund_reports。",
             "接入官方政策与行业数据 provider，补齐 policy_evidence。",
             "为已实现的真实 provider 增加缓存、限流、重试和第二来源交叉校验。",
@@ -433,11 +451,27 @@ export class ArgusAgent extends BaseAgent {
         }
       ];
     }
+    const freshnessActions = quality.stale_sources.length
+      ? ["重新获取 stale 数据源或配置新鲜的官方/授权替代源；刷新前保持强结论关闭。"]
+      : [];
+    const navConsistencyActions =
+      quality.nav_consistency_report.status === "conflict"
+        ? ["复核同日净值跨源冲突，确认日期、单位净值字段和来源优先级；冲突解决前不得放行强结论。"]
+        : [];
+    const focusedEngineeringTasks = [
+      ...(quality.stale_sources.length ? ["为 stale provider 增加 freshness fixture、边界日期测试和定时同步/告警检查。"] : []),
+      ...(quality.nav_consistency_report.status === "conflict"
+        ? ["为冲突 provider 增加同日 NAV 交叉校验测试，并记录解析字段、日期和 provenance 差异。"]
+        : [])
+    ];
+    const missingDescription = gapReport.missing_data.length ? gapReport.missing_data.join(", ") : "可审计的新鲜度或一致性证据";
     return [
       {
-        problem: `当前数据状态为 ${quality.data_status}，缺少 ${gapReport.missing_data.join(", ")}。`,
+        problem: `当前数据状态为 ${quality.data_status}，缺少 ${missingDescription}。`,
         severity: quality.allow_downstream_analysis ? "high" : "blocking",
         proposed_actions: [
+          ...freshnessActions,
+          ...navConsistencyActions,
           "优先补齐 official_current_nav 和 official_nav_history，避免聚合净值驱动强结论。",
           "优先接入基金公司官网、证监会披露、巨潮资讯等官方报告 provider。",
           "接入官方政策和行业数据 provider，为 Logos 提供可追溯硬证据。",
@@ -445,6 +479,7 @@ export class ArgusAgent extends BaseAgent {
           "在真实数据可用前，禁止对用户展示为真实自动分析。"
         ],
         engineering_tasks: [
+          ...focusedEngineeringTasks,
           "为头部基金公司实现官方当前净值/历史净值 provider，并将结果纳入 official_core_coverage。",
           "为 EastMoneyFundProvider、EastMoneyFundArchiveProvider 和 CsrcFundDisclosureProvider 增加持久缓存、限流和失败重试。",
           "完成证监会基金电子披露官方报告检索 endpoint 适配，若站点防护阻断则改走官方 PDF 人工导入和授权数据 API。",
