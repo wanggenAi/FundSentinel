@@ -25,6 +25,7 @@ export class NadirAgent extends BaseAgent {
     });
     const nav = dataPack.nav_history;
     const warnings: string[] = [];
+    if (!dataPack.allow_strong_conclusion) warnings.push("Argus 未允许强结论，Nadir 仅输出弱净值位置复核。");
     if (nav.length < 6) warnings.push("净值历史过短，低位判断必须降级。");
     if (aiResponse.available && aiResponse.content) warnings.push("已调用统一 AI API 辅助审阅；V0.1 仍以结构化规则输出为准。");
 
@@ -61,7 +62,7 @@ export class NadirAgent extends BaseAgent {
       fundCode: dataPack.fund_code,
       status: warnings.length === 0 && score >= 45 ? "success" : "warning",
       score: Number(score.toFixed(2)),
-      confidence: nav.length >= 10 ? 0.7 : 0.45,
+      confidence: !dataPack.allow_strong_conclusion ? Math.min(nav.length >= 10 ? 0.7 : 0.45, 0.55) : nav.length >= 10 ? 0.7 : 0.45,
       summary: `低位评分 ${score.toFixed(1)}，当前距离高点 ${(distanceFromHigh * 100).toFixed(1)}%，距离低点 ${(distanceFromLow * 100).toFixed(1)}%。`,
       evidence,
       metrics: {

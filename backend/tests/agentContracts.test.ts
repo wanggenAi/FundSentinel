@@ -153,6 +153,41 @@ test("Aegis real-data result does not describe itself as mock research", async (
   assert.match(result.summary, /不是交易指令/);
 });
 
+test("specialist agents downgrade when Argus blocks strong conclusions", async () => {
+  const dataPack = new MockDataService().getFundDataPack("007951");
+  dataPack.is_mock = false;
+  dataPack.data_status = "partial";
+  dataPack.allow_downstream_analysis = true;
+  dataPack.allow_strong_conclusion = false;
+  dataPack.data_quality = {
+    ...dataPack.data_quality,
+    is_mock: false,
+    level: "medium",
+    score: 0.68
+  };
+  dataPack.policy_signals = ["2026-05-20 官方政策背景证据", "2026-05-21 官方产业政策证据"];
+  dataPack.portfolio_holdings = ["国债", "政策性金融债", "信用债"];
+  dataPack.themes = ["债券", "固收"];
+  dataPack.news_summaries = ["官方行业新闻背景证据"];
+  dataPack.nav_history = [1.08, 1.07, 1.06, 1.055, 1.052, 1.05, 1.051, 1.053, 1.056, 1.06];
+
+  const logosResult = await new LogosAgent().run("strong-block-specialists", dataPack);
+  const nadirResult = await new NadirAgent().run("strong-block-specialists", dataPack);
+  const vegaResult = await new VegaAgent().run("strong-block-specialists", dataPack);
+  const aegisResult = await new AegisAgent().run("strong-block-specialists", dataPack, {
+    Logos: logosResult,
+    Nadir: nadirResult,
+    Vega: vegaResult
+  });
+
+  for (const result of [logosResult, nadirResult, vegaResult, aegisResult]) {
+    assert.equal(result.status, "warning");
+    assert.ok(result.confidence <= 0.55);
+    assert.ok(result.warnings.some((warning) => warning.includes("Argus 未允许强结论")));
+  }
+  assert.equal(aegisResult.metrics.action, "observe");
+});
+
 test("critical failed agent prevents aggressive Atlas decision", () => {
   const dataPack = new MockDataService().getFundDataPack("007951");
   const good: AgentResult = {

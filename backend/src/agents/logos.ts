@@ -32,6 +32,7 @@ export class LogosAgent extends BaseAgent {
         Math.min(dataPack.news_summaries.length * 4, 10)
     );
     const warnings: string[] = [];
+    if (!dataPack.allow_strong_conclusion) warnings.push("Argus 未允许强结论，Logos 仅输出弱证据复核。");
     if (dataPack.policy_signals.length === 0) warnings.push("缺少政策或官方方向证据，硬逻辑判断降级。");
     if (dataPack.social_sentiment_score > 0.7) warnings.push("社交情绪偏热，仅作为辅助观察，不作为核心证据。");
     if (aiResponse.available && aiResponse.content) warnings.push("已调用统一 AI API 辅助审阅；V0.1 仍以结构化规则输出为准。");
@@ -66,9 +67,9 @@ export class LogosAgent extends BaseAgent {
     return this.buildResult({
       taskId,
       fundCode: dataPack.fund_code,
-      status: score >= 60 ? "success" : "warning",
+      status: score >= 60 && warnings.length === 0 ? "success" : "warning",
       score: Number(score.toFixed(2)),
-      confidence: score >= 60 ? 0.72 : 0.52,
+      confidence: !dataPack.allow_strong_conclusion ? Math.min(score >= 60 ? 0.72 : 0.52, 0.55) : score >= 60 ? 0.72 : 0.52,
       summary: `硬逻辑评分 ${score.toFixed(1)}，核心主题为 ${dataPack.themes.join(", ")}。`,
       evidence,
       metrics: {

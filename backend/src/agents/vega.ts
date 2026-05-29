@@ -25,6 +25,7 @@ export class VegaAgent extends BaseAgent {
     });
     const nav = dataPack.nav_history;
     const warnings: string[] = [];
+    if (!dataPack.allow_strong_conclusion) warnings.push("Argus 未允许强结论，Vega 仅输出弱趋势复核。");
     if (nav.length < 8) warnings.push("净值序列不足，拐点判断降级。");
     if (aiResponse.available && aiResponse.content) warnings.push("已调用统一 AI API 辅助审阅；V0.1 仍以结构化规则输出为准。");
 
@@ -78,7 +79,7 @@ export class VegaAgent extends BaseAgent {
       fundCode: dataPack.fund_code,
       status: score >= 45 && warnings.length === 0 ? "success" : "warning",
       score: Number(score.toFixed(2)),
-      confidence: nav.length >= 10 ? 0.68 : 0.42,
+      confidence: !dataPack.allow_strong_conclusion ? Math.min(nav.length >= 10 ? 0.68 : 0.42, 0.55) : nav.length >= 10 ? 0.68 : 0.42,
       summary: `拐点评分 ${score.toFixed(1)}，趋势状态 ${trendStatus}。`,
       evidence,
       metrics: { ...metrics, trend_status: trendStatus, ai_gateway_available: aiResponse.available, ai_model: aiResponse.model },

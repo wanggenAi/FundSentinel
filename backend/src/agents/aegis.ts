@@ -27,6 +27,7 @@ export class AegisAgent extends BaseAgent {
     const lowQuality = dataPack.data_quality.level === "low";
     const conflict = Math.max(...scores) - Math.min(...scores) >= 42;
     const warnings: string[] = [];
+    if (!dataPack.allow_strong_conclusion) warnings.push("Argus 未允许强结论，Aegis 仅输出 observe 复核状态。");
     if (lowQuality) warnings.push("数据质量 low，Aegis 不允许输出 staged_buy。");
     if (criticalFailed) warnings.push("关键 Agent failed，策略建议降级。");
     if (conflict) warnings.push("硬逻辑、低位、拐点评分分歧较大，建议强度降级。");
@@ -38,6 +39,7 @@ export class AegisAgent extends BaseAgent {
     if (conflict && action === "staged_buy") action = "trial_buy";
     if ((vega.score ?? 0) < 28) action = (logos.score ?? 0) < 55 ? "avoid" : "observe";
     if ((logos.score ?? 0) < 35) action = "avoid";
+    if (!dataPack.allow_strong_conclusion && action !== "observe") action = "observe";
 
     let confidence = Math.min(logos.confidence, nadir.confidence, vega.confidence);
     if (warnings.length) confidence = Math.min(confidence, 0.55);
