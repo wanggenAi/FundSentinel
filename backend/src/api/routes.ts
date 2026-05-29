@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { AtlasOrchestrationService, DataSourceService, FundAnalysisService, HomeService, OpportunityService } from "../services/index.js";
 import { nowIso } from "../schemas/index.js";
@@ -7,6 +8,11 @@ const analyzeRequestSchema = z.object({
   fund_code: z.string().min(1),
   user_request: z.string().min(1)
 });
+
+function taskIdForAnalyzeRequest(fundCode: string, userRequest: string): string {
+  const requestHash = createHash("sha256").update(userRequest.trim()).digest("hex").slice(0, 12);
+  return `api-analyze-${fundCode}-${requestHash}`;
+}
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/health", async () => ({
@@ -55,6 +61,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         is_mock: false
       });
     }
-    return new FundAnalysisService().analyzeFundPublic(parsed.data.fund_code);
+    return new FundAnalysisService().analyzeFundPublic(parsed.data.fund_code, taskIdForAnalyzeRequest(parsed.data.fund_code, parsed.data.user_request));
   });
 }

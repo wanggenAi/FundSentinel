@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import { buildApp } from "../src/app.js";
 
@@ -61,11 +62,12 @@ test("API opportunities returns OpportunitySquareResponse", async () => {
 
 test("API fund analysis and analyze post return public analysis", async () => {
   const app = await buildApp();
+  const userRequest = "分析这个基金现在是否适合进入观察或试探买入";
   const getResponse = await app.inject({ method: "GET", url: "/api/funds/007951/analysis" });
   const postResponse = await app.inject({
     method: "POST",
     url: "/api/analyze",
-    payload: { fund_code: "007951", user_request: "分析这个基金现在是否适合进入观察或试探买入" }
+    payload: { fund_code: "007951", user_request: userRequest }
   });
   await app.close();
 
@@ -83,8 +85,11 @@ test("API fund analysis and analyze post return public analysis", async () => {
   assert.doesNotMatch(JSON.stringify(getPayload), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
 
   assert.equal(postResponse.statusCode, 200);
-  assert.equal(postResponse.json().data_pack.data_status, "unavailable");
-  assert.equal(postResponse.json().final_review.review_status, "data_gap_review");
+  const postPayload = postResponse.json();
+  assert.equal(postPayload.data_pack.data_status, "unavailable");
+  assert.equal(postPayload.final_review.review_status, "data_gap_review");
+  assert.equal(postPayload.task_id, `api-analyze-007951-${createHash("sha256").update(userRequest).digest("hex").slice(0, 12)}`);
+  assert.doesNotMatch(postPayload.task_id, /试探买入|观察/iu);
 });
 
 test("API analyze rejects invalid request without mock data marker", async () => {
