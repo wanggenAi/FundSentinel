@@ -231,6 +231,7 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
     };
     if (!/^\d{6}$/u.test(normalized.fund_code)) throw new Error(`Manifest row ${index + 1} has invalid fund_code.`);
     if (!this.isValidIsoDate(normalized.published_at)) throw new Error(`Manifest row ${index + 1} has invalid published_at.`);
+    if (this.isFutureIsoDate(normalized.published_at)) throw new Error(`Manifest row ${index + 1} has future published_at.`);
     return normalized;
   }
 
@@ -268,5 +269,9 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
     const timestamp = Date.parse(`${value}T00:00:00.000Z`);
     if (!Number.isFinite(timestamp)) return false;
     return new Date(timestamp).toISOString().slice(0, 10) === value;
+  }
+
+  private static isFutureIsoDate(value: string): boolean {
+    return value > nowIso().slice(0, 10);
   }
 }

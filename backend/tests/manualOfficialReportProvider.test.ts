@@ -107,6 +107,24 @@ test("ManualOfficialReportProvider rejects invalid calendar publication dates", 
       ),
     /invalid published_at/
   );
+  assert.throws(
+    () =>
+      ManualOfficialReportProvider.parseManifest(
+        JSON.stringify({
+          fund_code: "007951",
+          title: "招商信用增强债券C2999年第1季度报告",
+          announcement_id: "manual-007951-2999q1",
+          published_at: "2999-01-01",
+          document_kind: "periodic_report",
+          source_name: "中国证监会基金电子披露网站",
+          source_url: "https://eid.csrc.gov.cn/fund/disclosure/007951/29990101/report.pdf",
+          pdf_path: "007951-2999q1.pdf",
+          pdf_sha256: "0".repeat(64)
+        }),
+        "007951"
+      ),
+    /future published_at/
+  );
 });
 
 test("Argus accepts manual official report import as verified official report coverage", async () => {

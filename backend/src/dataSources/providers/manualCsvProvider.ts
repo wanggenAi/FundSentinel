@@ -148,6 +148,7 @@ export class ManualCsvProvider implements DataProvider<FundDataSourceInput, Prov
       const nav = Number(record.nav);
       if (!/^\d{6}$/.test(fundCode)) throw new Error(`CSV row ${index + 2} has invalid fund_code.`);
       if (!this.isValidIsoDate(date)) throw new Error(`CSV row ${index + 2} has invalid date.`);
+      if (this.isFutureIsoDate(date)) throw new Error(`CSV row ${index + 2} has future date.`);
       if (!Number.isFinite(nav) || nav <= 0) throw new Error(`CSV row ${index + 2} has invalid nav.`);
       const dailyReturn = record.daily_return ? Number(record.daily_return) : undefined;
       if (dailyReturn !== undefined && !Number.isFinite(dailyReturn)) throw new Error(`CSV row ${index + 2} has invalid daily_return.`);
@@ -192,6 +193,10 @@ export class ManualCsvProvider implements DataProvider<FundDataSourceInput, Prov
     const timestamp = Date.parse(`${value}T00:00:00.000Z`);
     if (!Number.isFinite(timestamp)) return false;
     return new Date(timestamp).toISOString().slice(0, 10) === value;
+  }
+
+  private static isFutureIsoDate(value: string): boolean {
+    return value > nowIso().slice(0, 10);
   }
 
   private freshnessFor(date: string): "fresh" | "acceptable" | "stale" | "unknown" {

@@ -71,6 +71,10 @@ test("ManualCsvProvider rejects invalid calendar dates and numeric fields", asyn
     /invalid date/
   );
   assert.throws(
+    () => ManualCsvProvider.parseCsv(["fund_code,date,nav,daily_return", "007951,2999-01-01,1.018,0.12"].join("\n")),
+    /future date/
+  );
+  assert.throws(
     () => ManualCsvProvider.parseCsv(["fund_code,date,nav,daily_return", "007951,2026-05-28,1.018,not-a-number"].join("\n")),
     /invalid daily_return/
   );
