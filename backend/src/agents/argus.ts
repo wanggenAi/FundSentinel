@@ -244,6 +244,10 @@ export class ArgusAgent extends BaseAgent {
     if (demoSuccess.length > 0 && realSuccess.length === 0) {
       dataStatus = "demo";
       allowStrongConclusion = false;
+    } else if (demoSuccess.length > 0) {
+      dataStatus = "demo";
+      allowStrongConclusion = false;
+      warnings.push("显式 demo fixture 已参与数据合并；整包仅可作为 mock/demo 输出，不能标记为真实业务分析。");
     } else if (successful.length === 0) {
       dataStatus = "unavailable";
       allowDownstreamAnalysis = false;

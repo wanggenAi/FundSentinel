@@ -189,12 +189,41 @@ test("opportunity service uses configured real universe and preserves real candi
   assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
 });
 
+test("opportunity service explicit demo mode returns only mock-marked candidates", async () => {
+  const response = await new OpportunityService(undefined, undefined, { demoMode: true, enableLiveProviders: false }).getOpportunities(2);
+
+  assert.equal(response.is_mock, true);
+  assert.equal(response.data_quality.is_mock, true);
+  assert.ok(response.candidates.length > 0);
+  assert.ok(response.candidates.every((candidate) => candidate.is_mock));
+  assert.ok(response.candidates.every((candidate) => candidate.key_evidence.every((item) => item.is_mock)));
+});
+
 test("demo mode can return demo analysis but forbids strong conclusions", async () => {
   const response = await new FundAnalysisService(new SourceRegistry({ demoMode: true, enableLiveProviders: false })).analyzeFund("007951", "demo-flow");
 
   assert.equal(response.data_pack.data_status, "demo");
   assert.equal(response.data_pack.allow_strong_conclusion, false);
   assert.equal(response.is_mock, true);
+});
+
+test("Argus keeps mixed demo and real provider output marked as demo", async () => {
+  const registry = new SourceRegistry({
+    demoMode: true,
+    providers: [new RealOpportunityProvider(), new DemoLikeProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+  const response = await new FundAnalysisService(registry).analyzeFund("007951", "mixed-demo-flow");
+
+  assert.equal(response.is_mock, true);
+  assert.equal(response.data_pack.is_mock, true);
+  assert.equal(response.data_pack.data_status, "demo");
+  assert.equal(response.data_pack.data_quality.is_mock, true);
+  assert.equal(response.data_pack.allow_strong_conclusion, false);
+  assert.ok(response.data_pack.data_sources.some((source) => source.is_demo));
+  assert.ok(response.data_pack.data_sources.some((source) => source.is_demo === false));
+  assert.ok(response.data_pack.data_quality_report.warnings.some((warning) => warning.includes("demo fixture")));
 });
 
 test("public fund analysis sanitizes full demo DAG action language", async () => {
@@ -497,6 +526,53 @@ class RealOpportunityProvider implements DataProvider<FundDataSourceInput, Provi
       warnings: [],
       error: null,
       is_demo: false
+    };
+  }
+}
+
+class DemoLikeProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("demo-like-provider"),
+      source_name: "Demo Like Fixture Provider",
+      source_type: "demo_fixture",
+      trust_level: "DEMO",
+      priority: 2,
+      is_demo: true
+    };
+  }
+
+  canHandle(input: FundDataSourceInput): boolean {
+    return input.demo_mode;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "demo-like-provider",
+      source_name: "Demo Like Fixture Provider",
+      source_type: "demo_fixture",
+      trust_level: "DEMO",
+      data_status: "demo",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "Demo Fixture Fund",
+        fund_type: "mixed",
+        current_nav: 0.99,
+        daily_return: 0.01,
+        nav_history: [0.9, 0.95, 0.99],
+        nav_history_dates: ["2026-05-26", "2026-05-27", "2026-05-28"],
+        themes: ["demo-theme"],
+        policy_signals: ["demo policy"],
+        news_summaries: ["demo news"],
+        social_sentiment_score: 0.5
+      },
+      raw_reference: "demo://fixture",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "unknown",
+      warnings: ["demo fixture data"],
+      error: null,
+      is_demo: true
     };
   }
 }

@@ -7,18 +7,28 @@ import { MockDataService } from "./mockDataService.js";
 export interface OpportunityServiceOptions {
   fundUniverse?: string[];
   demoMode?: boolean;
+  enableLiveProviders?: boolean;
 }
 
 export class OpportunityService {
   private readonly fundUniverse: string[];
   private readonly demoMode: boolean;
+  private readonly fundAnalysisService: FundAnalysisService;
 
   constructor(
     private readonly mockDataService = new MockDataService(),
-    private readonly fundAnalysisService = new FundAnalysisService(new SourceRegistry()),
+    fundAnalysisService?: FundAnalysisService,
     options: OpportunityServiceOptions = {}
   ) {
     this.demoMode = options.demoMode ?? process.env.FUNDSENTINEL_DEMO_MODE === "true";
+    this.fundAnalysisService =
+      fundAnalysisService ??
+      new FundAnalysisService(
+        new SourceRegistry({
+          demoMode: this.demoMode,
+          enableLiveProviders: options.enableLiveProviders
+        })
+      );
     this.fundUniverse = options.fundUniverse ?? OpportunityService.parseFundUniverse(process.env.FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE);
   }
 
@@ -33,8 +43,9 @@ export class OpportunityService {
       .map((analysis) => this.candidateFromAnalysis(analysis))
       .sort((a, b) => b.overall_opportunity_score - a.overall_opportunity_score);
     const qualityScore = candidates.length ? Math.min(...candidates.map((candidate) => candidate.confidence)) : 0;
+    const isMock = candidates.some((candidate) => candidate.is_mock);
     return {
-      is_mock: candidates.some((candidate) => candidate.is_mock),
+      is_mock: isMock,
       candidates,
       summary: candidates.length ? "Atlas 已基于可用数据生成候选观察池；候选仅表示证据复核优先级，不代表交易或买卖动作。" : "真实核心数据不可用，Argus 已阻止采基广场生成伪候选基金。",
       data_quality: {
@@ -43,7 +54,7 @@ export class OpportunityService {
         source: "Atlas + Argus SourceRegistry",
         updated_at: nowIso(),
         warnings: candidates.length ? [] : ["没有真实可用核心数据，采基广场不会输出伪推荐。"],
-        is_mock: false
+        is_mock: isMock
       },
       generated_by: "Atlas",
       generated_at: nowIso()
