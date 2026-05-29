@@ -3,7 +3,7 @@ import { AegisAgent, ArgusAgent, AtlasAgent, LogosAgent, NadirAgent, VegaAgent }
 import { SourceRegistry } from "../dataSources/index.js";
 import { SharedBlackboard, FundAnalysisDagRunner } from "../orchestration/index.js";
 import type { AgentResult, FundAnalysisResponse, FundDataPack, OpportunityReviewStatus } from "../schemas/index.js";
-import { sanitizePublicText } from "../utils/publicText.js";
+import { sanitizePublicStructure, sanitizePublicText } from "../utils/publicText.js";
 import { AIGateway } from "./aiGateway.js";
 
 export interface PublicFundAnalysisResponse {
@@ -227,19 +227,19 @@ export class FundAnalysisService {
   }
 
   private publicMetrics(metrics: Record<string, unknown>): Record<string, unknown> {
-    return Object.fromEntries(
+    return sanitizePublicStructure(Object.fromEntries(
       Object.entries(metrics)
         .filter(([key]) => !["action", "buy", "sell", "position"].includes(key))
         .map(([key, value]) => [this.publicMetricKey(key), this.sanitizeStructured(value)])
-    );
+    ));
   }
 
   private publicNumericMetrics(metrics: Record<string, number>): Record<string, number> {
-    return Object.fromEntries(
+    return sanitizePublicStructure(Object.fromEntries(
       Object.entries(metrics)
         .filter(([key]) => !["action", "buy", "sell", "position"].includes(key))
         .map(([key, value]) => [this.publicMetricKey(key), value])
-    );
+    ));
   }
 
   private publicMetricKey(key: string): string {
@@ -251,12 +251,13 @@ export class FundAnalysisService {
   }
 
   private sanitizeStructured(value: unknown): unknown {
-    if (typeof value === "string") return sanitizePublicText(value);
+    if (typeof value === "string") return sanitizePublicStructure(value);
     if (Array.isArray(value)) return value.map((item) => this.sanitizeStructured(item));
+    if (value instanceof Date) return value;
     if (value && typeof value === "object") {
-      return Object.fromEntries(Object.entries(value).map(([key, item]) => [this.publicMetricKey(key), this.sanitizeStructured(item)]));
+      return sanitizePublicStructure(Object.fromEntries(Object.entries(value).map(([key, item]) => [this.publicMetricKey(key), this.sanitizeStructured(item)])));
     }
-    return value;
+    return sanitizePublicStructure(value);
   }
 
   private sanitizeText(value: string): string {

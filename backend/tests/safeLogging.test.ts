@@ -29,7 +29,9 @@ test("safe logging hides server errors while preserving redacted client errors",
 test("safe logging recursively redacts provider payload strings", () => {
   const payload = {
     raw_reference: "https://provider.test/nav?api_key=raw-secret",
+    api_key: "object-secret",
     data: {
+      access_token: "nested-token",
       fund_report_documents: [
         {
           detail_url: "https://provider.test/detail?token=detail-secret",
@@ -45,7 +47,9 @@ test("safe logging recursively redacts provider payload strings", () => {
   const redacted = redactSensitiveStrings(payload);
   const serialized = JSON.stringify(redacted);
 
-  assert.doesNotMatch(serialized, /raw-secret|detail-secret|pdf-secret|macro-secret|warning-secret|error-secret/u);
+  assert.doesNotMatch(serialized, /raw-secret|object-secret|nested-token|detail-secret|pdf-secret|macro-secret|warning-secret|error-secret/u);
+  assert.equal(redacted.api_key, "[REDACTED]");
+  assert.equal(redacted.data.access_token, "[REDACTED]");
   assert.match(serialized, /api_key=\[REDACTED\]/u);
   assert.match(serialized, /token=\[REDACTED\]/u);
   assert.match(serialized, /access_token=\[REDACTED\]/u);

@@ -1,4 +1,6 @@
-import { redactSensitiveText } from "./safeLogging.js";
+import { isSensitiveKey, REDACTED_LOG_VALUE, redactSensitiveText } from "./safeLogging.js";
+
+const SEPARATED_ACTION_PATTERN = /(^|[_\-\s])(buy|sell|position)(?=$|[_\-\s])/giu;
 
 export function sanitizePublicText(value: string): string {
   return redactSensitiveText(value)
@@ -10,7 +12,12 @@ export function sanitizePublicText(value: string): string {
     .replace(/买入、卖出或仓位结论|买卖或仓位结论|买卖动作|交易动作策略|仓位策略/gu, "复核结论")
     .replace(/输出保守交易动作动作|输出保守仓位动作/gu, "输出保守复核状态")
     .replace(/买入|卖出|仓位|重仓|加仓|减仓/gu, "复核")
+    .replace(SEPARATED_ACTION_PATTERN, "$1review")
     .replace(/\b(buy|sell|position)\b/giu, "review");
+}
+
+function sanitizePublicKey(key: string): string {
+  return sanitizePublicText(key);
 }
 
 export function sanitizePublicStructure<T>(value: T): T {
@@ -18,5 +25,7 @@ export function sanitizePublicStructure<T>(value: T): T {
   if (Array.isArray(value)) return value.map((item) => sanitizePublicStructure(item)) as T;
   if (value instanceof Date) return value;
   if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, sanitizePublicStructure(entry)])) as T;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [sanitizePublicKey(key), isSensitiveKey(key) ? REDACTED_LOG_VALUE : sanitizePublicStructure(entry)])
+  ) as T;
 }

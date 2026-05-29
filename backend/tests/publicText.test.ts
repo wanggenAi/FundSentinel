@@ -28,3 +28,23 @@ test("public text sanitizer recursively redacts secrets and claims", () => {
   assert.match(payload, /requires evidence review/u);
   assert.match(payload, /风险复核/u);
 });
+
+test("public structure sanitizer redacts sensitive keys and action-like key names", () => {
+  const sanitized = sanitizePublicStructure({
+    api_key: "plain-secret",
+    access_token: "plain-token",
+    buy_signal: "must buy",
+    nested: {
+      risk_position_score: 42,
+      保证收益仓位: "无风险"
+    }
+  });
+  const payload = JSON.stringify(sanitized);
+
+  assert.doesNotMatch(payload, /plain-secret|plain-token|buy_signal|risk_position_score|保证收益仓位|must buy|无风险/iu);
+  assert.equal(sanitized.api_key, "[REDACTED]");
+  assert.equal(sanitized.access_token, "[REDACTED]");
+  assert.equal(sanitized.review_signal, "must review");
+  assert.equal(sanitized.nested.risk_review_score, 42);
+  assert.equal(sanitized.nested["风险复核复核"], "风险复核");
+});

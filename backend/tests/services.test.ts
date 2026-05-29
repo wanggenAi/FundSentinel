@@ -531,6 +531,68 @@ test("public fund analysis filters action-like final review metric keys", () => 
   assert.doesNotMatch(JSON.stringify(publicResponse.final_review), /must buy|guaranteed|risk[-\s]?free|保证收益|必须卖出|加仓/iu);
 });
 
+test("public fund analysis sanitizes dynamic metric keys and sensitive metric values", () => {
+  const dataPack = new MockDataService().getFundDataPack("007951");
+  const response: FundAnalysisResponse = {
+    task_id: "public-agent-metrics",
+    fund_code: dataPack.fund_code,
+    fund_name: dataPack.fund_name,
+    is_mock: true,
+    data_pack: dataPack,
+    agent_results: {
+      Logos: {
+        task_id: "public-agent-metrics",
+        agent_name: "Logos",
+        agent_role: "Evidence Agent",
+        status: "warning",
+        score: 50,
+        confidence: 0.4,
+        summary: "must buy with guaranteed returns",
+        evidence: [],
+        metrics: {
+          buy_signal: "must buy now",
+          nested: {
+            risk_position_score: 42,
+            api_key: "metric-secret"
+          }
+        },
+        warnings: ["risk-free 保证收益"],
+        next_suggestions: [],
+        generated_at: "2026-05-29T00:00:00.000Z",
+        is_mock: true
+      }
+    },
+    final_decision: {
+      action: "observe",
+      confidence: 0.5,
+      risk_level: "medium",
+      summary: "internal final decision",
+      reasons: [],
+      risk_warnings: [],
+      invalidation_conditions: [],
+      source_agents: ["Atlas"],
+      metrics: {
+        overall_score: 50
+      },
+      generated_by: "Atlas",
+      generated_at: "2026-05-29T00:00:00.000Z",
+      is_mock: true
+    },
+    blackboard_snapshot: {},
+    generated_at: "2026-05-29T00:00:00.000Z"
+  };
+
+  const publicResponse = new FundAnalysisService().presentPublicFundAnalysis(response);
+  const metrics = publicResponse.agent_results.Logos?.metrics as Record<string, unknown>;
+  const nested = metrics.nested as Record<string, unknown>;
+  const payload = JSON.stringify(publicResponse);
+
+  assert.equal(metrics.review_signal, "must review now");
+  assert.equal(nested.risk_review_score, 42);
+  assert.equal(nested.api_key, "[REDACTED]");
+  assert.doesNotMatch(payload, /buy_signal|risk_position_score|metric-secret|must buy|guaranteed|risk[-\s]?free|保证收益/iu);
+});
+
 test("SourceRegistry lists real providers and demo fixture provider", () => {
   const sources = new SourceRegistry(false).listSources();
 
