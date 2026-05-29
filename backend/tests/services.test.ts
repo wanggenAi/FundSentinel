@@ -165,7 +165,7 @@ test("strategy trigger service sanitizes home action language and preserves prov
       risk_level: "medium",
       summary: "internal action should not leak to home",
       reasons: [],
-      risk_warnings: ["必须先核对来源和失效条件。"],
+      risk_warnings: ["必须先核对来源和仓位失效条件，不能输出买入、卖出或仓位结论。"],
       invalidation_conditions: [],
       source_agents: ["Atlas"],
       metrics: { overall_score: 72 },

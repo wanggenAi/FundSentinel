@@ -33,7 +33,7 @@ export class StrategyTriggerService {
         fund_name: analysis.fund_name,
         alert_type: "strategy_review",
         priority: this.priorityForAction(analysis.final_decision.action, analysis.final_decision.risk_level),
-        summary: analysis.final_decision.risk_warnings[0] ?? "需要继续观察风险变化。",
+        summary: this.publicText(analysis.final_decision.risk_warnings[0] ?? "需要继续观察风险变化。"),
         review_next_step: this.reviewNextStep(analysis.final_decision.action),
         related_agent: "Atlas",
         is_mock: analysis.is_mock
@@ -93,5 +93,13 @@ export class StrategyTriggerService {
       exit: "进入风险复核，先确认证据是否仍然有效。"
     };
     return map[action];
+  }
+
+  private publicText(value: string): string {
+    return value
+      .replace(/trial_buy|staged_buy|add_position/giu, "observe")
+      .replace(/买入、卖出或仓位结论|买卖或仓位结论|买卖动作|交易动作策略|仓位策略/gu, "复核结论")
+      .replace(/买入|卖出|仓位|重仓|加仓|减仓/gu, "复核")
+      .replace(/\b(buy|sell|position)\b/giu, "review");
   }
 }
