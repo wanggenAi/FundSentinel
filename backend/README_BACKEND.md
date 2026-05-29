@@ -209,7 +209,13 @@ Example `POST /api/analyze` body:
 
 V0.1 deliberately does not implement an Atlas chat endpoint.
 
+Public home routes expose review-oriented strategy triggers only. `strategy_triggers` and `holding_alerts` use `trigger_type` values such as `observe`, `risk_warning`, `evidence_review`, or `data_gap_review`, and the next-step text is named `review_next_step`. Public home responses must not expose internal `StrategyAction` values or a `suggested_action` field.
+
+Public opportunity-square routes expose `review_status`, `low_nav_score`, and `risk_review_score`; they do not expose internal action fields or low/risk position-score names. Candidates represent review priority and evidence availability, not transaction, brokerage, or allocation instructions.
+
 Public fund-analysis routes return a sanitized projection with `final_review`, `review_status`, `traceability.data_gap_report`, and `traceability.acquisition_solutions`. They do not return raw `final_decision`, `blackboard_snapshot`, or internal action fields. Internal services and tests still keep the `AgentResult` and DAG contracts stable for replay and orchestration.
+
+Public data-source routes expose provider capability, health, coverage, gaps, and acquisition plans. Data-source catalog notes must describe provenance and coverage in data terms, not as trading, account, brokerage, bank, payment, or position-management capabilities. `DemoFixtureProvider` is visible for transparency but is enabled only when `FUNDSENTINEL_DEMO_MODE=true`, and demo data must always be marked as mock/demo data.
 
 ## Live Provider Behavior
 
