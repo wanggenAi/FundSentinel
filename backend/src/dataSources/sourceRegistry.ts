@@ -13,6 +13,7 @@ import { EastMoneyFundProvider } from "./providers/eastMoneyFundProvider.js";
 import { EastMoneyNavHistoryProvider } from "./providers/eastMoneyNavHistoryProvider.js";
 import { EurostatProvider } from "./providers/eurostatProvider.js";
 import { FredMacroProvider } from "./providers/fredMacroProvider.js";
+import { FullgoalFundOfficialProvider } from "./providers/fullgoalFundOfficialProvider.js";
 import { FundCompanyReportProvider } from "./providers/fundCompanyReportProvider.js";
 import { GovCnPolicyProvider } from "./providers/govCnPolicyProvider.js";
 import { HarvestFundOfficialProvider } from "./providers/harvestFundOfficialProvider.js";
@@ -106,6 +107,7 @@ export class SourceRegistry {
       new EFundOfficialProvider(),
       new ChinaAmcOfficialProvider(),
       new HarvestFundOfficialProvider(),
+      new FullgoalFundOfficialProvider(),
       new FundCompanyReportProvider(),
       new CninfoReportProvider(),
       new GovCnPolicyProvider(),

@@ -16,6 +16,7 @@ export * from "./providers/eastMoneyFundProvider.js";
 export * from "./providers/eastMoneyFundArchiveProvider.js";
 export * from "./providers/eastMoneyNavHistoryProvider.js";
 export * from "./providers/eurostatProvider.js";
+export * from "./providers/fullgoalFundOfficialProvider.js";
 export * from "./providers/fundCompanyReportProvider.js";
 export * from "./providers/fredMacroProvider.js";
 export * from "./providers/govCnPolicyProvider.js";

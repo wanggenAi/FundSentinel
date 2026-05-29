@@ -96,7 +96,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     integration_status: "planned",
     legal_note: "Company sites differ; adapters need per-site maintenance and source timestamps.",
     priority: 5,
-    notes: "Useful cross-check source; concrete adapters now include CMF China, HuaAn, E Fund, ChinaAMC, and Harvest; broader company coverage still requires many maintained adapters."
+    notes: "Useful cross-check source; concrete adapters now include CMF China, HuaAn, E Fund, ChinaAMC, Harvest, and Fullgoal; broader company coverage still requires many maintained adapters."
   },
   {
     source_id: "fund-company-report",
@@ -199,6 +199,23 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     priority: 7,
     notes:
       "Fifth per-company official adapter. It parses Harvest Fund official product pages, the current NAV list, and the NAV history table; it does not parse holdings, report PDF bodies, or transaction features."
+  },
+  {
+    source_id: "fullgoal-fund-official",
+    source_name: "富国基金官网官方净值与披露",
+    source_type: "fund_company",
+    quality_tier: "authoritative",
+    stability: "medium",
+    coverage: ["fund_meta", "current_nav", "nav_history", "official_company_notices", "fund_reports"],
+    recommended_for: ["current_nav", "nav_history", "fund_meta", "fund_reports", "official_fund_reports", "official_evidence"],
+    access_method: "official website adapter: https://www.fullgoal.com.cn/fundDetail/{fund_code}/index.html?isdividend=1 and /noticedetails/{id}/index.html",
+    requires_auth: false,
+    is_demo: false,
+    integration_status: "implemented",
+    legal_note: "Use public official company pages respectfully; cache and rate-limit. Do not use login, account, payment, or transaction paths.",
+    priority: 7,
+    notes:
+      "Sixth per-company official adapter. It parses Fullgoal SSR fund pages, NAV rows, announcement detail pages, and PDF metadata without treating PDF bodies as parsed report text."
   },
   {
     source_id: "eastmoney-fund",
@@ -636,7 +653,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     integration_status: "planned",
     legal_note: "Each adapter must respect website terms, rate-limit, and keep source URLs.",
     priority: 60,
-    notes: "Planned expansion path after the first five fund-company adapters; each new site still needs explicit official URL parsing and tests."
+    notes: "Planned expansion path after the first six fund-company adapters; each new site still needs explicit official URL parsing and tests."
   },
   {
     source_id: "chinafund-com-cn",

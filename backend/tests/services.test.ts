@@ -47,6 +47,7 @@ test("SourceRegistry lists real providers and demo fixture provider", () => {
   assert.ok(sources.some((source) => source.source_id === "eastmoney-nav-history" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "cmfchina-fund-official" && source.trust_level === "A" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "harvestfund-official" && source.trust_level === "A" && !source.is_demo));
+  assert.ok(sources.some((source) => source.source_id === "fullgoal-fund-official" && source.trust_level === "A" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "hkex-official" && source.trust_level === "A" && !source.is_demo));
   assert.ok(sources.some((source) => source.source_id === "demo-fixture" && source.is_demo && !source.enabled));
 });
@@ -64,17 +65,20 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.ok(officialReports?.source_ids.includes("csrc-fund-disclosure"));
   assert.ok(officialReports?.implemented_source_ids.includes("csrc-fund-disclosure"));
   assert.ok(officialReports?.implemented_source_ids.includes("fund-company-report"));
+  assert.ok(officialReports?.implemented_source_ids.includes("fullgoal-fund-official"));
   assert.ok(officialReports?.implemented_source_ids.includes("sec-edgar"));
   assert.equal(officialReports?.gap_level, "partial");
   assert.ok(officialCurrentNav?.source_ids.includes("cmfchina-fund-official"));
   assert.ok(officialCurrentNav?.source_ids.includes("efund-official"));
   assert.ok(officialCurrentNav?.source_ids.includes("chinaamc-official"));
   assert.ok(officialCurrentNav?.source_ids.includes("harvestfund-official"));
+  assert.ok(officialCurrentNav?.source_ids.includes("fullgoal-fund-official"));
   assert.equal(officialCurrentNav?.gap_level, "covered");
   assert.ok(officialNavHistory?.source_ids.includes("cmfchina-fund-official"));
   assert.ok(officialNavHistory?.source_ids.includes("efund-official"));
   assert.ok(officialNavHistory?.source_ids.includes("chinaamc-official"));
   assert.ok(officialNavHistory?.source_ids.includes("harvestfund-official"));
+  assert.ok(officialNavHistory?.source_ids.includes("fullgoal-fund-official"));
   assert.equal(officialNavHistory?.gap_level, "covered");
   assert.ok(navHistory?.implemented_source_ids.includes("eastmoney-fund"));
   assert.ok(navHistory?.implemented_source_ids.includes("eastmoney-nav-history"));
