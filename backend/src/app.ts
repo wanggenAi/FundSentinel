@@ -10,6 +10,22 @@ export async function buildApp() {
   });
   await app.register(cors, { origin: true });
   await registerRoutes(app);
+
+  app.setNotFoundHandler(async (_request, reply) =>
+    reply.code(404).send({
+      error: "Not found",
+      is_mock: false
+    })
+  );
+
+  app.setErrorHandler(async (error, request, reply) => {
+    request.log.error(error);
+    const statusCode = typeof error.statusCode === "number" && error.statusCode >= 400 && error.statusCode < 500 ? error.statusCode : 500;
+    return reply.code(statusCode).send({
+      error: statusCode >= 500 ? "Internal server error" : error.message,
+      is_mock: false
+    });
+  });
+
   return app;
 }
-

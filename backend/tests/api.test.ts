@@ -102,6 +102,16 @@ test("API analyze rejects invalid request without mock data marker", async () =>
   assert.equal(response.json().is_mock, false);
 });
 
+test("API unknown routes return non-mock error envelope", async () => {
+  const app = await buildApp();
+  const response = await app.inject({ method: "GET", url: "/api/unknown-route" });
+  await app.close();
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(response.json().error, "Not found");
+  assert.equal(response.json().is_mock, false);
+});
+
 test("API analyze trims request identifiers before tracing", async () => {
   const app = await buildApp();
   const userRequest = "  request with whitespace  ";
