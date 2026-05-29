@@ -462,6 +462,13 @@ test("public fund analysis surfaces degraded strong-conclusion blocks in final r
   assert.match(response.final_review.summary, /official_fund_reports/);
   assert.ok(response.traceability.data_gap_report?.missing_data.includes("official_fund_reports"));
   assert.ok(response.traceability.acquisition_solutions.some((solution) => solution.engineering_tasks.length > 0));
+  for (const agentName of ["Logos", "Nadir", "Vega", "Aegis"] as const) {
+    const result = response.agent_results[agentName];
+    assert.equal(result?.status, "warning");
+    assert.ok((result?.confidence ?? 1) <= 0.55);
+    assert.ok(result?.warnings.some((warning) => warning.includes("Argus 未允许强结论")));
+  }
+  assert.equal("action" in (response.agent_results.Aegis?.metrics ?? {}), false);
   assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位|重仓|加仓|减仓/iu);
 });
 
