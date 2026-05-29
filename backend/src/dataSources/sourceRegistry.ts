@@ -21,6 +21,7 @@ import { ManualCsvProvider } from "./providers/manualCsvProvider.js";
 import { ManualOfficialReportProvider } from "./providers/manualOfficialReportProvider.js";
 import { MiitOfficialProvider } from "./providers/miitOfficialProvider.js";
 import { MofFiscalProvider } from "./providers/mofFiscalProvider.js";
+import { OecdCliProvider } from "./providers/oecdCliProvider.js";
 import { PbcMacroProvider } from "./providers/pbcMacroProvider.js";
 import { PolicyNewsProvider } from "./providers/policyNewsProvider.js";
 import { SafeMacroProvider } from "./providers/safeMacroProvider.js";
@@ -113,6 +114,7 @@ export class SourceRegistry {
       new FredMacroProvider(),
       new WorldBankMacroProvider(),
       new ImfDataMapperProvider(),
+      new OecdCliProvider(),
       new EurostatProvider(),
       new PolicyNewsProvider(),
       new MiitOfficialProvider(),

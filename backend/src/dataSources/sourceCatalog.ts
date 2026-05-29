@@ -561,15 +561,15 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     source_type: "macro_data",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["oecd_macro", "industry_statistics", "policy_indicators"],
+    coverage: ["macro_data", "oecd_macro", "composite_leading_indicators", "industry_statistics", "policy_indicators"],
     recommended_for: ["macro_context", "industry_logic", "country_context"],
-    access_method: "official OECD API / SDMX services",
+    access_method: "official OECD SDMX CSV API: https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_CLI",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Keep dataset identifiers, dimensions, release date, and query URL.",
     priority: 56,
-    notes: "Useful for developed-market macro and industry comparison."
+    notes: "Implemented for monthly OECD Composite Leading Indicator rows for configured countries. It is macro context only, not fund NAV, holdings, reports, or advice."
   },
   {
     source_id: "eurostat-api",

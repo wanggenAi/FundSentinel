@@ -25,6 +25,7 @@ export * from "./providers/manualCsvProvider.js";
 export * from "./providers/manualOfficialReportProvider.js";
 export * from "./providers/miitOfficialProvider.js";
 export * from "./providers/mofFiscalProvider.js";
+export * from "./providers/oecdCliProvider.js";
 export * from "./providers/pbcMacroProvider.js";
 export * from "./providers/policyNewsProvider.js";
 export * from "./providers/safeMacroProvider.js";
