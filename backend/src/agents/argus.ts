@@ -104,7 +104,7 @@ export class ArgusAgent extends BaseAgent {
     plan: DataAcquisitionPlan,
     providerResults: Array<DataProviderResult<ProviderFundPayload>>
   ): FundDataPack {
-    const merged = this.mergeProviderPayloads(providerResults.filter((result) => result.success && result.data).map((result) => result.data!));
+    const merged = this.mergeProviderPayloads(providerResults.filter((result) => result.success && result.data));
     const quality = this.buildQualityReport(providerResults, merged);
     const gapReport = this.buildGapReport(fundCode, quality, providerResults);
     const solutions = this.buildSolutions(quality, gapReport);
@@ -177,39 +177,49 @@ export class ArgusAgent extends BaseAgent {
     return quality.data_status === "demo" || quality.demo_source_count > 0;
   }
 
-  private mergeProviderPayloads(payloads: ProviderFundPayload[]): ProviderFundPayload {
+  private mergeProviderPayloads(results: Array<DataProviderResult<ProviderFundPayload>>): ProviderFundPayload {
     const merged: ProviderFundPayload = {};
-    for (const payload of payloads) {
-      this.setIfMissing(merged, "fund_code", payload.fund_code);
-      this.setIfMissing(merged, "fund_name", payload.fund_name);
-      this.setIfMissing(merged, "fund_type", payload.fund_type);
-      this.setIfMissing(merged, "current_nav", payload.current_nav);
-      this.setIfMissing(merged, "daily_return", payload.daily_return);
-      this.setIfMissing(merged, "social_sentiment_score", payload.social_sentiment_score);
+    for (const result of results) {
+      const payload = result.data!;
+      if (this.canMergeFundCorePayload(result)) {
+        this.setIfMissing(merged, "fund_code", payload.fund_code);
+        this.setIfMissing(merged, "fund_name", payload.fund_name);
+        this.setIfMissing(merged, "fund_type", payload.fund_type);
+        this.setIfMissing(merged, "current_nav", payload.current_nav);
+        this.setIfMissing(merged, "daily_return", payload.daily_return);
 
-      if (this.shouldUseNavHistory(payload, merged)) {
-        merged.nav_history = payload.nav_history;
-        merged.nav_history_dates = payload.nav_history_dates;
-        if (payload.current_nav !== undefined) merged.current_nav = payload.current_nav;
-        if (payload.daily_return !== undefined) merged.daily_return = payload.daily_return;
+        if (this.shouldUseNavHistory(payload, merged)) {
+          merged.nav_history = payload.nav_history;
+          merged.nav_history_dates = payload.nav_history_dates;
+          if (payload.current_nav !== undefined) merged.current_nav = payload.current_nav;
+          if (payload.daily_return !== undefined) merged.daily_return = payload.daily_return;
+        }
+        if (payload.stage_returns) {
+          merged.stage_returns = { ...(merged.stage_returns ?? {}), ...payload.stage_returns };
+        }
+        merged.portfolio_holdings = this.mergeUnique(merged.portfolio_holdings, payload.portfolio_holdings);
+        merged.fund_report_refs = this.mergeUnique(merged.fund_report_refs, payload.fund_report_refs);
+        merged.fund_report_documents = this.mergeReportDocuments(merged.fund_report_documents, payload.fund_report_documents);
+        if (payload.holdings_as_of && (!merged.holdings_as_of || payload.holdings_as_of > merged.holdings_as_of)) {
+          merged.holdings_as_of = payload.holdings_as_of;
+        }
+        this.setIfMissing(merged, "holdings_source", payload.holdings_source);
       }
-      if (payload.stage_returns) {
-        merged.stage_returns = { ...(merged.stage_returns ?? {}), ...payload.stage_returns };
-      }
-      merged.portfolio_holdings = this.mergeUnique(merged.portfolio_holdings, payload.portfolio_holdings);
-      merged.fund_report_refs = this.mergeUnique(merged.fund_report_refs, payload.fund_report_refs);
-      merged.fund_report_documents = this.mergeReportDocuments(merged.fund_report_documents, payload.fund_report_documents);
+
       merged.themes = this.mergeUnique(merged.themes, payload.themes);
       merged.policy_signals = this.mergeUnique(merged.policy_signals, payload.policy_signals);
       merged.macro_indicators = this.mergeMacroIndicators(merged.macro_indicators, payload.macro_indicators);
       merged.news_summaries = this.mergeUnique(merged.news_summaries, payload.news_summaries);
-
-      if (payload.holdings_as_of && (!merged.holdings_as_of || payload.holdings_as_of > merged.holdings_as_of)) {
-        merged.holdings_as_of = payload.holdings_as_of;
-      }
-      this.setIfMissing(merged, "holdings_source", payload.holdings_source);
+      this.setIfMissing(merged, "social_sentiment_score", payload.social_sentiment_score);
     }
     return merged;
+  }
+
+  private canMergeFundCorePayload(result: DataProviderResult<ProviderFundPayload>): boolean {
+    if (result.is_demo) return true;
+    return ["fund_meta", "current_nav", "nav_history", "holdings", "fund_report", "regulatory_disclosure", "fund_company", "manual_import"].includes(
+      result.source_type
+    );
   }
 
   private buildQualityReport(
@@ -522,7 +532,7 @@ export class ArgusAgent extends BaseAgent {
 
   private buildNavConsistencyReport(results: Array<DataProviderResult<ProviderFundPayload>>): DataQualityReport["nav_consistency_report"] {
     const comparedSources = results
-      .filter((result) => !result.is_demo && (result.data?.current_nav !== undefined || result.data?.nav_history?.length))
+      .filter((result) => this.canMergeFundCorePayload(result) && !result.is_demo && (result.data?.current_nav !== undefined || result.data?.nav_history?.length))
       .map((result) => ({
         source_id: result.source_id,
         source_name: result.source_name,
