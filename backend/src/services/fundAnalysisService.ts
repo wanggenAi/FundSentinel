@@ -109,7 +109,7 @@ export class FundAnalysisService {
     return {
       task_id: response.task_id,
       fund_code: response.fund_code,
-      fund_name: response.fund_name,
+      fund_name: this.sanitizeText(response.fund_name),
       is_mock: response.is_mock,
       data_status: response.data_pack.data_status,
       data_pack: this.publicDataPack(response.data_pack),
@@ -184,7 +184,7 @@ export class FundAnalysisService {
       review_status: this.reviewStatusForAnalysis(response),
       confidence: finalDecision.confidence,
       risk_level: finalDecision.risk_level,
-      summary: this.finalReviewSummary(response),
+      summary: this.sanitizeText(this.finalReviewSummary(response)),
       reasons: finalDecision.reasons.map((reason) => this.sanitizeText(reason)),
       risk_warnings: finalDecision.risk_warnings.map((warning) => this.sanitizeText(warning)),
       invalidation_conditions: finalDecision.invalidation_conditions.map((condition) => this.sanitizeText(condition)),

@@ -1,4 +1,5 @@
 import type { FundAnalysisResponse, HomeDashboardResponse, RiskLevel, TodayFocusItem } from "../schemas/index.js";
+import { sanitizePublicStructure } from "../utils/publicText.js";
 import { FundAnalysisService } from "./fundAnalysisService.js";
 import { PortfolioService } from "./portfolioService.js";
 import { StrategyTriggerService } from "./strategyTriggerService.js";
@@ -46,7 +47,7 @@ export class HomeService {
             }
           ]
         : [];
-    return {
+    const response: HomeDashboardResponse = {
       is_mock: homeIsMock,
       total_assets: portfolio.total_assets,
       daily_pnl: portfolio.daily_pnl,
@@ -71,6 +72,7 @@ export class HomeService {
       generated_by: "Atlas",
       generated_at: portfolio.generated_at
     };
+    return sanitizePublicStructure(response);
   }
 
   private homeRiskLevel(priorities: string[]): RiskLevel {

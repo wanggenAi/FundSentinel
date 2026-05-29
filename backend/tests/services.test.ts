@@ -50,7 +50,7 @@ test("home service marks dashboard mock when analysis chain uses demo data", asy
         holdings: [
           {
             fund_code: "007951",
-            fund_name: "真实手动持仓基金 A",
+            fund_name: "真实手动持仓基金 A must buy 保证收益 token=home-secret",
             holding_amount: 10000,
             cost_nav: 1.25,
             current_nav: 1.3
@@ -107,7 +107,7 @@ test("home service surfaces degraded analysis gaps when downstream analysis is a
     assert.ok(response.data_quality.warnings.some((warning) => warning.includes("Argus 未允许强结论")));
     assert.ok(response.data_quality.warnings.some((warning) => warning.includes("official_fund_reports")));
     assert.ok(response.today_focus.some((item) => item.title === "证据降级复核" && item.related_funds.includes("007951")));
-    assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
+    assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|must buy|guaranteed|risk[-\s]?free|买入|卖出|仓位|保证收益|无风险|home-secret/iu);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -388,7 +388,7 @@ test("opportunity service sanitizes candidate evidence and risk text", async () 
   const response = await new OpportunityService(undefined, fundAnalysisService, { fundUniverse: ["007951"] }).getOpportunities(1);
 
   assert.equal(response.candidates.length, 1);
-  assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|must buy|guaranteed|risk[-\s]?free|买入|卖出|仓位|保证收益|无风险/iu);
+  assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|must buy|guaranteed|risk[-\s]?free|买入|卖出|仓位|保证收益|无风险|opportunity-secret/iu);
 });
 
 test("opportunity service explicit demo mode returns only mock-marked candidates", async () => {
@@ -950,7 +950,7 @@ class RealOpportunityProvider implements DataProvider<FundDataSourceInput, Provi
       success: true,
       data: {
         fund_code: input.fund_code,
-        fund_name: "真实机会测试基金",
+        fund_name: "真实机会测试基金 must buy 保证收益 token=opportunity-secret",
         fund_type: "mixed",
         current_nav: 1.08,
         daily_return: 0.42,
@@ -959,7 +959,7 @@ class RealOpportunityProvider implements DataProvider<FundDataSourceInput, Provi
         portfolio_holdings: ["新能源设备(300001)", "电力运营(600001)", "储能系统(300002)"],
         holdings_as_of: "2026-03-31",
         holdings_source: "official fixture",
-        themes: ["新能源", "电力"],
+        themes: ["新能源", "risk-free guaranteed returns"],
         policy_signals: ["2026-05-22 国家发展改革委新型电力系统政策发布"],
         news_summaries: ["国家发展改革委：能源结构调整公开新闻（2026-05-22）"],
         social_sentiment_score: 0.4

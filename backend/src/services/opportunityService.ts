@@ -1,7 +1,7 @@
 import { SourceRegistry } from "../dataSources/index.js";
 import type { EvidenceItem, FundAnalysisResponse, OpportunityCandidate, OpportunityReviewStatus, OpportunitySquareResponse } from "../schemas/index.js";
 import { nowIso } from "../schemas/index.js";
-import { sanitizePublicText } from "../utils/publicText.js";
+import { sanitizePublicStructure, sanitizePublicText } from "../utils/publicText.js";
 import { FundAnalysisService } from "./fundAnalysisService.js";
 import { MockDataService } from "./mockDataService.js";
 
@@ -46,7 +46,7 @@ export class OpportunityService {
     const qualityScore = candidates.length ? Math.min(...candidates.map((candidate) => candidate.confidence)) : 0;
     const isMock = candidates.some((candidate) => candidate.is_mock);
     const degradedWarnings = this.degradedAnalysisWarnings(analyses);
-    return {
+    return this.publicResponse({
       is_mock: isMock,
       candidates,
       summary: candidates.length
@@ -64,7 +64,7 @@ export class OpportunityService {
       },
       generated_by: "Atlas",
       generated_at: nowIso()
-    };
+    });
   }
 
   private activeFundUniverse(): string[] {
@@ -74,7 +74,7 @@ export class OpportunityService {
   }
 
   private emptyResponse(summary: string): OpportunitySquareResponse {
-    return {
+    return this.publicResponse({
       is_mock: false,
       candidates: [],
       summary,
@@ -88,7 +88,7 @@ export class OpportunityService {
       },
       generated_by: "Atlas",
       generated_at: nowIso()
-    };
+    });
   }
 
   private candidateFromAnalysis(analysis: FundAnalysisResponse): OpportunityCandidate {
@@ -181,6 +181,10 @@ export class OpportunityService {
 
   private publicText(value: string): string {
     return sanitizePublicText(value);
+  }
+
+  private publicResponse(response: OpportunitySquareResponse): OpportunitySquareResponse {
+    return sanitizePublicStructure(response);
   }
 
   private static parseFundUniverse(value?: string): string[] {
