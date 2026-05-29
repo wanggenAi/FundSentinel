@@ -20,18 +20,18 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
   {
     source_id: "csrc-official",
     source_name: "中国证监会官网",
-    source_type: "regulatory_disclosure",
+    source_type: "policy",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["regulatory_rules", "market_supervision", "fund_regulation", "official_releases"],
-    recommended_for: ["regulatory_context", "policy_evidence", "fund_rule_validation"],
-    access_method: "official website",
+    coverage: ["regulatory_rules", "market_supervision", "fund_regulation", "official_releases", "policy_evidence", "industry_news"],
+    recommended_for: ["regulatory_context", "policy_evidence", "industry_news", "fund_rule_validation"],
+    access_method: "official CSRC searchList JSON endpoint for official releases",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Use public official releases with source URL and publication date.",
     priority: 2,
-    notes: "Useful for regulatory evidence and rule changes; not a NAV source."
+    notes: "Implemented for official CSRC release metadata and summaries from the public searchList endpoint. It is regulatory/policy context only, not a NAV or trading source."
   },
   {
     source_id: "amac-public-fund-data",

@@ -1,6 +1,7 @@
 import { CninfoReportProvider } from "./providers/cninfoReportProvider.js";
 import { CmfChinaFundOfficialProvider } from "./providers/cmfChinaFundOfficialProvider.js";
 import { CsrcFundDisclosureProvider } from "./providers/csrcFundDisclosureProvider.js";
+import { CsrcOfficialProvider } from "./providers/csrcOfficialProvider.js";
 import { DemoFixtureProvider } from "./providers/demoFixtureProvider.js";
 import { EastMoneyFundAnnouncementProvider } from "./providers/eastMoneyFundAnnouncementProvider.js";
 import { EastMoneyFundArchiveProvider } from "./providers/eastMoneyFundArchiveProvider.js";
@@ -83,6 +84,7 @@ export class SourceRegistry {
     this.resultCache = this.sharedState.resultCache;
     this.providers = normalized.providers ?? [
       new CsrcFundDisclosureProvider(),
+      new CsrcOfficialProvider(),
       new EastMoneyFundProvider(),
       new EastMoneyNavHistoryProvider(),
       new EastMoneyFundArchiveProvider(),

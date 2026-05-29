@@ -2,6 +2,7 @@ export * from "./sourceRegistry.js";
 export * from "./sourceCatalog.js";
 export * from "./sourceTypes.js";
 export * from "./providers/csrcFundDisclosureProvider.js";
+export * from "./providers/csrcOfficialProvider.js";
 export * from "./providers/baseProvider.js";
 export * from "./providers/cmfChinaFundOfficialProvider.js";
 export * from "./providers/cninfoReportProvider.js";
