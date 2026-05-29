@@ -8,6 +8,7 @@ export * from "./providers/baseProvider.js";
 export * from "./providers/cmfChinaFundOfficialProvider.js";
 export * from "./providers/cninfoReportProvider.js";
 export * from "./providers/demoFixtureProvider.js";
+export * from "./providers/eFundOfficialProvider.js";
 export * from "./providers/eastMoneyFundAnnouncementProvider.js";
 export * from "./providers/eastMoneyFundProvider.js";
 export * from "./providers/eastMoneyFundArchiveProvider.js";

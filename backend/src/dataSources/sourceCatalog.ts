@@ -147,6 +147,23 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     notes: "Second per-company official adapter. It parses official HuaAn fund pages, recent NAV table rows, holdings names, and disclosure links without treating unverified PDF bodies as parsed report text."
   },
   {
+    source_id: "efund-official",
+    source_name: "易方达基金官网官方净值与披露",
+    source_type: "fund_company",
+    quality_tier: "authoritative",
+    stability: "medium",
+    coverage: ["fund_meta", "current_nav", "nav_history", "holdings", "official_company_notices", "fund_reports"],
+    recommended_for: ["current_nav", "nav_history", "fund_meta", "holdings", "fund_reports", "official_fund_reports", "official_evidence"],
+    access_method: "official website adapter: https://www.efunds.com.cn/fund/{fund_code}.shtml and https://cdn.efunds.com.cn/market/2.0/his/{fund_code}_all.js",
+    requires_auth: false,
+    is_demo: false,
+    integration_status: "implemented",
+    legal_note: "Use public official company pages/CDN files respectfully; cache and rate-limit. Cross-check report links against CSRC official disclosure when possible.",
+    priority: 7,
+    notes:
+      "Third per-company official adapter. It parses E Fund official product pages, official CDN NAV history, disclosed holdings, and announcement PDF links without treating PDF bodies as parsed report text."
+  },
+  {
     source_id: "eastmoney-fund",
     source_name: "东方财富/天天基金基金数据",
     source_type: "nav_history",

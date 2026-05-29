@@ -4,6 +4,7 @@ import { CsrcFundDisclosureProvider } from "./providers/csrcFundDisclosureProvid
 import { CsrcOfficialProvider } from "./providers/csrcOfficialProvider.js";
 import { CsrcPublicFundProductProvider } from "./providers/csrcPublicFundProductProvider.js";
 import { DemoFixtureProvider } from "./providers/demoFixtureProvider.js";
+import { EFundOfficialProvider } from "./providers/eFundOfficialProvider.js";
 import { EastMoneyFundAnnouncementProvider } from "./providers/eastMoneyFundAnnouncementProvider.js";
 import { EastMoneyFundArchiveProvider } from "./providers/eastMoneyFundArchiveProvider.js";
 import { EastMoneyFundProvider } from "./providers/eastMoneyFundProvider.js";
@@ -95,6 +96,7 @@ export class SourceRegistry {
       new EastMoneyFundAnnouncementProvider(),
       new CmfChinaFundOfficialProvider(),
       new HuaAnFundOfficialProvider(),
+      new EFundOfficialProvider(),
       new FundCompanyReportProvider(),
       new CninfoReportProvider(),
       new GovCnPolicyProvider(),
