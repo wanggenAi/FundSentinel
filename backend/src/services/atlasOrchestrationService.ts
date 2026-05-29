@@ -1,6 +1,7 @@
 import { AegisAgent, ArgusAgent, AtlasAgent, LogosAgent, NadirAgent, VegaAgent } from "../agents/index.js";
 import { SourceRegistry } from "../dataSources/index.js";
 import type { AgentInfo } from "../schemas/index.js";
+import { sanitizePublicStructure } from "../utils/publicText.js";
 import { AIGateway } from "./aiGateway.js";
 
 export class AtlasOrchestrationService {
@@ -21,7 +22,7 @@ export class AtlasOrchestrationService {
   }
 
   listPublicAgents(): AgentInfo[] {
-    return this.listAgents().map((agent) => this.publicAgentInfo(agent));
+    return sanitizePublicStructure(this.listAgents().map((agent) => this.publicAgentInfo(agent)));
   }
 
   private publicAgentInfo(agent: AgentInfo): AgentInfo {

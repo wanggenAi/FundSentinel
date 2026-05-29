@@ -13,7 +13,7 @@ import {
   type ProviderFundPayload
 } from "../src/dataSources/index.js";
 import type { FundAnalysisResponse } from "../src/schemas/index.js";
-import { DataSourceService, FundAnalysisService, HomeService, MockDataService, OpportunityService, PortfolioService, StrategyTriggerService } from "../src/services/index.js";
+import { AtlasOrchestrationService, DataSourceService, FundAnalysisService, HomeService, MockDataService, OpportunityService, PortfolioService, StrategyTriggerService } from "../src/services/index.js";
 
 test("default FundAnalysisResponse with live providers disabled is data unavailable, not fake analysis", async () => {
   const response = await new FundAnalysisService(new SourceRegistry({ enableLiveProviders: false })).analyzeFund("007951", "analysis-flow");
@@ -272,6 +272,18 @@ test("strategy trigger service sanitizes home action language and preserves prov
   assert.match(triggers[0]?.review_next_step ?? "", /观察主题|来源复核/);
   assert.match(alerts[0]?.review_next_step ?? "", /观察主题|来源复核/);
   assert.doesNotMatch(homeText, /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|must buy|guaranteed|risk[-\s]?free|买入|卖出|仓位|保证收益|无风险/iu);
+});
+
+test("atlas orchestration service sanitizes public agent catalog", () => {
+  const service = new AtlasOrchestrationService();
+  const internalAgents = service.listAgents();
+  const publicAgents = service.listPublicAgents();
+  const publicText = JSON.stringify(publicAgents);
+
+  assert.ok(internalAgents.some((agent) => JSON.stringify(agent).includes("trial_buy")));
+  assert.equal(publicAgents.find((agent) => agent.name === "Aegis")?.role, "Risk Review Agent");
+  assert.equal(publicAgents.find((agent) => agent.name === "Nadir")?.role, "Valuation Review Agent");
+  assert.doesNotMatch(publicText, /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位|保证收益|无风险/iu);
 });
 
 test("opportunity service does not fake candidates without real data", async () => {
