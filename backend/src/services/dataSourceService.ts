@@ -42,9 +42,24 @@ export class DataSourceService {
     };
   }
 
-  async gaps(fundCode: string): Promise<DataGapReport> {
+  async gaps(fundCode: string): Promise<
+    DataGapReport & {
+      data_status: string;
+      allow_downstream_analysis: boolean;
+      allow_strong_conclusion: boolean;
+      source_composition: {
+        authoritative: string[];
+        aggregator: string[];
+        manual: string[];
+        macro: string[];
+        demo: string[];
+        failed: string[];
+      };
+      acquisition_solutions: DataAcquisitionSolution[];
+    }
+  > {
     const analysis = await this.fundAnalysisService.analyzeFund(fundCode, `data-gap-${fundCode}`);
-    return (
+    const gapReport =
       analysis.data_pack.data_gap_report ?? {
         fund_code: fundCode,
         missing_data: [],
@@ -55,8 +70,16 @@ export class DataSourceService {
         recommended_solutions: [],
         created_by: "Argus",
         created_at: nowIso()
-      }
-    );
+      };
+    const { official_core_coverage: _officialCoreCoverage, ...sourceComposition } = analysis.data_pack.data_quality_report.source_composition;
+    return {
+      ...gapReport,
+      data_status: analysis.data_pack.data_status,
+      allow_downstream_analysis: analysis.data_pack.allow_downstream_analysis,
+      allow_strong_conclusion: analysis.data_pack.allow_strong_conclusion,
+      source_composition: sourceComposition,
+      acquisition_solutions: analysis.data_pack.acquisition_solutions
+    };
   }
 
   manualImportPlan(): {

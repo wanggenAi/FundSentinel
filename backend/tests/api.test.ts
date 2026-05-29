@@ -114,6 +114,9 @@ test("data source APIs are available", async () => {
   assert.equal(gapsResponse.statusCode, 200);
   assert.ok(gapsResponse.json().recommended_solutions.length > 0);
   assert.ok(gapsResponse.json().recommended_solutions.some((solution: string) => solution.includes("official_current_nav")));
+  assert.equal(gapsResponse.json().allow_strong_conclusion, false);
+  assert.ok(gapsResponse.json().acquisition_solutions[0].engineering_tasks.length > 0);
+  assert.ok(gapsResponse.json().acquisition_solutions[0].manual_workaround.length > 0);
   assert.equal(manualPlanResponse.statusCode, 200);
   assert.ok(manualPlanResponse.json().solutions[0].engineering_tasks.length > 0);
   assert.ok(manualPlanResponse.json().required_portfolio_json_fields.includes("holdings[].current_nav"));

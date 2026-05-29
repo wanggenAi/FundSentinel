@@ -345,6 +345,9 @@ test("DataSourceService returns gap and manual import plan", async () => {
   assert.ok(gap.missing_data.length > 0);
   assert.ok(gap.recommended_solutions.length > 0);
   assert.ok(Array.isArray(gap.failed_source_details));
+  assert.equal(gap.allow_strong_conclusion, false);
+  assert.ok(gap.acquisition_solutions[0].engineering_tasks.length > 0);
+  assert.ok(gap.acquisition_solutions[0].manual_workaround.length > 0);
   assert.ok(manualPlan.solutions[0].engineering_tasks.length > 0);
   assert.ok(manualPlan.required_portfolio_json_fields.includes("holdings[].holding_amount"));
   assert.ok(manualPlan.required_report_manifest_fields.includes("pdf_sha256"));
