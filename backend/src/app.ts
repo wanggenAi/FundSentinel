@@ -2,57 +2,13 @@ import cors from "@fastify/cors";
 import Fastify from "fastify";
 import type { FastifyBaseLogger, FastifyLoggerOptions } from "fastify";
 import { registerRoutes } from "./api/routes.js";
-
-const REDACTED_LOG_VALUE = "[REDACTED]";
+import { publicErrorMessage, redactSensitiveText, safeErrorLogFields, statusCodeForError } from "./utils/safeLogging.js";
 
 type RequestLogSerializer = NonNullable<NonNullable<FastifyLoggerOptions["serializers"]>["req"]>;
 type ErrorLogSerializer = NonNullable<NonNullable<FastifyLoggerOptions["serializers"]>["err"]>;
 
 interface BuildAppOptions {
   logger?: FastifyLoggerOptions;
-}
-
-function statusCodeForError(error: unknown): number {
-  const statusCode = typeof error === "object" && error !== null && "statusCode" in error ? error.statusCode : null;
-  return typeof statusCode === "number" && statusCode >= 400 && statusCode < 500 ? statusCode : 500;
-}
-
-function messageForError(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  const message = typeof error === "object" && error !== null && "message" in error ? error.message : null;
-  return typeof message === "string" && message.trim() ? message : "Request failed";
-}
-
-function redactSensitiveText(value: string): string {
-  return value
-    .replace(/([?&](?:api[_-]?key|token|access[_-]?token|secret|password|credential)=)[^&\s]*/giu, `$1${REDACTED_LOG_VALUE}`)
-    .replace(
-      /\b((?:api[_-]?key|token|access[_-]?token|secret|password|credential)\s*[:=]\s*)["']?[^"',\s}]*/giu,
-      `$1${REDACTED_LOG_VALUE}`
-    );
-}
-
-function publicErrorMessage(error: unknown, statusCode: number): string {
-  return statusCode >= 500 ? "Internal server error" : redactSensitiveText(messageForError(error));
-}
-
-function errorNameForLog(error: unknown): string {
-  const name = error instanceof Error ? error.name : typeof error === "object" && error !== null && "name" in error ? error.name : null;
-  return typeof name === "string" && name.trim() ? redactSensitiveText(name) : "UnknownError";
-}
-
-function errorCodeForLog(error: unknown): string | undefined {
-  const code = typeof error === "object" && error !== null && "code" in error ? error.code : null;
-  if (typeof code !== "string" && typeof code !== "number") return undefined;
-  return redactSensitiveText(String(code));
-}
-
-export function safeErrorLogFields(error: unknown, statusCode = statusCodeForError(error)) {
-  return {
-    error_name: errorNameForLog(error),
-    error_code: errorCodeForLog(error),
-    error_message: publicErrorMessage(error, statusCode)
-  };
 }
 
 const requestLogSerializer: RequestLogSerializer = (request) => ({
@@ -64,7 +20,7 @@ const requestLogSerializer: RequestLogSerializer = (request) => ({
 });
 
 const errorLogSerializer: ErrorLogSerializer = (error) => ({
-  type: errorNameForLog(error),
+  type: safeErrorLogFields(error).error_name,
   message: publicErrorMessage(error, statusCodeForError(error)),
   stack: ""
 });
