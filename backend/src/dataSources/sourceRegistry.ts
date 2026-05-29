@@ -15,6 +15,7 @@ import { EurostatProvider } from "./providers/eurostatProvider.js";
 import { FredMacroProvider } from "./providers/fredMacroProvider.js";
 import { FundCompanyReportProvider } from "./providers/fundCompanyReportProvider.js";
 import { GovCnPolicyProvider } from "./providers/govCnPolicyProvider.js";
+import { HarvestFundOfficialProvider } from "./providers/harvestFundOfficialProvider.js";
 import { HkexOfficialProvider } from "./providers/hkexOfficialProvider.js";
 import { HuaAnFundOfficialProvider } from "./providers/huaAnFundOfficialProvider.js";
 import { ImfDataMapperProvider } from "./providers/imfDataMapperProvider.js";
@@ -104,6 +105,7 @@ export class SourceRegistry {
       new HuaAnFundOfficialProvider(),
       new EFundOfficialProvider(),
       new ChinaAmcOfficialProvider(),
+      new HarvestFundOfficialProvider(),
       new FundCompanyReportProvider(),
       new CninfoReportProvider(),
       new GovCnPolicyProvider(),

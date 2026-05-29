@@ -96,7 +96,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     integration_status: "planned",
     legal_note: "Company sites differ; adapters need per-site maintenance and source timestamps.",
     priority: 5,
-    notes: "Useful cross-check source; requires many adapters."
+    notes: "Useful cross-check source; concrete adapters now include CMF China, HuaAn, E Fund, ChinaAMC, and Harvest; broader company coverage still requires many maintained adapters."
   },
   {
     source_id: "fund-company-report",
@@ -181,6 +181,24 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     priority: 7,
     notes:
       "Fourth per-company official adapter. It handles ChinaAMC GBK/UTF-8 pages, parses official NAV rows, asset-composition holdings, announcement detail pages, and PDF metadata without treating PDF bodies as parsed report text."
+  },
+  {
+    source_id: "harvestfund-official",
+    source_name: "嘉实基金官网官方净值与披露",
+    source_type: "fund_company",
+    quality_tier: "authoritative",
+    stability: "medium",
+    coverage: ["fund_meta", "current_nav", "nav_history"],
+    recommended_for: ["current_nav", "nav_history", "fund_meta", "official_evidence"],
+    access_method:
+      "official website adapter: https://www.jsfund.cn/main/fund/{fund_code}/fundManager.shtml plus /Services/cn/jsp/product/DetailList.jsp and NavHistory.jsp",
+    requires_auth: false,
+    is_demo: false,
+    integration_status: "implemented",
+    legal_note: "Use public official company pages respectfully; cache and rate-limit. Do not use login, account, payment, or transaction paths.",
+    priority: 7,
+    notes:
+      "Fifth per-company official adapter. It parses Harvest Fund official product pages, the current NAV list, and the NAV history table; it does not parse holdings, report PDF bodies, or transaction features."
   },
   {
     source_id: "eastmoney-fund",
@@ -618,7 +636,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     integration_status: "planned",
     legal_note: "Each adapter must respect website terms, rate-limit, and keep source URLs.",
     priority: 60,
-    notes: "Planned expansion path after the first CMF China official adapter."
+    notes: "Planned expansion path after the first five fund-company adapters; each new site still needs explicit official URL parsing and tests."
   },
   {
     source_id: "chinafund-com-cn",
