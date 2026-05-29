@@ -127,7 +127,7 @@ test("ManualOfficialReportProvider rejects invalid calendar publication dates", 
   );
 });
 
-test("Argus accepts manual official report import as verified official report coverage", async () => {
+test("Argus keeps manual official report import as audited fallback without official core coverage", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "fundsentinel-argus-manual-report-"));
   try {
     const sha256 = createHash("sha256").update(pdfBytes).digest("hex");
@@ -143,9 +143,10 @@ test("Argus accepts manual official report import as verified official report co
 
     assert.equal(dataPack.is_mock, false);
     assert.equal(result.is_mock, false);
-    assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.fund_reports, true);
+    assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.fund_reports, false);
     assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("fund_reports"), false);
-    assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), false);
+    assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), true);
+    assert.ok(dataPack.data_gap_report?.recommended_solutions.some((solution) => solution.includes("official_fund_reports 缺口要求官方披露定期报告 PDF 通过元数据校验")));
     const manualSource = dataPack.data_sources.find((source) => source.source_id === "manual-official-report-import");
     assert.equal(manualSource?.success, true);
     assert.equal((manualSource?.manual_report_import_audit as { verified_pdf_count?: number } | undefined)?.verified_pdf_count, 1);

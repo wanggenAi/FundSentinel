@@ -696,6 +696,7 @@ export class ArgusAgent extends BaseAgent {
 
   private hasAuthoritativeFundReportDocument(results: Array<DataProviderResult<ProviderFundPayload>>): boolean {
     return results.some((result) =>
+      result.source_type !== "manual_import" &&
       result.trust_level === "A" &&
       result.data?.fund_report_documents?.some(
         (document) =>

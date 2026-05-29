@@ -531,7 +531,7 @@ export class SourceRegistry {
       return "强结论需要官方/授权历史净值序列支撑低位和拐点判断；聚合历史净值只能作为交叉校验或弱分析输入。";
     }
     if (requirement === "official_fund_reports") {
-      return "强结论需要官方披露的定期报告正文或官方 PDF 元数据；聚合索引和报告提示公告只能支持 partial。协调器只复用已校验官方 PDF 元数据，不单独计作外部来源覆盖。";
+      return "强结论需要自动官方/授权 provider 获取的定期报告正文或官方 PDF 元数据；聚合索引、报告提示公告和人工导入只能支持 partial。协调器只复用已校验官方 PDF 元数据，不单独计作外部来源覆盖。";
     }
     if (gapLevel === "covered") return "已有权威 provider 接入，但仍应做缓存、重试和交叉校验。";
     if (gapLevel === "partial") return "已有 provider 可支撑弱结论，需要补官方或授权来源。";

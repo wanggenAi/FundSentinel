@@ -302,10 +302,10 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     source_id: "manual-official-report-import",
     source_name: "人工官方报告 PDF 导入",
     source_type: "manual_import",
-    quality_tier: "authoritative",
+    quality_tier: "high",
     stability: "high",
-    coverage: ["fund_reports", "official_fund_reports", "official_pdf_metadata"],
-    recommended_for: ["fund_reports", "official_fund_reports", "official_evidence", "manual_workaround"],
+    coverage: ["fund_reports", "manual_official_pdf_metadata"],
+    recommended_for: ["fund_reports", "manual_official_report_workaround", "official_evidence_review"],
     access_method: "verified local PDF manifest via FUNDSENTINEL_MANUAL_REPORT_DIR",
     requires_auth: false,
     is_demo: false,
@@ -313,7 +313,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     legal_note: "Requires official source URL, local PDF file, SHA256 checksum, import timestamp, and operator/source audit trail.",
     priority: 21,
     notes:
-      "Implemented as explicit local manifest fallback for official report PDFs when automated official sites are blocked or coverage is incomplete. It verifies PDF file signature and SHA256 but does not parse report body text."
+      "Implemented as explicit local manifest fallback for official report PDFs when automated official sites are blocked or coverage is incomplete. It verifies PDF file signature and SHA256, keeps manual audit metadata, and does not count as automated official core coverage."
   },
   {
     source_id: "gov-cn-policy",
