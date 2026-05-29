@@ -4,12 +4,16 @@ import { z } from "zod";
 import { AtlasOrchestrationService, DataSourceService, FundAnalysisService, HomeService, OpportunityService } from "../services/index.js";
 import { nowIso } from "../schemas/index.js";
 
+const fundIdentifierSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .regex(/^(?:\d{1,10}|CIK\d{1,10}|[A-Za-z][A-Za-z0-9.-]{0,9})$/u, "Fund identifier must be a fund code, SEC CIK, or ticker-like symbol.");
+
 const analyzeRequestSchema = z.object({
-  fund_code: z.string().trim().min(1),
+  fund_code: fundIdentifierSchema,
   user_request: z.string().trim().min(1)
 });
-
-const fundIdentifierSchema = z.string().trim().min(1);
 
 function taskIdForAnalyzeRequest(fundCode: string, userRequest: string): string {
   const requestHash = createHash("sha256").update(userRequest.trim()).digest("hex").slice(0, 12);

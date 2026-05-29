@@ -130,6 +130,25 @@ test("API fund identifier routes reject blank identifiers without mock data mark
   assert.equal(gapResponse.json().is_mock, false);
 });
 
+test("API fund identifier routes reject unsafe identifier characters", async () => {
+  const app = await buildApp();
+  const postResponse = await app.inject({
+    method: "POST",
+    url: "/api/analyze",
+    payload: { fund_code: "007951/../../x", user_request: "review" }
+  });
+  const analysisResponse = await app.inject({ method: "GET", url: "/api/funds/007951%2F..%2F..%2Fx/analysis" });
+  const gapResponse = await app.inject({ method: "GET", url: "/api/data-sources/gaps/007951%2F..%2F..%2Fx" });
+  await app.close();
+
+  assert.equal(postResponse.statusCode, 400);
+  assert.equal(postResponse.json().is_mock, false);
+  assert.equal(analysisResponse.statusCode, 400);
+  assert.equal(analysisResponse.json().is_mock, false);
+  assert.equal(gapResponse.statusCode, 400);
+  assert.equal(gapResponse.json().is_mock, false);
+});
+
 test("data source APIs are available", async () => {
   const app = await buildApp();
   const sourcesResponse = await app.inject({ method: "GET", url: "/api/data-sources" });
