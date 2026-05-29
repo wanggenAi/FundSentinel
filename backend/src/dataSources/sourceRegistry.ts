@@ -64,6 +64,8 @@ const defaultSharedState: SharedRegistryState = {
   resultCache: new Map<string, CachedProviderResult>()
 };
 
+const COORDINATOR_SOURCE_IDS = new Set(["fund-company-report"]);
+
 export class SourceRegistry {
   private readonly providers: Array<DataProvider<FundDataSourceInput, ProviderFundPayload>>;
   private readonly sourceStates: Map<string, DataSourceInfo>;
@@ -158,6 +160,7 @@ export class SourceRegistry {
     requirement: DataRequirement | "official_current_nav" | "official_nav_history" | "official_fund_reports" | "benchmark";
     source_ids: string[];
     implemented_source_ids: string[];
+    coordinator_source_ids: string[];
     authoritative_source_ids: string[];
     needs_license_source_ids: string[];
     gap_level: "covered" | "partial" | "missing" | "requires_license";
@@ -197,8 +200,10 @@ export class SourceRegistry {
         (source) =>
           source.integration_status === "implemented" &&
           !source.is_demo &&
+          !COORDINATOR_SOURCE_IDS.has(source.source_id) &&
           (requirement !== "macro_data" || source.source_type === "macro_data" || source.coverage.includes("macro_data"))
       );
+      const coordinators = matching.filter((source) => source.integration_status === "implemented" && COORDINATOR_SOURCE_IDS.has(source.source_id));
       const authoritative = matching.filter((source) => source.quality_tier === "authoritative");
       const needsLicense = matching.filter((source) => source.integration_status === "requires_license");
       let gapLevel: "covered" | "partial" | "missing" | "requires_license" = "missing";
@@ -211,6 +216,7 @@ export class SourceRegistry {
         requirement,
         source_ids: matching.map((source) => source.source_id),
         implemented_source_ids: implemented.map((source) => source.source_id),
+        coordinator_source_ids: coordinators.map((source) => source.source_id),
         authoritative_source_ids: authoritative.map((source) => source.source_id),
         needs_license_source_ids: needsLicense.map((source) => source.source_id),
         gap_level: gapLevel,
@@ -525,7 +531,7 @@ export class SourceRegistry {
       return "强结论需要官方/授权历史净值序列支撑低位和拐点判断；聚合历史净值只能作为交叉校验或弱分析输入。";
     }
     if (requirement === "official_fund_reports") {
-      return "强结论需要官方披露的定期报告正文或官方 PDF 元数据；聚合索引和报告提示公告只能支持 partial。";
+      return "强结论需要官方披露的定期报告正文或官方 PDF 元数据；聚合索引和报告提示公告只能支持 partial。协调器只复用已校验官方 PDF 元数据，不单独计作外部来源覆盖。";
     }
     if (gapLevel === "covered") return "已有权威 provider 接入，但仍应做缓存、重试和交叉校验。";
     if (gapLevel === "partial") return "已有 provider 可支撑弱结论，需要补官方或授权来源。";
