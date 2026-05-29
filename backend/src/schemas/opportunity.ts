@@ -11,9 +11,9 @@ export interface OpportunityCandidate {
   current_nav: number;
   daily_return: number;
   hard_logic_score: number;
-  low_position_score: number;
+  low_nav_score: number;
   turning_point_score: number;
-  risk_position_score: number;
+  risk_review_score: number;
   overall_opportunity_score: number;
   review_status: OpportunityReviewStatus;
   confidence: number;

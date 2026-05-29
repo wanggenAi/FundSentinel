@@ -176,6 +176,10 @@ test("opportunity service uses configured real universe and preserves real candi
   assert.equal(response.candidates[0]?.is_mock, false);
   assert.equal(response.candidates[0]?.review_status, "observe");
   assert.equal("action" in response.candidates[0]!, false);
+  assert.equal("low_position_score" in response.candidates[0]!, false);
+  assert.equal("risk_position_score" in response.candidates[0]!, false);
+  assert.equal(typeof response.candidates[0]?.low_nav_score, "number");
+  assert.equal(typeof response.candidates[0]?.risk_review_score, "number");
   assert.match(response.summary, /不代表交易或买卖动作/);
   assert.ok(response.candidates[0]?.key_evidence.some((item) => item.is_mock === false));
   assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
