@@ -125,6 +125,61 @@ test("API internal errors return non-mock generic envelope", async () => {
   assert.equal(response.json().is_mock, false);
 });
 
+test("API internal errors redact sensitive details from responses and logs", async () => {
+  const logs: string[] = [];
+  const app = await buildApp({
+    logger: {
+      level: "error",
+      stream: {
+        write: (message) => logs.push(message)
+      }
+    }
+  });
+  app.get("/__test/redacted-internal-error", async () => {
+    throw new Error("provider failed api_key=secret-test-key token=secret-token");
+  });
+  const response = await app.inject({ method: "GET", url: "/__test/redacted-internal-error?api_key=query-secret" });
+  await app.close();
+
+  const logText = logs.join("\n");
+  assert.equal(response.statusCode, 500);
+  assert.equal(response.json().error, "Internal server error");
+  assert.equal(response.json().is_mock, false);
+  assert.doesNotMatch(JSON.stringify(response.json()), /secret-test-key|secret-token|query-secret|provider failed/u);
+  assert.doesNotMatch(logText, /secret-test-key|secret-token|query-secret|provider failed/u);
+  assert.match(logText, /Internal server error/u);
+  assert.match(logText, /api_key=\[REDACTED\]/u);
+});
+
+test("API client errors redact sensitive details without hiding validation context", async () => {
+  const logs: string[] = [];
+  const app = await buildApp({
+    logger: {
+      level: "error",
+      stream: {
+        write: (message) => logs.push(message)
+      }
+    }
+  });
+  app.get("/__test/redacted-client-error", async () => {
+    const error = new Error("provider rejected api_key=secret-client-key token=secret-client-token");
+    (error as Error & { statusCode: number }).statusCode = 400;
+    throw error;
+  });
+  const response = await app.inject({ method: "GET", url: "/__test/redacted-client-error?access_token=query-access-token" });
+  await app.close();
+
+  const logText = logs.join("\n");
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().error, "provider rejected api_key=[REDACTED] token=[REDACTED]");
+  assert.equal(response.json().is_mock, false);
+  assert.doesNotMatch(JSON.stringify(response.json()), /secret-client-key|secret-client-token|query-access-token/u);
+  assert.doesNotMatch(logText, /secret-client-key|secret-client-token|query-access-token/u);
+  assert.match(logText, /api_key=\[REDACTED\]/u);
+  assert.match(logText, /token=\[REDACTED\]/u);
+  assert.match(logText, /access_token=\[REDACTED\]/u);
+});
+
 test("API analyze trims request identifiers before tracing", async () => {
   const app = await buildApp();
   const userRequest = "  request with whitespace  ";
