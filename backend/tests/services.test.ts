@@ -712,6 +712,28 @@ test("SourceRegistry retries transient provider failures but does not cache fail
   assert.equal(health?.last_attempt_count, 2);
 });
 
+test("SourceRegistry redacts sensitive provider result strings before caching or exposing them", async () => {
+  const provider = new SensitiveProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
+  const input = { fund_code: "007951", required_data: ["macro_data"], demo_mode: false };
+
+  const first = (await registry.fetchAll(input))[0];
+  const second = (await registry.fetchAll(input))[0];
+  const serialized = JSON.stringify([first, second]);
+
+  assert.equal(first.success, true);
+  assert.equal(second.cache_hit, true);
+  assert.doesNotMatch(serialized, /raw-secret|macro-secret|report-ref-secret|detail-secret|pdf-secret|warning-secret|error-secret/u);
+  assert.match(first.raw_reference ?? "", /api_key=\[REDACTED\]/u);
+  assert.match(first.data?.macro_indicators?.[0]?.source_url ?? "", /credential=\[REDACTED\]/u);
+  assert.match(first.data?.fund_report_refs?.[0] ?? "", /access_token=\[REDACTED\]/u);
+  assert.match(first.data?.fund_report_documents?.[0]?.detail_url ?? "", /token=\[REDACTED\]/u);
+  assert.match(first.data?.fund_report_documents?.[0]?.pdf_url ?? "", /api_key=\[REDACTED\]/u);
+  assert.match(first.warnings[0] ?? "", /Bearer \[REDACTED\]/u);
+  assert.match(first.error ?? "", /password=\[REDACTED\]/u);
+  assert.doesNotMatch(JSON.stringify(second), /raw-secret|macro-secret|report-ref-secret|detail-secret|pdf-secret|warning-secret|error-secret/u);
+});
+
 test("SourceRegistry health recovers after a later provider success", async () => {
   const provider = new RecoveringProvider();
   const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 0, retryCount: 0 });
@@ -1042,5 +1064,73 @@ class AlwaysFailProvider implements DataProvider<FundDataSourceInput, ProviderFu
   async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
     this.callCount += 1;
     return providerResult("always-fail-provider", false);
+  }
+}
+
+class SensitiveProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("sensitive-provider"),
+      source_name: "Sensitive Fixture Provider",
+      source_type: "macro_data",
+      trust_level: "A",
+      priority: 1
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "sensitive-provider",
+      source_name: "Sensitive Fixture Provider",
+      source_type: "macro_data",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        macro_indicators: [
+          {
+            country_code: "US",
+            country_name: "United States",
+            indicator_id: "TEST",
+            indicator_name: "Sensitive Test Indicator",
+            value: 1,
+            date: "2026",
+            unit: "percent",
+            source_url: "https://macro.example.test/series?credential=macro-secret",
+            source_name: "Sensitive Fixture Provider",
+            fetched_at: "2026-05-28T00:00:00.000Z"
+          }
+        ],
+        fund_report_refs: ["report url=https://reports.example.test/report.pdf?access_token=report-ref-secret"],
+        fund_report_documents: [
+          {
+            title: "Sensitive Report",
+            announcement_id: "sensitive-report",
+            published_at: "2026-04-22",
+            category: null,
+            document_kind: "periodic_report",
+            detail_url: "https://reports.example.test/detail?token=detail-secret",
+            pdf_url: "https://reports.example.test/report.pdf?api_key=pdf-secret",
+            pdf_verified: true,
+            pdf_content_type: "application/pdf",
+            pdf_content_length: 1024,
+            source_name: "Sensitive Fixture Provider",
+            source_type: "official_disclosure",
+            trust_level: "A"
+          }
+        ]
+      },
+      raw_reference: "https://provider.example.test/nav?api_key=raw-secret",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: ["authorization: Bearer warning-secret"],
+      error: "client warning password=error-secret",
+      is_demo: false
+    };
   }
 }

@@ -22,6 +22,13 @@ export function redactSensitiveText(value: string): string {
     .replace(new RegExp(`\\b(${SECRET_KEY_PATTERN}\\s*[:=]\\s*)["']?[^"',&\\s}]*`, "giu"), `$1${REDACTED_LOG_VALUE}`);
 }
 
+export function redactSensitiveStrings<T>(value: T): T {
+  if (typeof value === "string") return redactSensitiveText(value) as T;
+  if (Array.isArray(value)) return value.map((item) => redactSensitiveStrings(item)) as T;
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, redactSensitiveStrings(entry)])) as T;
+}
+
 export function publicErrorMessage(error: unknown, statusCode: number): string {
   return statusCode >= 500 ? "Internal server error" : redactSensitiveText(messageForError(error));
 }

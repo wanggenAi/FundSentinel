@@ -37,6 +37,7 @@ import type { DataProviderResult, DataSourceCatalogEntry, DataSourceInfo, FundDa
 import { listDataSourceCatalog } from "./sourceCatalog.js";
 import { nowIso } from "../schemas/index.js";
 import type { DataRequirement } from "../schemas/index.js";
+import { redactSensitiveStrings } from "../utils/safeLogging.js";
 
 export interface SourceRegistryOptions {
   demoMode?: boolean;
@@ -413,7 +414,7 @@ export class SourceRegistry {
     cacheHit: boolean,
     cacheExpiresAt: string | null
   ): DataProviderResult<ProviderFundPayload> {
-    return {
+    return redactSensitiveStrings({
       ...result,
       warnings: [...result.warnings],
       attempt_count: attemptCount,
@@ -421,7 +422,7 @@ export class SourceRegistry {
       cache_hit: cacheHit,
       cache_expires_at: cacheExpiresAt,
       skipped_by_circuit_breaker: false
-    };
+    });
   }
 
   private circuitResultFor(info: DataSourceInfo, startedAt: number): DataProviderResult<ProviderFundPayload> | null {

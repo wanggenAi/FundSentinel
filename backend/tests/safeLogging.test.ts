@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { publicErrorMessage, redactSensitiveText, safeStartupLogFields, statusCodeForError } from "../src/utils/safeLogging.js";
+import { publicErrorMessage, redactSensitiveStrings, redactSensitiveText, safeStartupLogFields, statusCodeForError } from "../src/utils/safeLogging.js";
 
 test("safe logging redacts query credentials and bearer tokens", () => {
   const text =
@@ -24,6 +24,34 @@ test("safe logging hides server errors while preserving redacted client errors",
   assert.equal(publicErrorMessage(serverError, 500), "Internal server error");
   assert.equal(statusCodeForError(clientError), 400);
   assert.equal(publicErrorMessage(clientError, 400), "bad request token=[REDACTED]");
+});
+
+test("safe logging recursively redacts provider payload strings", () => {
+  const payload = {
+    raw_reference: "https://provider.test/nav?api_key=raw-secret",
+    data: {
+      fund_report_documents: [
+        {
+          detail_url: "https://provider.test/detail?token=detail-secret",
+          pdf_url: "https://provider.test/report.pdf?access_token=pdf-secret"
+        }
+      ],
+      macro_indicators: [{ source_url: "https://provider.test/macro?credential=macro-secret" }]
+    },
+    warnings: ["authorization: Bearer warning-secret"],
+    error: "upstream password=error-secret"
+  };
+
+  const redacted = redactSensitiveStrings(payload);
+  const serialized = JSON.stringify(redacted);
+
+  assert.doesNotMatch(serialized, /raw-secret|detail-secret|pdf-secret|macro-secret|warning-secret|error-secret/u);
+  assert.match(serialized, /api_key=\[REDACTED\]/u);
+  assert.match(serialized, /token=\[REDACTED\]/u);
+  assert.match(serialized, /access_token=\[REDACTED\]/u);
+  assert.match(serialized, /credential=\[REDACTED\]/u);
+  assert.match(serialized, /Bearer \[REDACTED\]/u);
+  assert.match(serialized, /password=\[REDACTED\]/u);
 });
 
 test("safe startup log fields do not include raw startup exception secrets", () => {
