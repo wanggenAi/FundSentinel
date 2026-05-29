@@ -97,6 +97,7 @@ export class AtlasAgent extends BaseAgent {
       ([name, result]) => ["Argus", "Logos", "Nadir", "Vega", "Aegis"].includes(name) && result.status === "failed"
     );
     if (criticalFailed && ["trial_buy", "staged_buy"].includes(action)) action = "observe";
+    if (!dataPack.allow_strong_conclusion && action !== "observe") action = "observe";
 
     const overallScore = Number(aegis?.score ?? 0);
     let riskLevel: RiskLevel = "low";
@@ -115,6 +116,7 @@ export class AtlasAgent extends BaseAgent {
         aegis?.summary ?? "Aegis 未输出。"
       ],
       risk_warnings: [
+        ...(!dataPack.allow_strong_conclusion ? ["Argus 未允许强结论；Atlas 已将内部状态降级为 observe，仅保留证据复核。"] : []),
         dataPack.data_status === "demo"
           ? "当前结论基于 demo fixture 数据，仅用于产品与后端流程验证。"
           : "当前结论依赖 Argus 获取的数据质量，必须保留来源追溯和降级规则。",

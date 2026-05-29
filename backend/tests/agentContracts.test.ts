@@ -182,3 +182,54 @@ test("critical failed agent prevents aggressive Atlas decision", () => {
 
   assert.ok(!["trial_buy", "staged_buy"].includes(decision.action));
 });
+
+test("Atlas downgrades aggressive action when Argus blocks strong conclusions", () => {
+  const dataPack = new MockDataService().getFundDataPack("007951");
+  dataPack.is_mock = false;
+  dataPack.data_status = "partial";
+  dataPack.allow_downstream_analysis = true;
+  dataPack.allow_strong_conclusion = false;
+  dataPack.data_quality = {
+    ...dataPack.data_quality,
+    is_mock: false,
+    level: "medium",
+    score: 0.68
+  };
+  dataPack.data_quality_report = {
+    ...dataPack.data_quality_report,
+    data_status: "partial",
+    allow_downstream_analysis: true,
+    allow_strong_conclusion: false,
+    missing_core_fields: [],
+    missing_auxiliary_fields: ["official_fund_reports"]
+  };
+  const good: AgentResult = {
+    agent_name: "Logos",
+    agent_role: "test",
+    agent_version: "0.1",
+    task_id: "strong-block",
+    fund_code: dataPack.fund_code,
+    status: "success",
+    score: 90,
+    confidence: 0.9,
+    summary: "strong",
+    evidence: [],
+    metrics: {},
+    warnings: [],
+    next_suggestions: [],
+    created_at: new Date().toISOString(),
+    is_mock: false
+  };
+  const decision = new AtlasAgent().buildFinalDecision(dataPack, {
+    Argus: { ...good, agent_name: "Argus" },
+    Logos: good,
+    Nadir: { ...good, agent_name: "Nadir" },
+    Vega: { ...good, agent_name: "Vega" },
+    Aegis: { ...good, agent_name: "Aegis", score: 88, metrics: { action: "staged_buy", overall_score: 88 } }
+  });
+
+  assert.equal(decision.action, "observe");
+  assert.equal(decision.risk_level, "medium");
+  assert.ok(decision.risk_warnings.some((warning) => warning.includes("Argus 未允许强结论")));
+  assert.doesNotMatch(JSON.stringify(decision), /买入|卖出|仓位/u);
+});
