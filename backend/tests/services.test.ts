@@ -493,19 +493,28 @@ test("runtime data source descriptions stay in data-coverage language", () => {
 
 test("SourceRegistry coverage matrix distinguishes implemented and gap requirements", () => {
   const coverage = new SourceRegistry({ enableLiveProviders: false }).coverageMatrix();
+  const fundMeta = coverage.find((item) => item.requirement === "fund_meta");
+  const currentNav = coverage.find((item) => item.requirement === "current_nav");
   const officialReports = coverage.find((item) => item.requirement === "official_fund_reports");
   const officialCurrentNav = coverage.find((item) => item.requirement === "official_current_nav");
   const officialNavHistory = coverage.find((item) => item.requirement === "official_nav_history");
   const navHistory = coverage.find((item) => item.requirement === "nav_history");
+  const holdings = coverage.find((item) => item.requirement === "holdings");
+  const fundReports = coverage.find((item) => item.requirement === "fund_reports");
   const macroData = coverage.find((item) => item.requirement === "macro_data");
   const social = coverage.find((item) => item.requirement === "social_sentiment");
   const industryNews = coverage.find((item) => item.requirement === "industry_news");
 
+  assert.equal(fundMeta?.implemented_source_ids.includes("manual-csv-import"), false);
+  assert.ok(fundMeta?.manual_source_ids.includes("manual-csv-import"));
+  assert.equal(currentNav?.implemented_source_ids.includes("manual-csv-import"), false);
+  assert.ok(currentNav?.manual_source_ids.includes("manual-csv-import"));
   assert.ok(officialReports?.source_ids.includes("csrc-fund-disclosure"));
   assert.ok(officialReports?.implemented_source_ids.includes("csrc-fund-disclosure"));
   assert.equal(officialReports?.implemented_source_ids.includes("fund-company-report"), false);
   assert.equal(officialReports?.source_ids.includes("manual-official-report-import"), false);
   assert.equal(officialReports?.implemented_source_ids.includes("manual-official-report-import"), false);
+  assert.equal(officialReports?.manual_source_ids.includes("manual-official-report-import"), false);
   assert.ok(officialReports?.coordinator_source_ids.includes("fund-company-report"));
   assert.ok(officialReports?.implemented_source_ids.includes("fullgoal-fund-official"));
   assert.ok(officialReports?.implemented_source_ids.includes("sec-edgar"));
@@ -524,6 +533,12 @@ test("SourceRegistry coverage matrix distinguishes implemented and gap requireme
   assert.equal(officialNavHistory?.gap_level, "covered");
   assert.ok(navHistory?.implemented_source_ids.includes("eastmoney-fund"));
   assert.ok(navHistory?.implemented_source_ids.includes("eastmoney-nav-history"));
+  assert.equal(navHistory?.implemented_source_ids.includes("manual-csv-import"), false);
+  assert.ok(navHistory?.manual_source_ids.includes("manual-csv-import"));
+  assert.equal(holdings?.implemented_source_ids.includes("manual-csv-import"), false);
+  assert.ok(holdings?.manual_source_ids.includes("manual-csv-import"));
+  assert.equal(fundReports?.implemented_source_ids.includes("manual-official-report-import"), false);
+  assert.ok(fundReports?.manual_source_ids.includes("manual-official-report-import"));
   assert.ok(macroData?.source_ids.includes("stats-gov-cn"));
   assert.ok(macroData?.source_ids.includes("mof-official"));
   assert.ok(macroData?.source_ids.includes("safe-official"));

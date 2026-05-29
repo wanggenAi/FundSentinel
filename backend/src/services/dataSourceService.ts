@@ -29,7 +29,8 @@ export class DataSourceService {
     return {
       strategy: "real-data-first",
       generated_at: nowIso(),
-      note: "Coverage matrix shows whether Argus has implemented providers for each data requirement. Planned sources are not counted as integrated.",
+      note:
+        "Coverage matrix shows whether Argus has implemented default providers for each data requirement. Planned sources and explicit manual-import fallbacks are not counted as integrated default coverage.",
       coverage: this.sourceRegistry.coverageMatrix()
     };
   }

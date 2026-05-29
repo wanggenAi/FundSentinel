@@ -161,6 +161,7 @@ export class SourceRegistry {
     source_ids: string[];
     implemented_source_ids: string[];
     coordinator_source_ids: string[];
+    manual_source_ids: string[];
     authoritative_source_ids: string[];
     needs_license_source_ids: string[];
     gap_level: "covered" | "partial" | "missing" | "requires_license";
@@ -201,9 +202,11 @@ export class SourceRegistry {
           source.integration_status === "implemented" &&
           !source.is_demo &&
           !COORDINATOR_SOURCE_IDS.has(source.source_id) &&
+          source.source_type !== "manual_import" &&
           (requirement !== "macro_data" || source.source_type === "macro_data" || source.coverage.includes("macro_data"))
       );
       const coordinators = matching.filter((source) => source.integration_status === "implemented" && COORDINATOR_SOURCE_IDS.has(source.source_id));
+      const manualSources = matching.filter((source) => source.source_type === "manual_import" && !source.is_demo);
       const authoritative = matching.filter((source) => source.quality_tier === "authoritative");
       const needsLicense = matching.filter((source) => source.integration_status === "requires_license");
       let gapLevel: "covered" | "partial" | "missing" | "requires_license" = "missing";
@@ -217,6 +220,7 @@ export class SourceRegistry {
         source_ids: matching.map((source) => source.source_id),
         implemented_source_ids: implemented.map((source) => source.source_id),
         coordinator_source_ids: coordinators.map((source) => source.source_id),
+        manual_source_ids: manualSources.map((source) => source.source_id),
         authoritative_source_ids: authoritative.map((source) => source.source_id),
         needs_license_source_ids: needsLicense.map((source) => source.source_id),
         gap_level: gapLevel,
