@@ -44,6 +44,7 @@ export class DataSourceService {
 
   async gaps(fundCode: string): Promise<
     DataGapReport & {
+      is_mock: boolean;
       data_status: string;
       allow_downstream_analysis: boolean;
       allow_strong_conclusion: boolean;
@@ -66,6 +67,7 @@ export class DataSourceService {
       };
     return {
       ...gapReport,
+      is_mock: analysis.is_mock || analysis.data_pack.is_mock,
       data_status: analysis.data_pack.data_status,
       allow_downstream_analysis: analysis.data_pack.allow_downstream_analysis,
       allow_strong_conclusion: analysis.data_pack.allow_strong_conclusion,

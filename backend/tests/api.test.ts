@@ -190,6 +190,7 @@ test("data source APIs are available", async () => {
       .sources.some((source: { source_id: string; cache_entries: number; last_attempt_count: number }) => source.source_id === "csrc-fund-disclosure" && "cache_entries" in source)
   );
   assert.equal(gapsResponse.statusCode, 200);
+  assert.equal(gapsResponse.json().is_mock, false);
   assert.ok(gapsResponse.json().recommended_solutions.length > 0);
   assert.ok(gapsResponse.json().recommended_solutions.some((solution: string) => solution.includes("official_current_nav")));
   assert.equal(gapsResponse.json().allow_strong_conclusion, false);
