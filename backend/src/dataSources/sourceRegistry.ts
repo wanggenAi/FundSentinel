@@ -511,7 +511,7 @@ export class SourceRegistry {
     if (source.is_demo) return "demo_only";
     if (!source.enabled) return "disabled";
     if (this.cooldownRemainingMs(source) > 0) return "cooldown";
-    return source.failure_count > 0 ? "failing" : "healthy";
+    return source.consecutive_failure_count > 0 ? "failing" : "healthy";
   }
 
   private coverageNoteFor(

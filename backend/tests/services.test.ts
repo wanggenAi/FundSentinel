@@ -395,6 +395,22 @@ test("SourceRegistry retries transient provider failures but does not cache fail
   assert.equal(health?.last_attempt_count, 2);
 });
 
+test("SourceRegistry health recovers after a later provider success", async () => {
+  const provider = new RecoveringProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 0, retryCount: 0 });
+  const input = { fund_code: "007951", required_data: ["fund_meta"], demo_mode: false };
+
+  const first = (await registry.fetchAll(input))[0];
+  const second = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "recovering-provider");
+
+  assert.equal(first.success, false);
+  assert.equal(second.success, true);
+  assert.equal(health?.failure_count, 1);
+  assert.equal(health?.consecutive_failure_count, 0);
+  assert.equal(health?.health_status, "healthy");
+});
+
 test("SourceRegistry converts uncaught provider exceptions into failed results", async () => {
   const provider = new ThrowingProvider();
   const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 0, retryCount: 0 });
@@ -630,6 +646,23 @@ class FlakyProvider implements DataProvider<FundDataSourceInput, ProviderFundPay
   async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
     this.callCount += 1;
     return providerResult("flaky-provider", this.callCount > 1);
+  }
+}
+
+class RecoveringProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return sourceInfo("recovering-provider");
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return providerResult("recovering-provider", this.callCount > 1);
   }
 }
 
