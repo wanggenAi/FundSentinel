@@ -1,5 +1,5 @@
 import { SourceRegistry } from "../dataSources/index.js";
-import type { DataAcquisitionSolution, DataGapReport } from "../schemas/index.js";
+import type { DataAcquisitionSolution, DataGapReport, SourceComposition } from "../schemas/index.js";
 import { nowIso } from "../schemas/index.js";
 import { AIGateway } from "./aiGateway.js";
 import { FundAnalysisService } from "./fundAnalysisService.js";
@@ -47,14 +47,7 @@ export class DataSourceService {
       data_status: string;
       allow_downstream_analysis: boolean;
       allow_strong_conclusion: boolean;
-      source_composition: {
-        authoritative: string[];
-        aggregator: string[];
-        manual: string[];
-        macro: string[];
-        demo: string[];
-        failed: string[];
-      };
+      source_composition: SourceComposition;
       acquisition_solutions: DataAcquisitionSolution[];
     }
   > {
@@ -71,13 +64,12 @@ export class DataSourceService {
         created_by: "Argus",
         created_at: nowIso()
       };
-    const { official_core_coverage: _officialCoreCoverage, ...sourceComposition } = analysis.data_pack.data_quality_report.source_composition;
     return {
       ...gapReport,
       data_status: analysis.data_pack.data_status,
       allow_downstream_analysis: analysis.data_pack.allow_downstream_analysis,
       allow_strong_conclusion: analysis.data_pack.allow_strong_conclusion,
-      source_composition: sourceComposition,
+      source_composition: analysis.data_pack.data_quality_report.source_composition,
       acquisition_solutions: analysis.data_pack.acquisition_solutions
     };
   }
