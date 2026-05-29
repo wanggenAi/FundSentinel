@@ -494,18 +494,19 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
   {
     source_id: "hkex-official",
     source_name: "香港交易所披露易与市场资料",
-    source_type: "regulatory_disclosure",
+    source_type: "news",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["hk_announcements", "hk_etf_disclosure", "market_calendar"],
-    recommended_for: ["qdii_context", "official_announcements", "cross_border_fund_disclosure"],
-    access_method: "official HKEX websites and data products",
+    coverage: ["hk_announcements", "hk_market_context", "industry_news", "cross_border_fund_disclosure"],
+    recommended_for: ["qdii_context", "official_announcements", "cross_border_fund_disclosure", "industry_news"],
+    access_method: "official HKEXnews title search and stock prefix endpoints",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Use public disclosure pages respectfully; licensed data products may be required for systematic market data.",
     priority: 52,
-    notes: "Important for Hong Kong market exposure and QDII/H shares context."
+    notes:
+      "Implemented as Hong Kong listed-company announcement metadata for QDII/H-share context only. It does not provide fund NAV, fund reports, holdings, market data products, or investment advice."
   },
   {
     source_id: "fred-official",

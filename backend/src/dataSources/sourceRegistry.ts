@@ -15,6 +15,7 @@ import { EurostatProvider } from "./providers/eurostatProvider.js";
 import { FredMacroProvider } from "./providers/fredMacroProvider.js";
 import { FundCompanyReportProvider } from "./providers/fundCompanyReportProvider.js";
 import { GovCnPolicyProvider } from "./providers/govCnPolicyProvider.js";
+import { HkexOfficialProvider } from "./providers/hkexOfficialProvider.js";
 import { HuaAnFundOfficialProvider } from "./providers/huaAnFundOfficialProvider.js";
 import { ImfDataMapperProvider } from "./providers/imfDataMapperProvider.js";
 import { ManualCsvProvider } from "./providers/manualCsvProvider.js";
@@ -111,6 +112,7 @@ export class SourceRegistry {
       new PbcMacroProvider(),
       new StatsGovMacroProvider(),
       new SecEdgarProvider(),
+      new HkexOfficialProvider(),
       new FredMacroProvider(),
       new WorldBankMacroProvider(),
       new ImfDataMapperProvider(),
@@ -228,7 +230,7 @@ export class SourceRegistry {
     const activeProviders = this.providers
       .filter((provider) => {
         const info = this.sourceStates.get(provider.sourceInfo().source_id)!;
-        return info.enabled && provider.canHandle({ ...input, demo_mode: this.demoMode });
+        return info.enabled;
       })
       .sort((a, b) => this.sourceStates.get(a.sourceInfo().source_id)!.priority - this.sourceStates.get(b.sourceInfo().source_id)!.priority);
 
@@ -236,6 +238,7 @@ export class SourceRegistry {
     let context: ProviderFundPayload = {};
     for (const provider of activeProviders) {
       const providerInput = { ...input, context, demo_mode: this.demoMode };
+      if (!provider.canHandle(providerInput)) continue;
       const result = await this.fetchProvider(provider, providerInput);
       this.recordResult(result);
       results.push(result);
