@@ -345,15 +345,16 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     source_type: "policy",
     quality_tier: "authoritative",
     stability: "high",
-    coverage: ["manufacturing_policy", "digital_economy", "industry_data"],
-    recommended_for: ["policy_evidence", "industry_logic", "theme_validation"],
-    access_method: "official website",
+    coverage: ["policy_evidence", "industry_news", "manufacturing_policy", "digital_economy", "industry_data"],
+    recommended_for: ["policy_evidence", "industry_news", "industry_logic", "theme_validation"],
+    access_method: "official homepage static policy/data lists: https://www.miit.gov.cn/index.html",
     requires_auth: false,
     is_demo: false,
-    integration_status: "planned",
+    integration_status: "implemented",
     legal_note: "Use official public releases with publication date and URL.",
     priority: 42,
-    notes: "Important for technology, manufacturing, telecom, and digital-economy themes."
+    notes:
+      "Implemented by parsing MIIT official homepage policy-file, policy-interpretation, industry-data, industry-news, and consultation/publication lists. It is supporting evidence only, not fund NAV, holdings, reports, or advice."
   },
   {
     source_id: "pbc-official",
