@@ -13,6 +13,7 @@ import type {
 } from "../schemas/index.js";
 import { type AgentStatus, nowIso } from "../schemas/index.js";
 import { AIGateway } from "../services/aiGateway.js";
+import { sanitizePublicStructure } from "../utils/publicText.js";
 
 const COORDINATOR_SOURCE_IDS = new Set(["fund-company-report"]);
 
@@ -39,16 +40,16 @@ export class ArgusAgent extends BaseAgent {
       required_data: [...plan.required_data, ...plan.optional_data],
       demo_mode: this.sourceRegistry.isDemoMode()
     });
-    const dataPack = this.buildFundDataPack(fundCode, plan, providerResults);
+    const dataPack = this.sanitizePublic(this.buildFundDataPack(fundCode, plan, providerResults));
     const quality = dataPack.data_quality_report;
     const status: AgentStatus = quality.data_status === "ready" ? "success" : quality.allow_downstream_analysis ? "warning" : "failed";
-    const evidence = this.buildEvidence(providerResults);
+    const evidence = dataPack.evidence_items;
     const confidence = this.confidenceFor(quality.data_status, quality.score);
     const isMock = this.isMockQuality(quality);
 
     return {
       dataPack,
-      result: this.buildResult({
+      result: this.sanitizePublic(this.buildResult({
         taskId,
         fundCode: dataPack.fund_code,
         status,
@@ -78,7 +79,7 @@ export class ArgusAgent extends BaseAgent {
         warnings: [...quality.warnings, ...quality.blocking_issues],
         nextSuggestions: dataPack.acquisition_solutions.flatMap((solution) => solution.proposed_actions),
         isMock
-      })
+      }))
     };
   }
 
@@ -177,6 +178,10 @@ export class ArgusAgent extends BaseAgent {
 
   private isMockQuality(quality: DataQualityReport): boolean {
     return quality.data_status === "demo" || quality.demo_source_count > 0;
+  }
+
+  private sanitizePublic<T>(value: T): T {
+    return sanitizePublicStructure(value);
   }
 
   private mergeProviderPayloads(results: Array<DataProviderResult<ProviderFundPayload>>): ProviderFundPayload {

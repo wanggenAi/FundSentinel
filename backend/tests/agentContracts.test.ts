@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AegisAgent, ArgusAgent, AtlasAgent, LogosAgent, NadirAgent, VegaAgent } from "../src/agents/index.js";
 import { SourceRegistry } from "../src/dataSources/index.js";
+import type { DataProviderResult, FundDataSourceInput, ProviderFundPayload } from "../src/dataSources/index.js";
 import type { AgentResult, DataQuality } from "../src/schemas/index.js";
 import { MockDataService } from "../src/services/index.js";
 
@@ -59,6 +60,60 @@ test("demo mode allows demo dataPack but forbids strong conclusion", async () =>
   assert.equal(result.metrics.buy, undefined);
   assert.equal(result.metrics.sell, undefined);
   assert.equal(result.metrics.position, undefined);
+});
+
+class UnsanitizedRegistry extends SourceRegistry {
+  constructor(private readonly unsanitizedResults: Array<DataProviderResult<ProviderFundPayload>>) {
+    super({ providers: [], enableLiveProviders: false, shareState: false });
+  }
+
+  override providerCandidates() {
+    return [
+      {
+        source_id: "unsanitized-provider",
+        source_name: "Must Buy Provider 保证收益",
+        source_type: "fund_meta",
+        priority: 1,
+        is_demo: false,
+        enabled: true
+      }
+    ];
+  }
+
+  override async fetchAll(_input: FundDataSourceInput): Promise<Array<DataProviderResult<ProviderFundPayload>>> {
+    return this.unsanitizedResults;
+  }
+}
+
+test("Argus sanitizes direct dataPack and AgentResult provider text", async () => {
+  const registry = new UnsanitizedRegistry([
+    {
+      source_id: "unsanitized-provider",
+      source_name: "Must Buy Provider 保证收益",
+      source_type: "fund_meta",
+      trust_level: "A",
+      data_status: "partial",
+      success: false,
+      data: null,
+      raw_reference: "https://provider.example.test/fund?api_key=argus-secret",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "unknown",
+      warnings: ["risk-free warning with token=warning-secret and 必须买入"],
+      error: "guaranteed returns error with access_token=error-secret and 无风险",
+      is_demo: false
+    }
+  ]);
+
+  const { dataPack, result } = await new ArgusAgent(registry).prepareDataPack("argus-sanitize-boundary", "007951");
+  const payload = JSON.stringify({ dataPack, result });
+
+  assert.equal(result.agent_name, "Argus");
+  assert.equal(result.task_id, "argus-sanitize-boundary");
+  assert.equal(dataPack.data_status, "unavailable");
+  assert.doesNotMatch(payload, /must buy|guaranteed|risk[-\s]?free|保证收益|无风险|必须买入|argus-secret|warning-secret|error-secret/iu);
+  assert.match(payload, /must review/u);
+  assert.match(payload, /requires evidence review/u);
+  assert.match(payload, /\[REDACTED\]/u);
 });
 
 test("Atlas uses explicit dataPack mock marker instead of status inference", async () => {
