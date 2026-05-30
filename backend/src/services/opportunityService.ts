@@ -11,8 +11,15 @@ export interface OpportunityServiceOptions {
   enableLiveProviders?: boolean;
 }
 
+interface ParsedFundUniverse {
+  valid: string[];
+  invalid: string[];
+}
+
 export class OpportunityService {
   private readonly fundUniverse: string[];
+  private readonly invalidFundUniverseEntries: string[];
+  private readonly fundUniverseSourceName: string | null;
   private readonly demoMode: boolean;
   private readonly fundAnalysisService: FundAnalysisService;
 
@@ -30,7 +37,10 @@ export class OpportunityService {
           enableLiveProviders: options.enableLiveProviders
         })
       );
-    this.fundUniverse = options.fundUniverse ?? OpportunityService.parseFundUniverse(process.env.FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE);
+    this.fundUniverseSourceName = options.fundUniverse ? "OpportunityService options fundUniverse" : process.env.FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE ? "FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE" : null;
+    const parsedFundUniverse = OpportunityService.parseFundUniverse(options.fundUniverse ?? process.env.FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE);
+    this.fundUniverse = parsedFundUniverse.valid;
+    this.invalidFundUniverseEntries = parsedFundUniverse.invalid;
   }
 
   async getOpportunities(limit = 6): Promise<OpportunitySquareResponse> {
@@ -75,7 +85,9 @@ export class OpportunityService {
         score: Number(qualityScore.toFixed(2)),
         source: `Atlas + Argus SourceRegistry + ${universeAudit.source_name}`,
         updated_at: nowIso(),
-        warnings: candidates.length || failureWarnings.length ? [...degradedWarnings, ...failureWarnings] : ["没有真实可用核心数据，采基广场不会输出伪推荐。"],
+        warnings: candidates.length || failureWarnings.length || this.invalidFundUniverseEntries.length
+          ? [...this.universeWarnings(), ...degradedWarnings, ...failureWarnings]
+          : ["没有真实可用核心数据，采基广场不会输出伪推荐。"],
         is_mock: isMock
       },
       universe_audit: universeAudit,
@@ -86,6 +98,7 @@ export class OpportunityService {
 
   private activeFundUniverse(): string[] {
     if (this.fundUniverse.length) return this.fundUniverse;
+    if (this.fundUniverseSourceName) return [];
     if (!this.demoMode) return [];
     return this.mockDataService.getFundUniverse().map((fund) => fund.fund_code);
   }
@@ -100,7 +113,7 @@ export class OpportunityService {
         score: 0,
         source: `Atlas + Argus SourceRegistry + ${universeAudit.source_name}`,
         updated_at: nowIso(),
-        warnings: [summary],
+        warnings: [...this.universeWarnings(), summary],
         is_mock: false
       },
       universe_audit: universeAudit,
@@ -111,17 +124,28 @@ export class OpportunityService {
 
   private universeAudit(selectedFundCodes: string[], requestedLimit: number): OpportunitySquareResponse["universe_audit"] {
     const configuredCount = this.fundUniverse.length;
-    const usingConfigured = configuredCount > 0;
-    const usingDemo = !usingConfigured && this.demoMode;
+    const usingConfiguredSource = Boolean(this.fundUniverseSourceName);
+    const usingDemo = !usingConfiguredSource && this.demoMode;
     return {
-      source_type: usingConfigured ? "configured_env" : usingDemo ? "demo_fixture" : "unconfigured",
-      source_name: usingConfigured ? "FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE" : usingDemo ? "MockDataService demo fund universe" : "unconfigured",
-      configured_count: usingConfigured ? configuredCount : usingDemo ? this.mockDataService.getFundUniverse().length : 0,
+      source_type: usingConfiguredSource ? this.configuredUniverseSourceType() : usingDemo ? "demo_fixture" : "unconfigured",
+      source_name: usingConfiguredSource ? this.fundUniverseSourceName ?? "configured fund universe" : usingDemo ? "MockDataService demo fund universe" : "unconfigured",
+      configured_count: usingConfiguredSource ? configuredCount : usingDemo ? this.mockDataService.getFundUniverse().length : 0,
       selected_count: selectedFundCodes.length,
       requested_limit: requestedLimit,
       selected_fund_codes: selectedFundCodes,
+      ignored_invalid_fund_codes: this.invalidFundUniverseEntries,
       is_mock: usingDemo
     };
+  }
+
+  private universeWarnings(): string[] {
+    return this.invalidFundUniverseEntries.length
+      ? [`${this.fundUniverseSourceName ?? "机会广场候选池配置"} 含有无效基金代码，已忽略：${this.invalidFundUniverseEntries.join(", ")}。`]
+      : [];
+  }
+
+  private configuredUniverseSourceType(): OpportunitySquareResponse["universe_audit"]["source_type"] {
+    return this.fundUniverseSourceName === "FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE" ? "configured_env" : "configured_options";
   }
 
   private candidateFromAnalysis(analysis: FundAnalysisResponse): OpportunityCandidate {
@@ -222,14 +246,17 @@ export class OpportunityService {
     return sanitizePublicStructure(response);
   }
 
-  private static parseFundUniverse(value?: string): string[] {
-    return [
-      ...new Set(
-        (value ?? "")
-          .split(",")
-          .map((item) => item.trim())
-          .filter((item) => /^\d{6}$/u.test(item))
-      )
-    ];
+  private static parseFundUniverse(value?: string | string[]): ParsedFundUniverse {
+    const rawItems = Array.isArray(value) ? value : (value ?? "").split(",");
+    const valid: string[] = [];
+    const invalid: string[] = [];
+    for (const item of rawItems.map((entry) => entry.trim()).filter(Boolean)) {
+      if (/^\d{6}$/u.test(item)) valid.push(item);
+      else invalid.push(item);
+    }
+    return {
+      valid: [...new Set(valid)],
+      invalid: [...new Set(invalid)]
+    };
   }
 }

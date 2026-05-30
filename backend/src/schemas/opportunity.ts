@@ -24,12 +24,13 @@ export interface OpportunityCandidate {
 }
 
 export interface OpportunityUniverseAudit {
-  source_type: "configured_env" | "demo_fixture" | "unconfigured";
+  source_type: "configured_env" | "configured_options" | "demo_fixture" | "unconfigured";
   source_name: string;
   configured_count: number;
   selected_count: number;
   requested_limit: number;
   selected_fund_codes: string[];
+  ignored_invalid_fund_codes: string[];
   is_mock: boolean;
 }
 

@@ -407,11 +407,12 @@ test("opportunity service uses configured real universe and preserves real candi
   const response = await new OpportunityService(undefined, new FundAnalysisService(registry), { fundUniverse: ["007951"] }).getOpportunities(5);
 
   assert.equal(response.is_mock, false);
-  assert.equal(response.universe_audit.source_type, "configured_env");
-  assert.equal(response.universe_audit.source_name, "FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE");
+  assert.equal(response.universe_audit.source_type, "configured_options");
+  assert.equal(response.universe_audit.source_name, "OpportunityService options fundUniverse");
   assert.equal(response.universe_audit.configured_count, 1);
   assert.equal(response.universe_audit.selected_count, 1);
   assert.deepEqual(response.universe_audit.selected_fund_codes, ["007951"]);
+  assert.deepEqual(response.universe_audit.ignored_invalid_fund_codes, []);
   assert.equal(response.universe_audit.is_mock, false);
   assert.equal(response.candidates.length, 1);
   assert.equal(response.candidates[0]?.fund_code, "007951");
@@ -429,6 +430,40 @@ test("opportunity service uses configured real universe and preserves real candi
   assert.ok(response.data_quality.warnings.some((warning) => warning.includes("official_fund_reports")));
   assert.ok(response.candidates[0]?.key_evidence.some((item) => item.is_mock === false));
   assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
+});
+
+test("opportunity service audits invalid env fund universe entries without treating them as real candidates", async () => {
+  const previous = process.env.FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE;
+  process.env.FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE = "bad-code,123";
+  try {
+    const response = await new OpportunityService().getOpportunities(5);
+
+    assert.equal(response.candidates.length, 0);
+    assert.equal(response.universe_audit.source_type, "configured_env");
+    assert.equal(response.universe_audit.source_name, "FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE");
+    assert.equal(response.universe_audit.configured_count, 0);
+    assert.deepEqual(response.universe_audit.ignored_invalid_fund_codes, ["bad-code", "123"]);
+    assert.ok(response.data_quality.warnings.some((warning) => warning.includes("FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE") && warning.includes("无效基金代码")));
+  } finally {
+    if (previous === undefined) delete process.env.FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE;
+    else process.env.FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE = previous;
+  }
+});
+
+test("opportunity service audits invalid configured fund universe entries", async () => {
+  const registry = new SourceRegistry({
+    providers: [new RealOpportunityProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+  const response = await new OpportunityService(undefined, new FundAnalysisService(registry), { fundUniverse: ["007951", "bad-code", "123"] }).getOpportunities(5);
+
+  assert.equal(response.universe_audit.source_type, "configured_options");
+  assert.equal(response.universe_audit.source_name, "OpportunityService options fundUniverse");
+  assert.equal(response.universe_audit.configured_count, 1);
+  assert.deepEqual(response.universe_audit.selected_fund_codes, ["007951"]);
+  assert.deepEqual(response.universe_audit.ignored_invalid_fund_codes, ["bad-code", "123"]);
+  assert.ok(response.data_quality.warnings.some((warning) => warning.includes("无效基金代码") && warning.includes("bad-code")));
 });
 
 test("opportunity service skips failed fund analyses while preserving successful candidates", async () => {
@@ -542,6 +577,7 @@ test("opportunity service explicit demo mode returns only mock-marked candidates
   assert.equal(response.universe_audit.source_type, "demo_fixture");
   assert.equal(response.universe_audit.source_name, "MockDataService demo fund universe");
   assert.equal(response.universe_audit.selected_count, 2);
+  assert.deepEqual(response.universe_audit.ignored_invalid_fund_codes, []);
   assert.equal(response.universe_audit.is_mock, true);
   assert.ok(response.candidates.length > 0);
   assert.ok(response.candidates.every((candidate) => candidate.is_mock));
