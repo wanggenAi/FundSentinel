@@ -170,6 +170,7 @@ test("portfolio service reads explicit manual JSON snapshot as non-mock user-pro
       portfolioFile,
       JSON.stringify({
         generated_at: "2026-05-28T00:00:00.000Z",
+        user_id: "other-token=portfolio-user-secret guaranteed must buy",
         holdings: [
           {
             fund_code: "007951",
@@ -204,6 +205,8 @@ test("portfolio service reads explicit manual JSON snapshot as non-mock user-pro
     assert.equal(snapshot.holdings[1]?.weight, 0.3333);
     assert.equal(snapshot.holdings[0]?.is_mock, false);
     assert.ok(snapshot.data_quality.warnings.some((warning) => warning.startsWith("file_sha256=")));
+    assert.doesNotMatch(JSON.stringify(snapshot.data_quality), /must buy|guaranteed|portfolio-user-secret/iu);
+    assert.match(JSON.stringify(snapshot.data_quality), /token=\[REDACTED\]/u);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -211,18 +214,19 @@ test("portfolio service reads explicit manual JSON snapshot as non-mock user-pro
 
 test("portfolio service degrades instead of falling back to mock when configured manual JSON is invalid", () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), "fundsentinel-portfolio-"));
-  const portfolioFile = path.join(tempDir, "portfolio.json");
+  const portfolioFile = path.join(tempDir, "portfolio-token=portfolio-secret-guaranteed.json");
 
   try {
-    writeFileSync(portfolioFile, JSON.stringify({ holdings: [{ fund_code: "bad-code" }] }));
-
     const snapshot = new PortfolioService(undefined, { portfolioFile, demoMode: false, now: () => "2026-05-29T00:00:00.000Z" }).getPortfolioSnapshot("user-a");
+    const payload = JSON.stringify(snapshot);
 
     assert.equal(snapshot.is_mock, false);
     assert.equal(snapshot.total_assets, 0);
     assert.equal(snapshot.holdings.length, 0);
     assert.ok(snapshot.data_quality.warnings.some((warning) => warning.includes("手动持仓文件不可用")));
     assert.ok(snapshot.data_quality.warnings.some((warning) => warning.includes("未回退到 mock 持仓")));
+    assert.doesNotMatch(payload, /must buy|guaranteed|portfolio-secret/iu);
+    assert.match(payload, /token=\[REDACTED\]/u);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

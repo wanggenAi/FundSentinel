@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, statSync, type Stats } from "node:fs";
 import type { PortfolioHolding, PortfolioSnapshot } from "../schemas/index.js";
 import { nowIso } from "../schemas/index.js";
+import { sanitizePublicText } from "../utils/publicText.js";
 import { MockDataService } from "./mockDataService.js";
 
 export interface PortfolioServiceOptions {
@@ -86,9 +87,9 @@ export class PortfolioService {
       data_quality: {
         level: "medium",
         score: 0.68,
-        source: `ManualPortfolioJsonProvider:${filePath}`,
+        source: sanitizePublicText(`ManualPortfolioJsonProvider:${filePath}`),
         updated_at: generatedAt,
-        warnings: baseWarnings,
+        warnings: this.publicWarnings(baseWarnings),
         is_mock: false
       },
       generated_at: generatedAt,
@@ -131,9 +132,9 @@ export class PortfolioService {
       data_quality: {
         level: "low",
         score: 0,
-        source,
+        source: sanitizePublicText(source),
         updated_at: generatedAt,
-        warnings,
+        warnings: this.publicWarnings(warnings),
         is_mock: false
       },
       generated_at: generatedAt,
@@ -185,7 +186,11 @@ export class PortfolioService {
     return Number(value.toFixed(digits));
   }
 
+  private publicWarnings(warnings: string[]): string[] {
+    return warnings.map((warning) => sanitizePublicText(warning));
+  }
+
   private errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
+    return sanitizePublicText(error instanceof Error ? error.message : String(error));
   }
 }
