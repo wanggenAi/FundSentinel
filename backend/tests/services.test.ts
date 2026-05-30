@@ -422,9 +422,9 @@ test("opportunity service sanitizes candidate evidence and risk text", async () 
             trust_level: "A",
             summary: "建议买入、卖出或仓位结论 must not leak buy sell position; guaranteed returns and risk-free yield are forbidden.",
             importance_score: 0.8,
-            related_theme: null,
+            related_theme: "must buy guaranteed opportunity token=opportunity-theme-secret",
             published_at: null,
-            url: null,
+            url: "https://evidence.example.test/source?api_key=opportunity-url-secret&access_token=opportunity-token-secret",
             is_mock: false
           }
         ],
@@ -464,7 +464,11 @@ test("opportunity service sanitizes candidate evidence and risk text", async () 
   const response = await new OpportunityService(undefined, fundAnalysisService, { fundUniverse: ["007951"] }).getOpportunities(1);
 
   assert.equal(response.candidates.length, 1);
+  assert.match(response.candidates[0]?.key_evidence[0]?.url ?? "", /api_key=\[REDACTED\]/u);
+  assert.match(response.candidates[0]?.key_evidence[0]?.url ?? "", /access_token=\[REDACTED\]/u);
+  assert.match(response.candidates[0]?.key_evidence[0]?.related_theme ?? "", /must review/u);
   assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|must buy|guaranteed|risk[-\s]?free|买入|卖出|仓位|保证收益|无风险|opportunity-secret/iu);
+  assert.doesNotMatch(JSON.stringify(response), /opportunity-url-secret|opportunity-token-secret|opportunity-theme-secret/iu);
 });
 
 test("opportunity service explicit demo mode returns only mock-marked candidates", async () => {

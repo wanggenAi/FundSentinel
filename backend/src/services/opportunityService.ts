@@ -190,7 +190,9 @@ export class OpportunityService {
       ...item,
       title: this.publicText(item.title),
       source_name: this.publicText(item.source_name),
-      summary: this.publicText(item.summary)
+      summary: this.publicText(item.summary),
+      url: item.url ? this.publicText(item.url) : null,
+      related_theme: item.related_theme ? this.publicText(item.related_theme) : null
     };
   }
 
