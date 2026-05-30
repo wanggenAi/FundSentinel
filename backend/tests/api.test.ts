@@ -56,6 +56,9 @@ test("API opportunities returns OpportunitySquareResponse", async () => {
   assert.equal(payload.is_mock, false);
   assert.equal(payload.generated_by, "Atlas");
   assert.equal(payload.candidates.length, 0);
+  assert.equal(payload.universe_audit.source_type, "unconfigured");
+  assert.equal(payload.universe_audit.selected_count, 0);
+  assert.equal(payload.universe_audit.is_mock, false);
   assert.match(payload.summary, /未配置真实基金候选池/);
   assert.doesNotMatch(JSON.stringify(payload), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
 });

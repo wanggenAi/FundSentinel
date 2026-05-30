@@ -36,7 +36,8 @@ export class OpportunityService {
   async getOpportunities(limit = 6): Promise<OpportunitySquareResponse> {
     const boundedLimit = Math.max(1, Math.min(limit, 10));
     const universe = this.activeFundUniverse().slice(0, boundedLimit);
-    if (!universe.length) return this.emptyResponse("采基广场未配置真实基金候选池；设置 FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE 后才会请求真实 provider。");
+    const universeAudit = this.universeAudit(universe, boundedLimit);
+    if (!universe.length) return this.emptyResponse("采基广场未配置真实基金候选池；设置 FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE 后才会请求真实 provider。", universeAudit);
 
     const analysisSettlements = await Promise.allSettled(universe.map((fundCode) => this.fundAnalysisService.analyzeFund(fundCode, `opportunity-${fundCode}`)));
     const analyses = analysisSettlements.flatMap((settlement) => (settlement.status === "fulfilled" ? [settlement.value] : []));
@@ -72,11 +73,12 @@ export class OpportunityService {
       data_quality: {
         level: qualityScore >= 0.7 ? "high" : qualityScore >= 0.5 ? "medium" : "low",
         score: Number(qualityScore.toFixed(2)),
-        source: "Atlas + Argus SourceRegistry",
+        source: `Atlas + Argus SourceRegistry + ${universeAudit.source_name}`,
         updated_at: nowIso(),
         warnings: candidates.length || failureWarnings.length ? [...degradedWarnings, ...failureWarnings] : ["没有真实可用核心数据，采基广场不会输出伪推荐。"],
         is_mock: isMock
       },
+      universe_audit: universeAudit,
       generated_by: "Atlas",
       generated_at: nowIso()
     });
@@ -88,7 +90,7 @@ export class OpportunityService {
     return this.mockDataService.getFundUniverse().map((fund) => fund.fund_code);
   }
 
-  private emptyResponse(summary: string): OpportunitySquareResponse {
+  private emptyResponse(summary: string, universeAudit: OpportunitySquareResponse["universe_audit"]): OpportunitySquareResponse {
     return this.publicResponse({
       is_mock: false,
       candidates: [],
@@ -96,14 +98,30 @@ export class OpportunityService {
       data_quality: {
         level: "low",
         score: 0,
-        source: "Atlas + Argus SourceRegistry",
+        source: `Atlas + Argus SourceRegistry + ${universeAudit.source_name}`,
         updated_at: nowIso(),
         warnings: [summary],
         is_mock: false
       },
+      universe_audit: universeAudit,
       generated_by: "Atlas",
       generated_at: nowIso()
     });
+  }
+
+  private universeAudit(selectedFundCodes: string[], requestedLimit: number): OpportunitySquareResponse["universe_audit"] {
+    const configuredCount = this.fundUniverse.length;
+    const usingConfigured = configuredCount > 0;
+    const usingDemo = !usingConfigured && this.demoMode;
+    return {
+      source_type: usingConfigured ? "configured_env" : usingDemo ? "demo_fixture" : "unconfigured",
+      source_name: usingConfigured ? "FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE" : usingDemo ? "MockDataService demo fund universe" : "unconfigured",
+      configured_count: usingConfigured ? configuredCount : usingDemo ? this.mockDataService.getFundUniverse().length : 0,
+      selected_count: selectedFundCodes.length,
+      requested_limit: requestedLimit,
+      selected_fund_codes: selectedFundCodes,
+      is_mock: usingDemo
+    };
   }
 
   private candidateFromAnalysis(analysis: FundAnalysisResponse): OpportunityCandidate {
