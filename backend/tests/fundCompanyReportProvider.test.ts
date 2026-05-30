@@ -107,6 +107,24 @@ test("Argus surfaces fund-company report coordination gaps in DataGapReport deta
   assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"));
 });
 
+test("Argus does not count report coordinator as an external authoritative source", async () => {
+  const registry = new SourceRegistry({
+    providers: [new ReportDocumentContextProvider("verified-report-context", verifiedOfficialReport), new FundCompanyReportProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("fund-company-report-composition", "007951");
+  const composition = dataPack.data_quality_report.source_composition;
+
+  assert.equal(dataPack.data_sources.some((source) => source.source_id === "fund-company-report" && source.success), true);
+  assert.ok(composition.authoritative.includes("verified-report-context"));
+  assert.equal(composition.authoritative.includes("fund-company-report"), false);
+  assert.equal(dataPack.data_quality_report.authoritative_source_count, 1);
+  assert.equal(composition.official_core_coverage.fund_reports, true);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), false);
+});
+
 test("SourceRegistry cache keys include official report document context", async () => {
   const input = {
     fund_code: "CACHE-SIG-001",

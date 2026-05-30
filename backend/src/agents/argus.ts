@@ -14,6 +14,8 @@ import type {
 import { type AgentStatus, nowIso } from "../schemas/index.js";
 import { AIGateway } from "../services/aiGateway.js";
 
+const COORDINATOR_SOURCE_IDS = new Set(["fund-company-report"]);
+
 export class ArgusAgent extends BaseAgent {
   readonly name = "Argus";
   readonly role = "Data Steward Agent";
@@ -626,7 +628,7 @@ export class ArgusAgent extends BaseAgent {
     failed: Array<DataProviderResult<ProviderFundPayload>>
   ): DataQualityReport["source_composition"] {
     const authoritative = successful
-      .filter((result) => this.isAuthoritative(result))
+      .filter((result) => this.isAuthoritative(result) && !COORDINATOR_SOURCE_IDS.has(result.source_id))
       .map((result) => result.source_id);
     const aggregator = successful
       .filter((result) => !result.is_demo && ["nav_history", "holdings", "fund_report"].includes(result.source_type) && result.trust_level !== "A")
