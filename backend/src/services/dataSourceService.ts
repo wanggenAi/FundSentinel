@@ -93,6 +93,8 @@ export class DataSourceService {
     required_csv_columns: string[];
     required_csv_audit_fields: string[];
     required_portfolio_json_fields: string[];
+    required_portfolio_audit_fields: string[];
+    portfolio_json_validation_rules: string[];
     required_report_manifest_fields: string[];
     required_report_audit_fields: string[];
     report_manifest_validation_rules: string[];
@@ -103,6 +105,14 @@ export class DataSourceService {
       required_csv_columns: ["fund_code", "date", "nav"],
       required_csv_audit_fields: ["file_path", "file_sha256", "file_size_bytes", "file_mtime", "row_count", "date_start", "date_end", "latest_date", "imported_at"],
       required_portfolio_json_fields: ["holdings[].fund_code", "holdings[].fund_name", "holdings[].holding_amount", "holdings[].cost_nav", "holdings[].current_nav"],
+      required_portfolio_audit_fields: ["file_path", "file_sha256", "file_size_bytes", "file_mtime", "imported_at", "generated_at", "holding_count"],
+      portfolio_json_validation_rules: [
+        "FUNDSENTINEL_PORTFOLIO_FILE 必须指向用户或运营确认的单个本地 JSON 快照；未配置时生产接口返回空持仓降级状态。",
+        "holdings 必须是数组；每个 holding 必须包含 6 位 fund_code、fund_name、正数 holding_amount、cost_nav 和 current_nav。",
+        "generated_at 如存在必须是有效 ISO timestamp；缺失时使用导入时间并在 data_quality.warnings 中提示。",
+        "PortfolioService 会输出 manual_import_audit，包括文件路径、SHA256、文件大小、mtime、导入时间、快照时间和持仓数量。",
+        "手动持仓 JSON 不代表外部账户连接、自动同步、交易或资金划转能力。"
+      ],
       required_report_manifest_fields: [
         "fund_code",
         "title",

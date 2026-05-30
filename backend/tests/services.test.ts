@@ -1319,6 +1319,18 @@ test("DataSourceService returns gap and manual import plan", async () => {
   assert.ok(gap.acquisition_solutions[0].manual_workaround.length > 0);
   assert.ok(manualPlan.solutions[0].engineering_tasks.length > 0);
   assert.ok(manualPlan.required_portfolio_json_fields.includes("holdings[].holding_amount"));
+  assert.deepEqual(manualPlan.required_portfolio_audit_fields, [
+    "file_path",
+    "file_sha256",
+    "file_size_bytes",
+    "file_mtime",
+    "imported_at",
+    "generated_at",
+    "holding_count"
+  ]);
+  assert.ok(manualPlan.portfolio_json_validation_rules.some((rule) => rule.includes("FUNDSENTINEL_PORTFOLIO_FILE") && rule.includes("单个本地 JSON")));
+  assert.ok(manualPlan.portfolio_json_validation_rules.some((rule) => rule.includes("manual_import_audit")));
+  assert.ok(manualPlan.portfolio_json_validation_rules.some((rule) => rule.includes("不代表外部账户连接")));
   assert.deepEqual(manualPlan.required_csv_audit_fields, [
     "file_path",
     "file_sha256",
