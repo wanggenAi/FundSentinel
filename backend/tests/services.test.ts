@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { ArgusAgent } from "../src/agents/index.js";
 import {
   listDataSourceCatalog,
   SourceRegistry,
@@ -1311,7 +1312,12 @@ test("DataSourceService sanitizes provider text across public source endpoints",
   const sources = service.listSources();
   const health = service.health();
   const gap = await service.gaps("007951");
-  const payload = JSON.stringify({ sources, health, gap });
+  const candidateNames = gap.acquisition_solutions.length
+    ? (await new ArgusAgent(registry).prepareDataPack("candidate-sanitize", "007951")).dataPack.data_acquisition_plan.provider_candidates.map(
+        (candidate) => candidate.source_name
+      )
+    : registry.providerCandidates().map((candidate) => candidate.source_name);
+  const payload = JSON.stringify({ sources, health, gap, candidateNames });
 
   assert.doesNotMatch(payload, /must buy|guaranteed|risk[-\s]?free|保证收益|无风险|必须买入|list-secret|raw-secret|warning-secret|gap-secret/iu);
   assert.match(payload, /must review/u);

@@ -260,14 +260,14 @@ export class SourceRegistry {
   }
 
   providerCandidates(): Array<{ source_id: string; source_name: string; source_type: string; priority: number; is_demo: boolean; enabled: boolean }> {
-    return this.listSources().map((source) => ({
+    return sanitizePublicStructure(this.listSources().map((source) => ({
       source_id: source.source_id,
       source_name: source.source_name,
       source_type: source.source_type,
       priority: source.priority,
       is_demo: source.is_demo,
       enabled: source.enabled
-    }));
+    })));
   }
 
   async fetchAll(input: FundDataSourceInput): Promise<Array<DataProviderResult<ProviderFundPayload>>> {
