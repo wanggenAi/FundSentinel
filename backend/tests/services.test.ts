@@ -24,6 +24,9 @@ test("default FundAnalysisResponse with live providers disabled is data unavaila
   assert.deepEqual(new Set(Object.keys(response.agent_results)), new Set(["Argus", "Atlas"]));
   assert.equal((response.blackboard_snapshot as { status: string }).status, "completed");
   assert.equal(response.data_pack.data_status, "unavailable");
+  assert.deepEqual(response.data_pack.data_quality_report.placeholder_fields, ["fund_name", "fund_type", "current_nav", "daily_return", "social_sentiment_score"]);
+  assert.deepEqual(response.data_pack.data_gap_report?.placeholder_fields, response.data_pack.data_quality_report.placeholder_fields);
+  assert.ok(response.final_decision.reasons.some((reason) => reason.includes("占位字段=fund_name, fund_type, current_nav, daily_return, social_sentiment_score")));
   assert.ok(response.data_pack.data_gap_report?.recommended_solutions.length);
   assert.ok(response.data_pack.acquisition_solutions[0].engineering_tasks.length);
 });
@@ -109,6 +112,45 @@ test("home service surfaces degraded analysis gaps when downstream analysis is a
     assert.ok(response.data_quality.warnings.some((warning) => warning.includes("official_fund_reports")));
     assert.ok(response.today_focus.some((item) => item.title === "证据降级复核" && item.related_funds.includes("007951")));
     assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|must buy|guaranteed|risk[-\s]?free|买入|卖出|仓位|保证收益|无风险|home-secret/iu);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("home service surfaces placeholder audit when analysis is blocked", async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "fundsentinel-home-placeholder-audit-"));
+  const portfolioFile = path.join(tempDir, "portfolio.json");
+
+  try {
+    writeFileSync(
+      portfolioFile,
+      JSON.stringify({
+        generated_at: "2026-05-28T00:00:00.000Z",
+        holdings: [
+          {
+            fund_code: "007951",
+            fund_name: "真实手动持仓基金 A",
+            holding_amount: 10000,
+            cost_nav: 1.25,
+            current_nav: 1.3
+          }
+        ]
+      })
+    );
+
+    const response = await new HomeService(
+      new PortfolioService(undefined, { portfolioFile, demoMode: false }),
+      new FundAnalysisService(new SourceRegistry({ enableLiveProviders: false }))
+    ).getHomeDashboard("user-placeholder");
+
+    assert.equal(response.is_mock, false);
+    assert.equal(response.strategy_triggers.length, 0);
+    assert.ok(response.data_quality.warnings.some((warning) => warning.includes("占位字段：fund_name, fund_type, current_nav, daily_return, social_sentiment_score")));
+    assert.ok(
+      response.today_focus.some(
+        (item) => item.title === "真实数据不足" && item.summary.includes("占位字段=fund_name, fund_type, current_nav, daily_return, social_sentiment_score")
+      )
+    );
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -432,6 +474,19 @@ test("opportunity service uses configured real universe and preserves real candi
   assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
 });
 
+test("opportunity service audits placeholders for blocked analyses", async () => {
+  const response = await new OpportunityService(
+    undefined,
+    new FundAnalysisService(new SourceRegistry({ enableLiveProviders: false })),
+    { fundUniverse: ["007951"] }
+  ).getOpportunities(5);
+
+  assert.equal(response.is_mock, false);
+  assert.equal(response.candidates.length, 0);
+  assert.ok(response.data_quality.warnings.some((warning) => warning.includes("真实核心数据不足")));
+  assert.ok(response.data_quality.warnings.some((warning) => warning.includes("占位字段=fund_name, fund_type, current_nav, daily_return, social_sentiment_score")));
+});
+
 test("opportunity service clamps unsafe limits without expanding the candidate pool", async () => {
   const registry = new SourceRegistry({
     providers: [new RealOpportunityProvider()],
@@ -650,6 +705,7 @@ test("public fund analysis sanitizes full demo DAG action language", async () =>
   assert.equal("action" in response.final_review, false);
   assert.equal("source_composition" in response.data_pack.data_quality_report, true);
   assert.deepEqual(response.data_pack.data_quality_report.placeholder_fields, []);
+  assert.deepEqual(response.traceability.data_gap_report?.placeholder_fields, []);
   assert.equal("source_comreview" in response.data_pack.data_quality_report, false);
   assert.equal(response.agent_results.Aegis?.agent_role, "Risk Review Agent");
   assert.equal(response.agent_results.Nadir?.agent_role, "Valuation Review Agent");
@@ -667,6 +723,7 @@ test("public fund analysis surfaces degraded strong-conclusion blocks in final r
   assert.equal(response.is_mock, false);
   assert.equal(response.data_pack.data_status, "partial");
   assert.deepEqual(response.data_pack.data_quality_report.placeholder_fields, []);
+  assert.deepEqual(response.traceability.data_gap_report?.placeholder_fields, []);
   assert.equal(response.data_pack.allow_downstream_analysis, true);
   assert.equal(response.data_pack.allow_strong_conclusion, false);
   assert.equal(response.final_review.review_status, "evidence_review");
@@ -1393,6 +1450,7 @@ test("DataSourceService returns gap and manual import plan", async () => {
   assert.doesNotMatch(JSON.stringify(gap), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
   assert.ok(Array.isArray(gap.failed_source_details));
   assert.equal(gap.allow_strong_conclusion, false);
+  assert.deepEqual(gap.placeholder_fields, ["fund_name", "fund_type", "current_nav", "daily_return", "social_sentiment_score"]);
   assert.equal(gap.source_composition.official_core_coverage.current_nav, false);
   assert.equal(gap.source_composition.official_core_coverage.nav_history, false);
   assert.equal(gap.source_composition.official_core_coverage.fund_reports, false);

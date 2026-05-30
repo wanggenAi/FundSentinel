@@ -107,9 +107,12 @@ test("API fund analysis and analyze post return public analysis", async () => {
   assert.equal(getPayload.final_review.generated_by, "Atlas");
   assert.equal(getPayload.final_review.review_status, "data_gap_review");
   assert.equal(getPayload.data_pack.data_status, "unavailable");
+  assert.deepEqual(getPayload.data_pack.data_quality_report.placeholder_fields, ["fund_name", "fund_type", "current_nav", "daily_return", "social_sentiment_score"]);
+  assert.match(getPayload.final_review.summary, /占位字段=fund_name, fund_type, current_nav, daily_return, social_sentiment_score/u);
   assert.equal("final_decision" in getPayload, false);
   assert.equal("blackboard_snapshot" in getPayload, false);
   assert.equal("action" in getPayload.final_review, false);
+  assert.deepEqual(getPayload.traceability.data_gap_report.placeholder_fields, getPayload.data_pack.data_quality_report.placeholder_fields);
   assert.ok(getPayload.traceability.data_gap_report.recommended_solutions.length > 0);
   assert.doesNotMatch(JSON.stringify(getPayload), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
 
@@ -346,7 +349,9 @@ test("data source APIs are available", async () => {
   assert.equal(gapsResponse.statusCode, 200);
   assert.equal(gapsResponse.json().is_mock, false);
   assert.doesNotMatch(JSON.stringify(gapsResponse.json()), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
+  assert.deepEqual(gapsResponse.json().placeholder_fields, ["fund_name", "fund_type", "current_nav", "daily_return", "social_sentiment_score"]);
   assert.ok(gapsResponse.json().recommended_solutions.length > 0);
+  assert.ok(gapsResponse.json().recommended_solutions.some((solution: string) => solution.includes("placeholder_fields=fund_name, fund_type, current_nav, daily_return, social_sentiment_score")));
   assert.ok(gapsResponse.json().recommended_solutions.some((solution: string) => solution.includes("official_current_nav")));
   assert.equal(gapsResponse.json().allow_strong_conclusion, false);
   assert.equal(gapsResponse.json().source_composition.official_core_coverage.current_nav, false);

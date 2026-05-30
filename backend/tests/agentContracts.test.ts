@@ -18,6 +18,11 @@ test("Argus returns AgentResult with unavailable data by default", async () => {
   assert.equal(dataPack.allow_downstream_analysis, false);
   assert.equal(dataPack.allow_strong_conclusion, false);
   assert.deepEqual(dataPack.data_quality_report.placeholder_fields, ["fund_name", "fund_type", "current_nav", "daily_return", "social_sentiment_score"]);
+  assert.deepEqual(dataPack.data_gap_report?.placeholder_fields, dataPack.data_quality_report.placeholder_fields);
+  assert.ok(dataPack.data_gap_report?.recommended_solutions.some((solution) => solution.includes("placeholder_fields=fund_name, fund_type, current_nav, daily_return, social_sentiment_score")));
+  assert.ok(dataPack.acquisition_solutions[0]?.problem.includes("占位字段：fund_name, fund_type, current_nav, daily_return, social_sentiment_score"));
+  assert.ok(dataPack.acquisition_solutions[0]?.proposed_actions.some((action) => action.includes("覆盖 placeholder_fields")));
+  assert.ok(argusResult.summary.includes("占位字段=fund_name, fund_type, current_nav, daily_return, social_sentiment_score"));
   assert.deepEqual(argusResult.metrics.placeholder_fields, dataPack.data_quality_report.placeholder_fields);
 });
 

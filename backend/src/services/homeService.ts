@@ -73,13 +73,18 @@ export class HomeService {
         ...portfolioGapFocus,
         ...this.degradedAnalysisFocus(degradedFunds),
         ...this.strategyTriggerService.buildTodayFocus(strategyTriggers),
-        ...blockedFunds.slice(0, 3).map((analysis) => ({
-          title: "真实数据不足",
-          summary: `${analysis.fund_code} 缺少真实核心数据，Argus 已阻止策略结论。`,
-          priority: "high" as const,
-          related_funds: [analysis.fund_code],
-          is_mock: analysis.is_mock
-        })),
+        ...blockedFunds.slice(0, 3).map((analysis) => {
+          const placeholders = analysis.data_pack.data_quality_report.placeholder_fields;
+          return {
+            title: "真实数据不足",
+            summary: `${analysis.fund_code} 缺少真实核心数据，Argus 已阻止策略结论${
+              placeholders.length ? `；占位字段=${placeholders.slice(0, 5).join(", ")}` : ""
+            }。`,
+            priority: "high" as const,
+            related_funds: [analysis.fund_code],
+            is_mock: analysis.is_mock
+          };
+        }),
         ...failedAnalyses.slice(0, 3).map((failure) => ({
           title: "分析链路失败",
           summary: `${failure.fund_code} 分析链路异常，首页已降级并等待后端复核。`,
@@ -122,10 +127,11 @@ export class HomeService {
           const warnings: string[] = [];
           if (analysis.data_pack.allow_downstream_analysis && !analysis.data_pack.allow_strong_conclusion) {
             const missing = [...quality.missing_core_fields, ...quality.missing_auxiliary_fields];
+            const placeholders = quality.placeholder_fields.length ? `，占位字段=${quality.placeholder_fields.slice(0, 5).join(", ")}` : "";
             warnings.push(
               `${analysis.fund_code} 已降级为观察/复核：data_status=${analysis.data_pack.data_status}，Argus 未允许强结论${
                 missing.length ? `，缺口=${missing.slice(0, 5).join(", ")}` : ""
-              }。`
+              }${placeholders}。`
             );
           }
           if (quality.stale_sources.length) {
@@ -133,6 +139,9 @@ export class HomeService {
           }
           if (quality.nav_consistency_report.status === "conflict") {
             warnings.push(`${analysis.fund_code} 存在 NAV 跨源冲突；首页仅展示复核任务，不形成策略动作。`);
+          }
+          if (!analysis.data_pack.allow_downstream_analysis && quality.placeholder_fields.length) {
+            warnings.push(`${analysis.fund_code} 核心数据缺失，FundDataPack 使用占位字段：${quality.placeholder_fields.slice(0, 5).join(", ")}；首页不得把这些值当作真实数据。`);
           }
           return warnings;
         })
@@ -144,11 +153,12 @@ export class HomeService {
     return analyses.slice(0, 3).map((analysis) => {
       const quality = analysis.data_pack.data_quality_report;
       const missing = [...new Set([...quality.missing_core_fields, ...quality.missing_auxiliary_fields])];
+      const placeholders = quality.placeholder_fields.length ? `；占位字段 ${quality.placeholder_fields.slice(0, 4).join(", ")} 需用真实来源覆盖。` : "";
       return {
         title: "证据降级复核",
         summary: `${analysis.fund_code} 当前 data_status=${analysis.data_pack.data_status}，Argus 未允许强结论；${
           missing.length ? `优先修复 ${missing.slice(0, 4).join(", ")}。` : "优先复核数据新鲜度和一致性。"
-        }`,
+        }${placeholders}`,
         priority: "high",
         related_funds: [analysis.fund_code],
         is_mock: analysis.is_mock || analysis.data_pack.is_mock

@@ -212,7 +212,12 @@ export class FundAnalysisService {
 
   private finalReviewSummary(response: FundAnalysisResponse): string {
     const status = this.reviewStatusForAnalysis(response);
-    if (status === "data_gap_review") return `${response.fund_code} 真实核心数据不足，仅返回数据缺口、来源和补齐方案。`;
+    if (status === "data_gap_review") {
+      const placeholders = response.data_pack.data_quality_report.placeholder_fields;
+      return `${response.fund_code} 真实核心数据不足，仅返回数据缺口、来源和补齐方案${
+        placeholders.length ? `；占位字段=${placeholders.slice(0, 5).join(", ")}` : ""
+      }。`;
+    }
     if (status === "risk_review") return `${response.fund_name} 被 Atlas 标记为高风险复核项，需先核对证据链和失效条件。`;
     if (status === "evidence_review") {
       if (!response.data_pack.allow_strong_conclusion) return this.degradedFinalReviewSummary(response);
@@ -226,6 +231,7 @@ export class FundAnalysisService {
     const missing = [...new Set([...quality.missing_core_fields, ...quality.missing_auxiliary_fields])];
     const details = [
       missing.length ? `缺口=${missing.slice(0, 5).join(", ")}` : null,
+      quality.placeholder_fields.length ? `占位字段=${quality.placeholder_fields.slice(0, 5).join(", ")}` : null,
       quality.stale_sources.length ? `stale_sources=${quality.stale_sources.join(", ")}` : null,
       quality.nav_consistency_report.status === "conflict" ? "nav_consistency=conflict" : null
     ].filter(Boolean);

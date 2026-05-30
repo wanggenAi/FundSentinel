@@ -243,6 +243,7 @@ export class MockDataService {
     const gapReport: DataGapReport = {
       fund_code: raw.fund_code,
       missing_data: [],
+      placeholder_fields: [],
       failed_sources: [],
       failed_source_details: [],
       impact: "仅 demo，不允许真实强结论。",

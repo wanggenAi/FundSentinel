@@ -383,6 +383,12 @@ export class ArgusAgent extends BaseAgent {
       circuit_open_until: this.sourceRegistry.listSources().find((source) => source.source_id === result.source_id)?.circuit_open_until ?? null
     }));
     const missingData = [...new Set([...quality.missing_core_fields, ...quality.missing_auxiliary_fields])];
+    const placeholderSolutions = quality.placeholder_fields.length
+      ? [
+          `placeholder_fields=${quality.placeholder_fields.join(", ")} 表示 FundDataPack 为保持非空契约而使用的占位值；下游只能展示为缺口复核，不能把这些字段当作真实基金数据。`,
+          "补齐相应真实 provider 字段并更新 provenance 后，才能移除 placeholder_fields。"
+        ]
+      : [];
     const providerFailureSolutions = failedSourceDetails.length
       ? [
           "排查失败 provider 的错误、attempt_count、latency_ms 与 circuit-breaker 状态；失败源不得被标记为覆盖成功。",
@@ -437,6 +443,7 @@ export class ArgusAgent extends BaseAgent {
     return {
       fund_code: fundCode,
       missing_data: missingData,
+      placeholder_fields: quality.placeholder_fields,
       failed_sources: failedSources,
       failed_source_details: failedSourceDetails,
       impact:
@@ -447,6 +454,7 @@ export class ArgusAgent extends BaseAgent {
             : "不能支持真实基金分析，后续 Agent 不应输出复核结论。",
       blocking_downstream_agents: downstreamBlockingAgents,
       recommended_solutions: [
+        ...placeholderSolutions,
         ...providerFailureSolutions,
         ...dataGapSolutions
       ],
@@ -495,13 +503,15 @@ export class ArgusAgent extends BaseAgent {
         : [])
     ];
     const missingDescription = gapReport.missing_data.length ? gapReport.missing_data.join(", ") : "可审计的新鲜度或一致性证据";
+    const placeholderDescription = gapReport.placeholder_fields.length ? `；占位字段：${gapReport.placeholder_fields.join(", ")}` : "";
     return [
       {
-        problem: `当前数据状态为 ${quality.data_status}，缺少 ${missingDescription}。`,
+        problem: `当前数据状态为 ${quality.data_status}，缺少 ${missingDescription}${placeholderDescription}。`,
         severity: quality.allow_downstream_analysis ? "high" : "blocking",
         proposed_actions: [
           ...freshnessActions,
           ...navConsistencyActions,
+          ...(quality.placeholder_fields.length ? ["优先用真实 provider 覆盖 placeholder_fields，确认 FundDataPack 中 fund_name/current_nav 等占位值不被当作真实数据展示。"] : []),
           "优先补齐 official_current_nav 和 official_nav_history，避免聚合净值驱动强结论。",
           "优先接入基金公司官网、证监会披露、巨潮资讯等官方报告 provider。",
           "接入官方政策和行业数据 provider，为 Logos 提供可追溯硬证据。",
@@ -836,7 +846,8 @@ export class ArgusAgent extends BaseAgent {
     }
     const missingFields = [...quality.missing_core_fields, ...quality.missing_auxiliary_fields];
     const missing = missingFields.length ? missingFields.join(", ") : "非核心证据";
-    return `Argus 未能获取足够真实数据，data_status=${quality.data_status}，缺失=${missing}，允许后续分析=${quality.allow_downstream_analysis}，允许强结论=${quality.allow_strong_conclusion}。`;
+    const placeholders = quality.placeholder_fields.length ? `，占位字段=${quality.placeholder_fields.join(", ")}` : "";
+    return `Argus 未能获取足够真实数据，data_status=${quality.data_status}，缺失=${missing}${placeholders}，允许后续分析=${quality.allow_downstream_analysis}，允许强结论=${quality.allow_strong_conclusion}。`;
   }
 
   private hasAuthoritativeFundReportDocument(results: Array<DataProviderResult<ProviderFundPayload>>): boolean {

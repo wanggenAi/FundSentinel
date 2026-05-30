@@ -69,6 +69,7 @@ export class DataSourceService {
       analysis.data_pack.data_gap_report ?? {
         fund_code: fundCode,
         missing_data: [],
+        placeholder_fields: [],
         failed_sources: [],
         failed_source_details: [],
         impact: "当前未发现数据缺口。",

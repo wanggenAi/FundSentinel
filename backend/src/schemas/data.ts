@@ -84,6 +84,7 @@ export interface NavConsistencyReport {
 export interface DataGapReport {
   fund_code: string;
   missing_data: string[];
+  placeholder_fields: string[];
   failed_sources: string[];
   failed_source_details: FailedSourceDetail[];
   impact: string;

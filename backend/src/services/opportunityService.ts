@@ -69,6 +69,7 @@ export class OpportunityService {
     const qualityScore = failedAnalyses.length ? Math.min(candidateQualityScore, 0.4) : candidateQualityScore;
     const isMock = candidates.some((candidate) => candidate.is_mock);
     const degradedWarnings = this.degradedAnalysisWarnings(analyses);
+    const blockedWarnings = this.blockedAnalysisWarnings(analyses);
     const failureWarnings = failedAnalyses.map((failure) => `${failure.fund_code} 候选分析失败：${failure.error}；该基金已从候选池剔除并保留数据源复核。`);
     return this.publicResponse({
       is_mock: isMock,
@@ -85,8 +86,8 @@ export class OpportunityService {
         score: Number(qualityScore.toFixed(2)),
         source: `Atlas + Argus SourceRegistry + ${universeAudit.source_name}`,
         updated_at: nowIso(),
-        warnings: candidates.length || failureWarnings.length || this.invalidFundUniverseEntries.length
-          ? [...this.universeWarnings(), ...degradedWarnings, ...failureWarnings]
+        warnings: candidates.length || blockedWarnings.length || failureWarnings.length || this.invalidFundUniverseEntries.length
+          ? [...this.universeWarnings(), ...blockedWarnings, ...degradedWarnings, ...failureWarnings]
           : ["没有真实可用核心数据，采基广场不会输出伪推荐。"],
         is_mock: isMock
       },
@@ -200,11 +201,10 @@ export class OpportunityService {
     if (status === "risk_review") return "Atlas 标记为高风险复核项，需先核对风险提示和失效条件。";
     if (status === "evidence_review") {
       if (!analysis.data_pack.allow_strong_conclusion) {
-        const missing = [
-          ...analysis.data_pack.data_quality_report.missing_core_fields,
-          ...analysis.data_pack.data_quality_report.missing_auxiliary_fields
-        ];
-        return `Argus 未允许强结论；候选仅作为证据补齐复核项${missing.length ? `，优先修复 ${missing.slice(0, 4).join(", ")}` : ""}。`;
+        const quality = analysis.data_pack.data_quality_report;
+        const missing = [...quality.missing_core_fields, ...quality.missing_auxiliary_fields];
+        const placeholders = quality.placeholder_fields.length ? `；占位字段 ${quality.placeholder_fields.slice(0, 4).join(", ")} 需用真实来源覆盖` : "";
+        return `Argus 未允许强结论；候选仅作为证据补齐复核项${missing.length ? `，优先修复 ${missing.slice(0, 4).join(", ")}` : ""}${placeholders}。`;
       }
       return "数据质量或置信度仍需复核，候选只进入观察池。";
     }
@@ -219,14 +219,32 @@ export class OpportunityService {
           .flatMap((analysis) => {
             const quality = analysis.data_pack.data_quality_report;
             const missing = [...new Set([...quality.missing_core_fields, ...quality.missing_auxiliary_fields])];
+            const placeholders = quality.placeholder_fields.length ? `，占位字段=${quality.placeholder_fields.slice(0, 5).join(", ")}` : "";
             const warnings = [
               `${analysis.fund_code} 仅进入证据复核：Argus 未允许强结论${
                 missing.length ? `，缺口=${missing.slice(0, 5).join(", ")}` : ""
-              }。`
+              }${placeholders}。`
             ];
             if (quality.stale_sources.length) warnings.push(`${analysis.fund_code} 存在 stale 数据源：${quality.stale_sources.join(", ")}。`);
             if (quality.nav_consistency_report.status === "conflict") warnings.push(`${analysis.fund_code} 存在 NAV 跨源冲突，需先复核净值来源。`);
             return warnings;
+          })
+      )
+    ].map((warning) => this.publicText(warning));
+  }
+
+  private blockedAnalysisWarnings(analyses: FundAnalysisResponse[]): string[] {
+    return [
+      ...new Set(
+        analyses
+          .filter((analysis) => !analysis.data_pack.allow_downstream_analysis)
+          .map((analysis) => {
+            const quality = analysis.data_pack.data_quality_report;
+            const missing = [...new Set([...quality.missing_core_fields, ...quality.missing_auxiliary_fields])];
+            const placeholders = quality.placeholder_fields.length ? `；占位字段=${quality.placeholder_fields.slice(0, 5).join(", ")}` : "";
+            return `${analysis.fund_code} 真实核心数据不足，已从采基候选池剔除${
+              missing.length ? `；缺口=${missing.slice(0, 5).join(", ")}` : ""
+            }${placeholders}。`;
           })
       )
     ].map((warning) => this.publicText(warning));
