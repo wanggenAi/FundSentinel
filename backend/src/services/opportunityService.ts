@@ -266,7 +266,7 @@ export class OpportunityService {
   }
 
   private static normalizeLimit(limit: number): number {
-    if (!Number.isFinite(limit)) return 6;
+    if (!Number.isFinite(limit)) return 0;
     return Math.max(0, Math.min(Math.floor(limit), 10));
   }
 }

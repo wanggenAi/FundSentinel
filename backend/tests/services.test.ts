@@ -446,6 +446,12 @@ test("opportunity service clamps unsafe limits without expanding the candidate p
   assert.equal(negativeLimitResponse.universe_audit.selected_count, 0);
   assert.match(negativeLimitResponse.summary, /限制为 0/);
 
+  const nonFiniteLimitResponse = await new OpportunityService(undefined, new FundAnalysisService(registry), { fundUniverse: ["007951"] }).getOpportunities(Number.NaN);
+
+  assert.equal(nonFiniteLimitResponse.candidates.length, 0);
+  assert.equal(nonFiniteLimitResponse.universe_audit.requested_limit, 0);
+  assert.equal(nonFiniteLimitResponse.universe_audit.selected_count, 0);
+
   const fractionalLimitResponse = await new OpportunityService(undefined, new FundAnalysisService(registry), { fundUniverse: ["007951", "161725"] }).getOpportunities(1.9);
 
   assert.equal(fractionalLimitResponse.universe_audit.requested_limit, 1);
