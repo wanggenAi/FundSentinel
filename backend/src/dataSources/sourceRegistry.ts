@@ -33,7 +33,7 @@ import { StatsGovMacroProvider } from "./providers/statsGovMacroProvider.js";
 import { SseMarketCalendarProvider } from "./providers/sseMarketCalendarProvider.js";
 import { WorldBankMacroProvider } from "./providers/worldBankMacroProvider.js";
 import type { DataProvider } from "./providers/baseProvider.js";
-import type { DataProviderResult, DataSourceCatalogEntry, DataSourceInfo, FundDataSourceInput, ProviderFundPayload } from "./sourceTypes.js";
+import type { DataProviderResult, DataSourceCatalogEntry, DataSourceInfo, DataSourceType, FundDataSourceInput, ProviderFundPayload } from "./sourceTypes.js";
 import { listDataSourceCatalog } from "./sourceCatalog.js";
 import { nowIso } from "../schemas/index.js";
 import type { DataRequirement } from "../schemas/index.js";
@@ -66,6 +66,16 @@ const defaultSharedState: SharedRegistryState = {
 };
 
 const COORDINATOR_SOURCE_IDS = new Set(["fund-company-report"]);
+const FUND_CORE_CONTEXT_SOURCE_TYPES = new Set<DataSourceType>([
+  "fund_meta",
+  "current_nav",
+  "nav_history",
+  "holdings",
+  "fund_report",
+  "regulatory_disclosure",
+  "fund_company",
+  "manual_import"
+]);
 type CoverageRequirement = DataRequirement | "official_current_nav" | "official_nav_history" | "official_fund_reports" | "benchmark";
 
 export class SourceRegistry {
@@ -274,7 +284,7 @@ export class SourceRegistry {
       const result = await this.fetchProvider(provider, providerInput);
       this.recordResult(result);
       results.push(result);
-      if (result.success && result.data) context = this.mergeContext(context, result.data);
+      if (result.success && result.data) context = this.mergeContextForResult(context, result);
     }
     return results;
   }
@@ -600,6 +610,28 @@ export class SourceRegistry {
       news_summaries: [...new Set([...(left.news_summaries ?? []), ...(right.news_summaries ?? [])])],
       stage_returns: { ...(left.stage_returns ?? {}), ...(right.stage_returns ?? {}) }
     };
+  }
+
+  private mergeContextForResult(left: ProviderFundPayload, result: DataProviderResult<ProviderFundPayload>): ProviderFundPayload {
+    if (!result.data) return left;
+    return this.mergeContext(left, this.contextPayloadForResult(result));
+  }
+
+  private contextPayloadForResult(result: DataProviderResult<ProviderFundPayload>): ProviderFundPayload {
+    const payload = result.data!;
+    if (this.canMergeFundCoreContext(result)) return payload;
+    return {
+      themes: payload.themes,
+      policy_signals: payload.policy_signals,
+      macro_indicators: payload.macro_indicators,
+      news_summaries: payload.news_summaries,
+      social_sentiment_score: payload.social_sentiment_score
+    };
+  }
+
+  private canMergeFundCoreContext(result: DataProviderResult<ProviderFundPayload>): boolean {
+    if (result.is_demo) return true;
+    return FUND_CORE_CONTEXT_SOURCE_TYPES.has(result.source_type);
   }
 
   private mergeMacroIndicators(

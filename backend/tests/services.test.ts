@@ -873,6 +873,60 @@ test("SourceRegistry redacts sensitive provider result strings before caching or
   assert.doesNotMatch(JSON.stringify(second), /raw-secret|macro-secret|report-ref-secret|detail-secret|pdf-secret|warning-secret|error-secret/u);
 });
 
+test("SourceRegistry does not let non-core provider payloads seed fund-core context", async () => {
+  const captureProvider = new ContextCaptureProvider();
+  const registry = new SourceRegistry({
+    providers: [new ContextPollutingMacroProvider(), captureProvider],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const results = await registry.fetchAll({ fund_code: "007951", required_data: ["macro_data", "policy_evidence"], demo_mode: false });
+  const capturedContext = captureProvider.capturedContext;
+
+  assert.equal(results.length, 2);
+  assert.ok(capturedContext);
+  assert.equal(capturedContext.fund_name, undefined);
+  assert.equal(capturedContext.fund_type, undefined);
+  assert.equal(capturedContext.current_nav, undefined);
+  assert.equal(capturedContext.daily_return, undefined);
+  assert.equal(capturedContext.holdings_as_of, undefined);
+  assert.equal(capturedContext.holdings_source, undefined);
+  assert.deepEqual(capturedContext.nav_history, undefined);
+  assert.deepEqual(capturedContext.nav_history_dates, undefined);
+  assert.deepEqual(capturedContext.portfolio_holdings, []);
+  assert.deepEqual(capturedContext.fund_report_refs, []);
+  assert.deepEqual(capturedContext.fund_report_documents, []);
+  assert.equal(capturedContext.stage_returns?.one_month, undefined);
+  assert.deepEqual(capturedContext.themes, ["宏观主题"]);
+  assert.deepEqual(capturedContext.policy_signals, ["宏观政策"]);
+  assert.deepEqual(capturedContext.news_summaries, ["宏观新闻"]);
+  assert.equal(capturedContext.social_sentiment_score, 0.2);
+  assert.equal(capturedContext.macro_indicators?.[0]?.indicator_id, "TEST.MACRO.CONTEXT");
+});
+
+test("SourceRegistry keeps core provider payloads available to later context-aware providers", async () => {
+  const captureProvider = new ContextCaptureProvider();
+  const registry = new SourceRegistry({
+    providers: [new ContextCoreProvider(), captureProvider],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  await registry.fetchAll({ fund_code: "007951", required_data: ["fund_meta", "current_nav", "nav_history", "policy_evidence"], demo_mode: false });
+  const capturedContext = captureProvider.capturedContext;
+
+  assert.equal(capturedContext?.fund_name, "Core Context Fund");
+  assert.equal(capturedContext?.fund_type, "mixed");
+  assert.equal(capturedContext?.current_nav, 1.2345);
+  assert.equal(capturedContext?.daily_return, -0.12);
+  assert.deepEqual(capturedContext?.nav_history, [1.2, 1.2345]);
+  assert.deepEqual(capturedContext?.nav_history_dates, ["2026-05-27", "2026-05-28"]);
+  assert.deepEqual(capturedContext?.portfolio_holdings, ["核心持仓"]);
+  assert.deepEqual(capturedContext?.fund_report_refs, ["official report ref"]);
+  assert.equal(capturedContext?.stage_returns?.one_month, 0.03);
+});
+
 test("SourceRegistry health recovers after a later provider success", async () => {
   const provider = new RecoveringProvider();
   const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 0, retryCount: 0 });
@@ -1236,6 +1290,174 @@ class AlwaysFailProvider implements DataProvider<FundDataSourceInput, ProviderFu
   async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
     this.callCount += 1;
     return providerResult("always-fail-provider", false);
+  }
+}
+
+class ContextPollutingMacroProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("context-polluting-macro-provider"),
+      source_name: "Context Polluting Macro Provider",
+      source_type: "macro_data",
+      trust_level: "A",
+      priority: 1
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "context-polluting-macro-provider",
+      source_name: "Context Polluting Macro Provider",
+      source_type: "macro_data",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "Non-core Fund Name",
+        fund_type: "macro-only",
+        current_nav: 9.9999,
+        daily_return: 9.99,
+        nav_history: [9.8, 9.9999],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        stage_returns: { one_month: 9.99 },
+        portfolio_holdings: ["污染持仓"],
+        holdings_as_of: "2026-03-31",
+        holdings_source: "macro payload",
+        fund_report_refs: ["polluted report ref"],
+        fund_report_documents: [
+          {
+            title: "Polluted Report",
+            announcement_id: "polluted-report",
+            published_at: "2026-04-22",
+            category: null,
+            document_kind: "periodic_report",
+            detail_url: "https://macro.example.test/detail",
+            pdf_url: "https://macro.example.test/report.pdf",
+            pdf_verified: true,
+            pdf_content_type: "application/pdf",
+            pdf_content_length: 1024,
+            source_name: "Context Polluting Macro Provider",
+            source_type: "official_disclosure",
+            trust_level: "A"
+          }
+        ],
+        themes: ["宏观主题"],
+        policy_signals: ["宏观政策"],
+        news_summaries: ["宏观新闻"],
+        social_sentiment_score: 0.2,
+        macro_indicators: [
+          {
+            country_code: "CN",
+            country_name: "China",
+            indicator_id: "TEST.MACRO.CONTEXT",
+            indicator_name: "Macro context test",
+            value: 1,
+            date: "2026",
+            unit: "index",
+            source_url: "https://macro.example.test",
+            source_name: "Context Polluting Macro Provider",
+            fetched_at: "2026-05-28T00:00:00.000Z"
+          }
+        ]
+      },
+      raw_reference: "https://macro.example.test",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class ContextCoreProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("context-core-provider"),
+      source_name: "Context Core Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      priority: 1
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "context-core-provider",
+      source_name: "Context Core Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "ready",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "Core Context Fund",
+        fund_type: "mixed",
+        current_nav: 1.2345,
+        daily_return: -0.12,
+        nav_history: [1.2, 1.2345],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        stage_returns: { one_month: 0.03 },
+        portfolio_holdings: ["核心持仓"],
+        holdings_as_of: "2026-03-31",
+        holdings_source: "official fixture",
+        fund_report_refs: ["official report ref"]
+      },
+      raw_reference: "https://official.example.test/context-core",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class ContextCaptureProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  capturedContext: ProviderFundPayload | undefined;
+
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("context-capture-provider"),
+      source_name: "Context Capture Provider",
+      source_type: "policy",
+      trust_level: "A",
+      priority: 2
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.capturedContext = input.context;
+    return {
+      source_id: "context-capture-provider",
+      source_name: "Context Capture Provider",
+      source_type: "policy",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        policy_signals: ["captured context"]
+      },
+      raw_reference: "test://context-capture",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
   }
 }
 
