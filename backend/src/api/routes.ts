@@ -63,10 +63,19 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/api/home", async () => new HomeService().getHomeDashboard());
 
-  app.get<{ Querystring: { limit?: string | number } }>("/api/opportunities", async (request) => {
+  app.get<{ Querystring: { limit?: string | number } }>("/api/opportunities", async (request, reply) => {
     const rawLimit = request.query.limit;
     const limit = rawLimit === undefined ? 6 : Number(rawLimit);
-    return new OpportunityService().getOpportunities(Number.isFinite(limit) ? limit : 6);
+    if (!Number.isFinite(limit)) {
+      return reply.code(400).send({
+        error: "Invalid opportunities limit query parameter",
+        details: {
+          limit: ["Limit must be a finite number."]
+        },
+        is_mock: false
+      });
+    }
+    return new OpportunityService().getOpportunities(limit);
   });
 
   app.get<{ Params: { fund_code: string } }>("/api/funds/:fund_code/analysis", async (request, reply) => {

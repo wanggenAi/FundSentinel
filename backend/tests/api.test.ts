@@ -77,6 +77,18 @@ test("API opportunities clamps unsafe limits without mock candidates", async () 
   assert.match(payload.summary, /限制为 0/);
 });
 
+test("API opportunities rejects non-numeric limits without mock data marker", async () => {
+  const app = await buildApp();
+  const response = await app.inject({ method: "GET", url: "/api/opportunities?limit=abc" });
+  await app.close();
+
+  assert.equal(response.statusCode, 400);
+  const payload = response.json();
+  assert.equal(payload.is_mock, false);
+  assert.match(payload.error, /Invalid opportunities limit/);
+  assert.equal("candidates" in payload, false);
+});
+
 test("API fund analysis and analyze post return public analysis", async () => {
   const app = await buildApp();
   const userRequest = "分析这个基金现在是否适合进入观察或试探买入";
