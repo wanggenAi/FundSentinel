@@ -997,12 +997,14 @@ test("SourceRegistry redacts sensitive provider result strings before caching or
   assert.equal(first.success, true);
   assert.equal(second.cache_hit, true);
   assert.doesNotMatch(serialized, /raw-secret|macro-secret|report-ref-secret|detail-secret|pdf-secret|warning-secret|error-secret/u);
+  assert.doesNotMatch(serialized, /must buy|guaranteed|risk[-\s]?free|保证收益|必须买入/iu);
   assert.match(first.raw_reference ?? "", /api_key=\[REDACTED\]/u);
   assert.match(first.data?.macro_indicators?.[0]?.source_url ?? "", /credential=\[REDACTED\]/u);
   assert.match(first.data?.fund_report_refs?.[0] ?? "", /access_token=\[REDACTED\]/u);
   assert.match(first.data?.fund_report_documents?.[0]?.detail_url ?? "", /token=\[REDACTED\]/u);
   assert.match(first.data?.fund_report_documents?.[0]?.pdf_url ?? "", /api_key=\[REDACTED\]/u);
   assert.match(first.warnings[0] ?? "", /Bearer \[REDACTED\]/u);
+  assert.match(first.warnings[0] ?? "", /requires evidence review/u);
   assert.match(first.error ?? "", /password=\[REDACTED\]/u);
   assert.doesNotMatch(JSON.stringify(second), /raw-secret|macro-secret|report-ref-secret|detail-secret|pdf-secret|warning-secret|error-secret/u);
 });
@@ -1827,11 +1829,11 @@ class SensitiveProvider implements DataProvider<FundDataSourceInput, ProviderFun
           }
         ]
       },
-      raw_reference: "https://provider.example.test/nav?api_key=raw-secret",
+      raw_reference: "https://provider.example.test/nav?api_key=raw-secret&note=must%20buy",
       fetched_at: "2026-05-28T00:00:00.000Z",
       freshness: "fresh",
-      warnings: ["authorization: Bearer warning-secret"],
-      error: "client warning password=error-secret",
+      warnings: ["authorization: Bearer warning-secret must buy guaranteed returns risk-free 保证收益"],
+      error: "client warning password=error-secret 必须买入",
       is_demo: false
     };
   }

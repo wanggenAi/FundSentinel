@@ -37,7 +37,8 @@ import type { DataProviderResult, DataSourceCatalogEntry, DataSourceInfo, DataSo
 import { listDataSourceCatalog } from "./sourceCatalog.js";
 import { nowIso } from "../schemas/index.js";
 import type { DataRequirement } from "../schemas/index.js";
-import { redactSensitiveStrings, redactSensitiveText } from "../utils/safeLogging.js";
+import { sanitizePublicStructure } from "../utils/publicText.js";
+import { redactSensitiveText } from "../utils/safeLogging.js";
 
 export interface SourceRegistryOptions {
   demoMode?: boolean;
@@ -428,7 +429,7 @@ export class SourceRegistry {
     cacheHit: boolean,
     cacheExpiresAt: string | null
   ): DataProviderResult<ProviderFundPayload> {
-    return redactSensitiveStrings({
+    return sanitizePublicStructure({
       ...result,
       warnings: [...result.warnings],
       attempt_count: attemptCount,
