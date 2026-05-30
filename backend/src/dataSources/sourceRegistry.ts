@@ -78,6 +78,14 @@ const FUND_CORE_CONTEXT_SOURCE_TYPES = new Set<DataSourceType>([
   "manual_import"
 ]);
 type CoverageRequirement = DataRequirement | "official_current_nav" | "official_nav_history" | "official_fund_reports" | "benchmark";
+type ContextCoreField = "fund_code" | "fund_name" | "fund_type" | "current_nav" | "daily_return";
+
+interface ContextMergeState {
+  coreFieldPriorities: Partial<Record<ContextCoreField, number>>;
+  stageReturnPriorities: Record<string, number>;
+  navHistoryPriority: number;
+  holdingsPriority: number;
+}
 
 export class SourceRegistry {
   private readonly providers: Array<DataProvider<FundDataSourceInput, ProviderFundPayload>>;
@@ -283,13 +291,14 @@ export class SourceRegistry {
 
     const results: Array<DataProviderResult<ProviderFundPayload>> = [];
     let context: ProviderFundPayload = input.context ?? {};
+    const contextMergeState = this.initialContextMergeState(context);
     for (const provider of activeProviders) {
       const providerInput = { ...input, context, demo_mode: this.demoMode };
       if (!provider.canHandle(providerInput)) continue;
       const result = await this.fetchProvider(provider, providerInput);
       this.recordResult(result);
       results.push(result);
-      if (result.success && result.data) context = this.mergeContextForResult(context, result);
+      if (result.success && result.data) context = this.mergeContextForResult(context, result, contextMergeState);
     }
     return results;
   }
@@ -692,26 +701,33 @@ export class SourceRegistry {
     );
   }
 
-  private mergeContext(left: ProviderFundPayload, right: ProviderFundPayload): ProviderFundPayload {
-    return {
+  private mergeContext(left: ProviderFundPayload, right: ProviderFundPayload, state: ContextMergeState, priority: number): ProviderFundPayload {
+    const merged: ProviderFundPayload = {
       ...left,
-      ...Object.fromEntries(Object.entries(right).filter(([, value]) => value !== undefined && value !== null)),
-      nav_history: right.nav_history?.length ? right.nav_history : left.nav_history,
-      nav_history_dates: right.nav_history_dates?.length ? right.nav_history_dates : left.nav_history_dates,
-      portfolio_holdings: [...new Set([...(left.portfolio_holdings ?? []), ...(right.portfolio_holdings ?? [])])],
       fund_report_refs: [...new Set([...(left.fund_report_refs ?? []), ...(right.fund_report_refs ?? [])])],
       fund_report_documents: [...(left.fund_report_documents ?? []), ...(right.fund_report_documents ?? [])],
+      portfolio_holdings: left.portfolio_holdings ?? [],
       themes: [...new Set([...(left.themes ?? []), ...(right.themes ?? [])])],
       policy_signals: [...new Set([...(left.policy_signals ?? []), ...(right.policy_signals ?? [])])],
       macro_indicators: this.mergeMacroIndicators(left.macro_indicators, right.macro_indicators),
-      news_summaries: [...new Set([...(left.news_summaries ?? []), ...(right.news_summaries ?? [])])],
-      stage_returns: { ...(left.stage_returns ?? {}), ...(right.stage_returns ?? {}) }
+      news_summaries: [...new Set([...(left.news_summaries ?? []), ...(right.news_summaries ?? [])])]
     };
+
+    this.setPreferredContextField(merged, state, "fund_code", right.fund_code, priority);
+    this.setPreferredContextField(merged, state, "fund_name", right.fund_name, priority);
+    this.setPreferredContextField(merged, state, "fund_type", right.fund_type, priority);
+    this.setPreferredContextField(merged, state, "current_nav", right.current_nav, priority);
+    this.setPreferredContextField(merged, state, "daily_return", right.daily_return, priority);
+    this.mergeNavHistoryContext(merged, right, state, priority);
+    this.mergeStageReturnsContext(merged, right.stage_returns, state, priority);
+    this.mergeHoldingsContext(merged, right, state, priority);
+    this.setIfMissing(merged, "social_sentiment_score", right.social_sentiment_score);
+    return merged;
   }
 
-  private mergeContextForResult(left: ProviderFundPayload, result: DataProviderResult<ProviderFundPayload>): ProviderFundPayload {
+  private mergeContextForResult(left: ProviderFundPayload, result: DataProviderResult<ProviderFundPayload>, state: ContextMergeState): ProviderFundPayload {
     if (!result.data) return left;
-    return this.mergeContext(left, this.contextPayloadForResult(result));
+    return this.mergeContext(left, this.contextPayloadForResult(result), state, this.contextPayloadPriority(result));
   }
 
   private contextPayloadForResult(result: DataProviderResult<ProviderFundPayload>): ProviderFundPayload {
@@ -746,6 +762,128 @@ export class SourceRegistry {
       news_summaries: payload.news_summaries,
       social_sentiment_score: payload.social_sentiment_score
     };
+  }
+
+  private initialContextMergeState(context: ProviderFundPayload): ContextMergeState {
+    const state: ContextMergeState = {
+      coreFieldPriorities: {},
+      stageReturnPriorities: {},
+      navHistoryPriority: Number.NEGATIVE_INFINITY,
+      holdingsPriority: Number.NEGATIVE_INFINITY
+    };
+    const initialPriority = 25;
+    for (const key of ["fund_code", "fund_name", "fund_type", "current_nav", "daily_return"] as ContextCoreField[]) {
+      if (context[key] !== undefined && context[key] !== null) state.coreFieldPriorities[key] = initialPriority;
+    }
+    if (context.nav_history?.length) state.navHistoryPriority = initialPriority;
+    if (context.portfolio_holdings?.length) state.holdingsPriority = initialPriority;
+    for (const period of Object.keys(context.stage_returns ?? {})) {
+      state.stageReturnPriorities[period] = initialPriority;
+    }
+    return state;
+  }
+
+  private setIfMissing<K extends keyof ProviderFundPayload>(target: ProviderFundPayload, key: K, value: ProviderFundPayload[K]): void {
+    if (target[key] === undefined && value !== undefined && value !== null) target[key] = value;
+  }
+
+  private setPreferredContextField<K extends ContextCoreField>(
+    target: ProviderFundPayload,
+    state: ContextMergeState,
+    key: K,
+    value: ProviderFundPayload[K],
+    priority: number,
+    replaceOnTie = false
+  ): void {
+    if (value === undefined || value === null) return;
+    const currentPriority = state.coreFieldPriorities[key] ?? Number.NEGATIVE_INFINITY;
+    if (target[key] === undefined || priority > currentPriority || (replaceOnTie && priority === currentPriority)) {
+      target[key] = value;
+      state.coreFieldPriorities[key] = priority;
+    }
+  }
+
+  private mergeNavHistoryContext(target: ProviderFundPayload, payload: ProviderFundPayload, state: ContextMergeState, priority: number): void {
+    if (!this.shouldUseContextNavHistory(payload, target, priority, state.navHistoryPriority)) return;
+    target.nav_history = payload.nav_history;
+    target.nav_history_dates = payload.nav_history_dates;
+    state.navHistoryPriority = priority;
+    this.setPreferredContextField(target, state, "current_nav", payload.current_nav, priority, true);
+    this.setPreferredContextField(target, state, "daily_return", payload.daily_return, priority, true);
+  }
+
+  private shouldUseContextNavHistory(
+    candidate: ProviderFundPayload,
+    current: ProviderFundPayload,
+    candidatePriority: number,
+    currentPriority: number
+  ): boolean {
+    if (!candidate.nav_history?.length) return false;
+    if (!current.nav_history?.length) return true;
+    if (candidatePriority !== currentPriority) return candidatePriority > currentPriority;
+    const candidateLatest = candidate.nav_history_dates?.at(-1);
+    const currentLatest = current.nav_history_dates?.at(-1);
+    if (candidateLatest && currentLatest && candidateLatest !== currentLatest) return candidateLatest > currentLatest;
+    if (candidateLatest && !currentLatest) return true;
+    if (!candidateLatest && currentLatest) return false;
+    return candidate.nav_history.length > current.nav_history.length;
+  }
+
+  private mergeStageReturnsContext(
+    target: ProviderFundPayload,
+    stageReturns: ProviderFundPayload["stage_returns"],
+    state: ContextMergeState,
+    priority: number
+  ): void {
+    if (!stageReturns) return;
+    const mergedStageReturns = (target.stage_returns ??= {});
+    for (const [period, value] of Object.entries(stageReturns)) {
+      const currentPriority = state.stageReturnPriorities[period] ?? Number.NEGATIVE_INFINITY;
+      if (priority > currentPriority || mergedStageReturns[period] === undefined) {
+        mergedStageReturns[period] = value;
+        state.stageReturnPriorities[period] = priority;
+      }
+    }
+  }
+
+  private mergeHoldingsContext(target: ProviderFundPayload, payload: ProviderFundPayload, state: ContextMergeState, priority: number): void {
+    if (!payload.portfolio_holdings?.length) return;
+    if (!target.portfolio_holdings?.length || priority > state.holdingsPriority) {
+      this.assignContextHoldings(target, payload);
+      state.holdingsPriority = priority;
+      return;
+    }
+    if (priority < state.holdingsPriority) return;
+
+    const candidateDate = payload.holdings_as_of;
+    const currentDate = target.holdings_as_of;
+    if (candidateDate && (!currentDate || candidateDate > currentDate)) {
+      this.assignContextHoldings(target, payload);
+      return;
+    }
+    if (currentDate && candidateDate && candidateDate < currentDate) return;
+
+    target.portfolio_holdings = [...new Set([...(target.portfolio_holdings ?? []), ...payload.portfolio_holdings])];
+    this.setIfMissing(target, "holdings_as_of", candidateDate);
+    this.setIfMissing(target, "holdings_source", payload.holdings_source);
+  }
+
+  private assignContextHoldings(target: ProviderFundPayload, payload: ProviderFundPayload): void {
+    target.portfolio_holdings = [...new Set(payload.portfolio_holdings ?? [])];
+    target.holdings_as_of = payload.holdings_as_of;
+    target.holdings_source = payload.holdings_source;
+  }
+
+  private contextPayloadPriority(result: DataProviderResult<ProviderFundPayload>): number {
+    if (!this.canMergeFundCoreContext(result)) return Number.NEGATIVE_INFINITY;
+    if (this.isAuthoritativeContextSource(result)) return 40;
+    if (!result.is_demo && result.source_type === "manual_import") return 20;
+    if (!result.is_demo) return 10;
+    return 0;
+  }
+
+  private isAuthoritativeContextSource(result: DataProviderResult<ProviderFundPayload>): boolean {
+    return !result.is_demo && result.source_type !== "manual_import" && result.trust_level === "A";
   }
 
   private canMergeFundCoreContext(result: DataProviderResult<ProviderFundPayload>): boolean {

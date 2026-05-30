@@ -1248,6 +1248,28 @@ test("SourceRegistry keeps core provider payloads available to later context-awa
   assert.equal(capturedContext?.stage_returns?.one_month, 0.03);
 });
 
+test("SourceRegistry prefers authoritative core context over earlier low-trust core context", async () => {
+  const captureProvider = new ContextCaptureProvider();
+  const registry = new SourceRegistry({
+    providers: [new LowTrustContextCoreProvider(), new ContextCoreProvider(), captureProvider],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  await registry.fetchAll({ fund_code: "007951", required_data: ["fund_meta", "current_nav", "nav_history", "holdings", "policy_evidence"], demo_mode: false });
+  const capturedContext = captureProvider.capturedContext;
+
+  assert.equal(capturedContext?.fund_name, "Core Context Fund");
+  assert.equal(capturedContext?.fund_type, "mixed");
+  assert.equal(capturedContext?.current_nav, 1.2345);
+  assert.equal(capturedContext?.daily_return, -0.12);
+  assert.deepEqual(capturedContext?.nav_history, [1.2, 1.2345]);
+  assert.deepEqual(capturedContext?.nav_history_dates, ["2026-05-27", "2026-05-28"]);
+  assert.equal(capturedContext?.stage_returns?.one_month, 0.03);
+  assert.deepEqual(capturedContext?.portfolio_holdings, ["核心持仓"]);
+  assert.equal(capturedContext?.holdings_source, "official fixture");
+});
+
 test("SourceRegistry cache keys include auxiliary provider context", async () => {
   const provider = new ContextEchoProvider();
   const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
@@ -1889,6 +1911,52 @@ class ContextPollutingMacroProvider implements DataProvider<FundDataSourceInput,
         ]
       },
       raw_reference: "https://macro.example.test",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class LowTrustContextCoreProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("low-trust-context-core-provider"),
+      source_name: "Low Trust Context Core Provider",
+      source_type: "nav_history",
+      trust_level: "B",
+      priority: 0
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "low-trust-context-core-provider",
+      source_name: "Low Trust Context Core Provider",
+      source_type: "nav_history",
+      trust_level: "B",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "Low Trust Context Fund",
+        fund_type: "aggregator-mismatch",
+        current_nav: 9.9999,
+        daily_return: 9.99,
+        nav_history: [9.7, 9.8, 9.9999],
+        nav_history_dates: ["2026-05-26", "2026-05-27", "2026-05-28"],
+        stage_returns: { one_month: 9.99 },
+        portfolio_holdings: ["低信任错配持仓"],
+        holdings_as_of: "2026-03-31",
+        holdings_source: "low trust fixture"
+      },
+      raw_reference: "https://aggregator.example.test/context-core",
       fetched_at: "2026-05-28T00:00:00.000Z",
       freshness: "fresh",
       warnings: [],
