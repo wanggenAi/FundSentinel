@@ -927,6 +927,61 @@ test("SourceRegistry keeps core provider payloads available to later context-awa
   assert.equal(capturedContext?.stage_returns?.one_month, 0.03);
 });
 
+test("SourceRegistry cache keys include auxiliary provider context", async () => {
+  const provider = new ContextEchoProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
+
+  const baseInput = { fund_code: "007951", required_data: ["industry_news"], demo_mode: false };
+  const first = (await registry.fetchAll({
+    ...baseInput,
+    context: {
+      news_summaries: ["港股新闻背景"],
+      policy_signals: ["跨境政策背景"],
+      macro_indicators: [
+        {
+          country_code: "HK",
+          country_name: "Hong Kong",
+          indicator_id: "TEST.HK",
+          indicator_name: "HK context",
+          value: 1,
+          date: "2026",
+          unit: "index",
+          source_url: "https://macro.example.test?api_key=aux-secret-a",
+          source_name: "Aux Context"
+        }
+      ],
+      social_sentiment_score: 0.1
+    }
+  }))[0];
+  const second = (await registry.fetchAll({
+    ...baseInput,
+    context: {
+      news_summaries: ["美股新闻背景"],
+      policy_signals: ["海外政策背景"],
+      macro_indicators: [
+        {
+          country_code: "US",
+          country_name: "United States",
+          indicator_id: "TEST.US",
+          indicator_name: "US context",
+          value: 2,
+          date: "2026",
+          unit: "index",
+          source_url: "https://macro.example.test?api_key=aux-secret-b",
+          source_name: "Aux Context"
+        }
+      ],
+      social_sentiment_score: 0.8
+    }
+  }))[0];
+
+  assert.equal(provider.callCount, 2);
+  assert.equal(first.cache_hit, false);
+  assert.equal(second.cache_hit, false);
+  assert.match(first.data?.news_summaries?.[0] ?? "", /港股新闻背景/);
+  assert.match(second.data?.news_summaries?.[0] ?? "", /美股新闻背景/);
+});
+
 test("SourceRegistry health recovers after a later provider success", async () => {
   const provider = new RecoveringProvider();
   const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 0, retryCount: 0 });
@@ -1452,6 +1507,54 @@ class ContextCaptureProvider implements DataProvider<FundDataSourceInput, Provid
         policy_signals: ["captured context"]
       },
       raw_reference: "test://context-capture",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class ContextEchoProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("context-echo-provider"),
+      source_name: "Context Echo Provider",
+      source_type: "news",
+      trust_level: "A",
+      priority: 1
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return {
+      source_id: "context-echo-provider",
+      source_name: "Context Echo Provider",
+      source_type: "news",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        news_summaries: [
+          [
+            input.context?.news_summaries?.join("|") ?? "",
+            input.context?.policy_signals?.join("|") ?? "",
+            input.context?.macro_indicators?.map((indicator) => `${indicator.country_code}:${indicator.indicator_id}:${indicator.value}`).join("|") ?? "",
+            String(input.context?.social_sentiment_score ?? "")
+          ]
+            .filter(Boolean)
+            .join(" / ")
+        ]
+      },
+      raw_reference: "test://context-echo",
       fetched_at: "2026-05-28T00:00:00.000Z",
       freshness: "fresh",
       warnings: [],

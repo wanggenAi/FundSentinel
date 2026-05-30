@@ -277,7 +277,7 @@ export class SourceRegistry {
       .sort((a, b) => this.sourceStates.get(a.sourceInfo().source_id)!.priority - this.sourceStates.get(b.sourceInfo().source_id)!.priority);
 
     const results: Array<DataProviderResult<ProviderFundPayload>> = [];
-    let context: ProviderFundPayload = {};
+    let context: ProviderFundPayload = input.context ?? {};
     for (const provider of activeProviders) {
       const providerInput = { ...input, context, demo_mode: this.demoMode };
       if (!provider.canHandle(providerInput)) continue;
@@ -493,8 +493,40 @@ export class SourceRegistry {
       portfolio_holdings: [...(context.portfolio_holdings ?? [])].sort().slice(0, 50),
       holdings_as_of: context.holdings_as_of,
       fund_report_refs: [...(context.fund_report_refs ?? [])].sort().slice(0, 20),
-      fund_report_documents: this.fundReportDocumentSignature(context.fund_report_documents)
+      fund_report_documents: this.fundReportDocumentSignature(context.fund_report_documents),
+      policy_signals: [...(context.policy_signals ?? [])].sort().slice(0, 20),
+      news_summaries: [...(context.news_summaries ?? [])].sort().slice(0, 20),
+      macro_indicators: this.macroIndicatorSignature(context.macro_indicators),
+      social_sentiment_score: context.social_sentiment_score
     };
+  }
+
+  private macroIndicatorSignature(indicators: ProviderFundPayload["macro_indicators"] | undefined): Array<Record<string, unknown>> {
+    return (indicators ?? [])
+      .map((indicator) => ({
+        country_code: indicator.country_code,
+        indicator_id: indicator.indicator_id,
+        date: indicator.date,
+        value: indicator.value,
+        source_url: redactSensitiveText(indicator.source_url),
+        source_name: indicator.source_name
+      }))
+      .sort((left, right) =>
+        [
+          String(left.country_code ?? ""),
+          String(left.indicator_id ?? ""),
+          String(left.date ?? ""),
+          String(left.source_name ?? "")
+        ].join("|").localeCompare(
+          [
+            String(right.country_code ?? ""),
+            String(right.indicator_id ?? ""),
+            String(right.date ?? ""),
+            String(right.source_name ?? "")
+          ].join("|")
+        )
+      )
+      .slice(0, 50);
   }
 
   private fundReportDocumentSignature(documents: ProviderFundPayload["fund_report_documents"] | undefined): Array<Record<string, unknown>> {
