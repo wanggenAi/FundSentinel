@@ -847,6 +847,35 @@ test("SourceRegistry health counts only live cache entries for the exact provide
   assert.equal([...cache.values()].some((cached) => cached.sourceId === "cache-provider-extra"), false);
 });
 
+test("SourceRegistry cache hits do not hide later live provider failures", async () => {
+  const provider = new CountingProvider("cache-health-provider");
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
+  const input = { fund_code: "007951", required_data: ["fund_meta"], demo_mode: false };
+
+  const first = (await registry.fetchAll(input))[0];
+  registry.recordResult({
+    ...providerResult("cache-health-provider", false),
+    attempt_count: 1,
+    latency_ms: 77,
+    cache_hit: false,
+    skipped_by_circuit_breaker: false
+  });
+  const second = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "cache-health-provider");
+
+  assert.equal(first.cache_hit, false);
+  assert.equal(second.cache_hit, true);
+  assert.equal(provider.callCount, 1);
+  assert.equal(health?.health_status, "failing");
+  assert.equal(health?.failure_count, 1);
+  assert.equal(health?.consecutive_failure_count, 1);
+  assert.equal(health?.last_attempt_count, 1);
+  assert.equal(health?.last_latency_ms, 77);
+  assert.equal(health?.cache_hit_count, 1);
+  assert.ok(health?.last_success_at);
+  assert.ok(health?.last_failed_at);
+});
+
 test("SourceRegistry keeps default provider cache across registry instances", async () => {
   const provider = new CountingProvider("shared-counting-provider");
   const firstRegistry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0, shareState: true });

@@ -293,17 +293,19 @@ export class SourceRegistry {
   recordResult(result: DataProviderResult<ProviderFundPayload>): void {
     const current = this.sourceStates.get(result.source_id);
     if (!current) return;
+    const cacheHit = result.cache_hit === true;
+    const liveSuccess = result.success && !cacheHit;
     const countsAsFailure = !result.success && !result.skipped_by_circuit_breaker;
     this.sourceStates.set(result.source_id, {
       ...current,
-      last_success_at: result.success ? nowIso() : current.last_success_at,
+      last_success_at: liveSuccess ? nowIso() : current.last_success_at,
       last_failed_at: countsAsFailure ? nowIso() : current.last_failed_at,
       failure_count: countsAsFailure ? current.failure_count + 1 : current.failure_count,
-      consecutive_failure_count: result.success ? 0 : countsAsFailure ? current.consecutive_failure_count + 1 : current.consecutive_failure_count,
-      last_latency_ms: result.latency_ms ?? current.last_latency_ms,
-      last_attempt_count: result.attempt_count ?? current.last_attempt_count,
-      cache_hit_count: result.cache_hit ? current.cache_hit_count + 1 : current.cache_hit_count,
-      last_cache_hit_at: result.cache_hit ? nowIso() : current.last_cache_hit_at,
+      consecutive_failure_count: liveSuccess ? 0 : countsAsFailure ? current.consecutive_failure_count + 1 : current.consecutive_failure_count,
+      last_latency_ms: cacheHit ? current.last_latency_ms : result.latency_ms ?? current.last_latency_ms,
+      last_attempt_count: cacheHit ? current.last_attempt_count : result.attempt_count ?? current.last_attempt_count,
+      cache_hit_count: cacheHit ? current.cache_hit_count + 1 : current.cache_hit_count,
+      last_cache_hit_at: cacheHit ? nowIso() : current.last_cache_hit_at,
       circuit_open_until: this.circuitOpenUntilFor(current, result),
       circuit_open_count: countsAsFailure && this.shouldOpenCircuit(current) ? current.circuit_open_count + 1 : current.circuit_open_count
     });
