@@ -139,5 +139,6 @@ export interface ManualReportImportAudit {
     pdf_path: string;
     pdf_sha256: string;
     pdf_size_bytes: number;
+    pdf_mtime: string;
   }>;
 }

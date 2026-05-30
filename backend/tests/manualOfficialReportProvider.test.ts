@@ -93,6 +93,7 @@ test("ManualOfficialReportProvider imports verified official report PDF metadata
     assert.equal(result.data?.manual_report_import_audit?.latest_report_date, "2026-04-22");
     assert.equal(result.data?.manual_report_import_audit?.reports[0]?.pdf_sha256, sha256);
     assert.equal(result.data?.manual_report_import_audit?.reports[0]?.pdf_size_bytes, pdfBytes.length);
+    assert.match(result.data?.manual_report_import_audit?.reports[0]?.pdf_mtime ?? "", /^\d{4}-\d{2}-\d{2}T/u);
     assert.equal(result.data?.manual_report_import_audit?.manifest_sha256.length, 64);
     assert.ok(result.warnings.some((warning) => warning.includes("不得标记为自动抓取")));
   } finally {
@@ -257,6 +258,7 @@ test("Argus keeps manual official report import as audited fallback without offi
     assert.equal(manualSource?.success, true);
     assert.equal((manualSource?.manual_report_import_audit as { verified_pdf_count?: number } | undefined)?.verified_pdf_count, 1);
     assert.equal((manualSource?.manual_report_import_audit as { reports?: Array<{ pdf_sha256?: string }> } | undefined)?.reports?.[0]?.pdf_sha256, sha256);
+    assert.match((manualSource?.manual_report_import_audit as { reports?: Array<{ pdf_mtime?: string }> } | undefined)?.reports?.[0]?.pdf_mtime ?? "", /^\d{4}-\d{2}-\d{2}T/u);
     assert.equal(dataPack.allow_downstream_analysis, false);
   } finally {
     await rm(dir, { recursive: true, force: true });

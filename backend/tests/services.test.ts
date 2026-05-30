@@ -1408,7 +1408,8 @@ test("DataSourceService returns gap and manual import plan", async () => {
     "reports[].source_url",
     "reports[].pdf_path",
     "reports[].pdf_sha256",
-    "reports[].pdf_size_bytes"
+    "reports[].pdf_size_bytes",
+    "reports[].pdf_mtime"
   ]);
   assert.ok(manualPlan.report_manifest_validation_rules.some((rule) => rule.includes("相对于 FUNDSENTINEL_MANUAL_REPORT_DIR")));
   assert.ok(manualPlan.report_manifest_validation_rules.some((rule) => rule.includes("符号链接逃逸")));

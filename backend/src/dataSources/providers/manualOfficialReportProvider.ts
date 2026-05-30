@@ -27,6 +27,7 @@ interface VerifiedManualReport {
     pdf_path: string;
     pdf_sha256: string;
     pdf_size_bytes: number;
+    pdf_mtime: string;
   };
 }
 
@@ -178,7 +179,8 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
         source_url: manifest.source_url,
         pdf_path: pdfPath,
         pdf_sha256: actualSha256,
-        pdf_size_bytes: pdfStats.size
+        pdf_size_bytes: pdfStats.size,
+        pdf_mtime: pdfStats.mtime.toISOString()
       }
     };
   }

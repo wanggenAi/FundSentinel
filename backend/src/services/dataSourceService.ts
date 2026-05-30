@@ -137,7 +137,8 @@ export class DataSourceService {
         "reports[].source_url",
         "reports[].pdf_path",
         "reports[].pdf_sha256",
-        "reports[].pdf_size_bytes"
+        "reports[].pdf_size_bytes",
+        "reports[].pdf_mtime"
       ],
       report_manifest_validation_rules: [
         "pdf_path 必须是相对于 FUNDSENTINEL_MANUAL_REPORT_DIR 的路径，不能是绝对路径。",
