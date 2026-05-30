@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ArgusAgent } from "../src/agents/index.js";
-import { SecEdgarProvider, SourceRegistry } from "../src/dataSources/index.js";
+import { FundCompanyReportProvider, SecEdgarProvider, SourceRegistry } from "../src/dataSources/index.js";
 
 const secTickerExchangeJson = JSON.stringify({
   fields: ["cik", "name", "ticker", "exchange"],
@@ -128,4 +128,33 @@ test("Argus preserves SEC filing metadata without allowing core fund analysis", 
   assert.ok(dataPack.data_quality_report.missing_core_fields.includes("current_nav"));
   assert.ok(dataPack.news_summaries.some((summary) => summary.includes("SEC EDGAR 官方披露")));
   assert.ok(dataPack.data_sources.some((source) => source.source_id === "sec-edgar" && source.record_count === 3));
+});
+
+test("Argus runs report coordinator after SEC metadata without upgrading unverified EDGAR filings", async () => {
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("company_tickers_exchange.json")) return new Response(secTickerExchangeJson, { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes("CIK0000884394.json")) return new Response(secSubmissionsJson, { status: 200, headers: { "content-type": "application/json" } });
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+  const registry = new SourceRegistry({
+    providers: [new SecEdgarProvider(fetchImpl, 1000), new FundCompanyReportProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("sec-edgar-coordination-flow", "SPY");
+  const reportCoordinator = dataPack.data_sources.find((source) => source.source_id === "fund-company-report");
+  const secIndex = dataPack.data_sources.findIndex((source) => source.source_id === "sec-edgar");
+  const coordinatorIndex = dataPack.data_sources.findIndex((source) => source.source_id === "fund-company-report");
+  const coordinatorFailure = dataPack.data_gap_report?.failed_source_details.find((source) => source.source_id === "fund-company-report");
+
+  assert.ok(secIndex >= 0);
+  assert.ok(coordinatorIndex > secIndex);
+  assert.equal(reportCoordinator?.success, false);
+  assert.match(reportCoordinator?.raw_reference ?? "", /sec\.gov\/Archives/);
+  assert.match(coordinatorFailure?.raw_reference ?? "", /sec\.gov\/Archives/);
+  assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.fund_reports, false);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), true);
+  assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("已发现官方定期报告 PDF 但未通过元数据校验")));
 });

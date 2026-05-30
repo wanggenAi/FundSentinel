@@ -41,7 +41,7 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
       source_type: "manual_import",
       trust_level: "A",
       enabled,
-      priority: 39,
+      priority: 53,
       access_method: "verified local official PDF manifest via FUNDSENTINEL_MANUAL_REPORT_DIR",
       requires_auth: false,
       is_demo: false,

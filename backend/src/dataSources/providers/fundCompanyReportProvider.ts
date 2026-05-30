@@ -11,7 +11,7 @@ export class FundCompanyReportProvider implements DataProvider<FundDataSourceInp
       source_type: "fund_report",
       trust_level: "A",
       enabled: true,
-      priority: 18,
+      priority: 52,
       access_method: "context coordinator over official fund-company/regulatory report documents",
       requires_auth: false,
       is_demo: false,

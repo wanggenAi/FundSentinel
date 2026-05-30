@@ -136,6 +136,16 @@ test("SourceRegistry cache keys include official report document context", async
   assert.match(secondReportResult?.error ?? "", /No verified official periodic report/);
 });
 
+test("default SourceRegistry runs report coordinator after automated official report providers and before manual fallback", () => {
+  const sources = new SourceRegistry({ enableLiveProviders: false }).providerCandidates();
+  const priorityFor = (sourceId: string) => sources.find((source) => source.source_id === sourceId)?.priority ?? Number.NaN;
+
+  assert.ok(priorityFor("fund-company-report") > priorityFor("sec-edgar"));
+  assert.ok(priorityFor("fund-company-report") > priorityFor("cninfo-report"));
+  assert.ok(priorityFor("fund-company-report") > priorityFor("csrc-fund-disclosure"));
+  assert.ok(priorityFor("manual-official-report-import") > priorityFor("fund-company-report"));
+});
+
 class UnverifiedOfficialReportContextProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   sourceInfo(): DataSourceInfo {
     return {

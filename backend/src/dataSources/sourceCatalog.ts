@@ -112,7 +112,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     is_demo: false,
     integration_status: "implemented",
     legal_note: "Coordinates already collected official metadata only; does not fabricate reports or bypass source-site rules.",
-    priority: 8,
+    priority: 52,
     notes:
       "Consumes official report documents collected by concrete fund-company/regulatory providers and succeeds only when a verified official periodic-report PDF is already present."
   },
@@ -311,7 +311,7 @@ export const DATA_SOURCE_CATALOG: DataSourceCatalogEntry[] = [
     is_demo: false,
     integration_status: "manual",
     legal_note: "Requires official source URL, local PDF file, SHA256 checksum, import timestamp, and operator/source audit trail.",
-    priority: 21,
+    priority: 53,
     notes:
       "Implemented as explicit local manifest fallback for official report PDFs when automated official sites are blocked or coverage is incomplete. It verifies PDF file signature and SHA256, keeps manual audit metadata, and does not count as automated official core coverage."
   },
