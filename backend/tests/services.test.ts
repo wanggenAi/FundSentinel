@@ -824,6 +824,29 @@ test("SourceRegistry caches successful real provider results and exposes cache h
   assert.equal(health?.cache_entries, 1);
 });
 
+test("SourceRegistry health counts only live cache entries for the exact provider", async () => {
+  const registry = new SourceRegistry({
+    providers: [new CountingProvider("cache-provider"), new CountingProvider("cache-provider-extra")],
+    cacheTtlMs: 60_000,
+    retryCount: 0
+  });
+  const input = { fund_code: "007951", required_data: ["fund_meta"], demo_mode: false };
+
+  await registry.fetchAll(input);
+  const cache = (registry as unknown as { resultCache: Map<string, { sourceId: string; expiresAt: number }> }).resultCache;
+  for (const cached of cache.values()) {
+    if (cached.sourceId === "cache-provider-extra") cached.expiresAt = Date.now() - 1;
+  }
+
+  const health = registry.health();
+  const primary = health.find((source) => source.source_id === "cache-provider");
+  const similarlyNamed = health.find((source) => source.source_id === "cache-provider-extra");
+
+  assert.equal(primary?.cache_entries, 1);
+  assert.equal(similarlyNamed?.cache_entries, 0);
+  assert.equal([...cache.values()].some((cached) => cached.sourceId === "cache-provider-extra"), false);
+});
+
 test("SourceRegistry keeps default provider cache across registry instances", async () => {
   const provider = new CountingProvider("shared-counting-provider");
   const firstRegistry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0, shareState: true });

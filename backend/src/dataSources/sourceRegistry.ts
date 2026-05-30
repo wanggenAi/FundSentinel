@@ -51,6 +51,7 @@ export interface SourceRegistryOptions {
 }
 
 interface CachedProviderResult {
+  sourceId: string;
   result: DataProviderResult<ProviderFundPayload>;
   expiresAt: number;
 }
@@ -412,6 +413,7 @@ export class SourceRegistry {
   private writeCache(cacheKey: string, result: DataProviderResult<ProviderFundPayload>): void {
     if (this.cacheTtlMs <= 0 || !result.success || result.is_demo) return;
     this.resultCache.set(cacheKey, {
+      sourceId: result.source_id,
       result: { ...result, warnings: [...result.warnings], cache_hit: false, cache_expires_at: new Date(Date.now() + this.cacheTtlMs).toISOString() },
       expiresAt: Date.now() + this.cacheTtlMs
     });
@@ -573,7 +575,16 @@ export class SourceRegistry {
   }
 
   private cacheEntryCountFor(sourceId: string): number {
-    return [...this.resultCache.keys()].filter((key) => key.includes(`"source_id":"${sourceId}"`)).length;
+    const now = Date.now();
+    let count = 0;
+    for (const [cacheKey, cached] of this.resultCache.entries()) {
+      if (cached.expiresAt <= now) {
+        this.resultCache.delete(cacheKey);
+        continue;
+      }
+      if (cached.sourceId === sourceId) count += 1;
+    }
+    return count;
   }
 
   private providerFailure(
