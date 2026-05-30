@@ -290,7 +290,7 @@ export class SourceRegistry {
       .sort((a, b) => this.sourceStates.get(a.sourceInfo().source_id)!.priority - this.sourceStates.get(b.sourceInfo().source_id)!.priority);
 
     const results: Array<DataProviderResult<ProviderFundPayload>> = [];
-    let context: ProviderFundPayload = input.context ?? {};
+    let context: ProviderFundPayload = this.validatedContextPayload(input.context ?? {});
     const contextMergeState = this.initialContextMergeState(context);
     for (const provider of activeProviders) {
       const providerInput = { ...input, context, demo_mode: this.demoMode };
@@ -732,8 +732,8 @@ export class SourceRegistry {
 
   private contextPayloadForResult(result: DataProviderResult<ProviderFundPayload>): ProviderFundPayload {
     const payload = result.data!;
-    if (result.source_type === "manual_import" && !result.is_demo) return this.manualImportContextPayload(payload);
-    if (this.canMergeFundCoreContext(result)) return payload;
+    if (result.source_type === "manual_import" && !result.is_demo) return this.validatedContextPayload(this.manualImportContextPayload(payload));
+    if (this.canMergeFundCoreContext(result)) return this.validatedContextPayload(payload);
     return {
       themes: payload.themes,
       policy_signals: payload.policy_signals,
@@ -761,6 +761,54 @@ export class SourceRegistry {
       news_summaries: payload.news_summaries,
       social_sentiment_score: payload.social_sentiment_score
     };
+  }
+
+  private validatedContextPayload(payload: ProviderFundPayload): ProviderFundPayload {
+    const validated: ProviderFundPayload = { ...payload };
+    if (validated.current_nav !== undefined && !this.isValidNavValue(validated.current_nav)) validated.current_nav = undefined;
+    if (validated.daily_return !== undefined && !this.isFiniteNumber(validated.daily_return)) validated.daily_return = undefined;
+    if (validated.social_sentiment_score !== undefined && !this.isFiniteNumber(validated.social_sentiment_score)) validated.social_sentiment_score = undefined;
+    validated.stage_returns = this.validStageReturns(validated.stage_returns);
+    const navHistory = this.validNavHistory(validated.nav_history, validated.nav_history_dates);
+    validated.nav_history = navHistory.navHistory;
+    validated.nav_history_dates = navHistory.navHistoryDates;
+    return validated;
+  }
+
+  private validStageReturns(stageReturns: ProviderFundPayload["stage_returns"]): ProviderFundPayload["stage_returns"] {
+    if (!stageReturns) return stageReturns;
+    const entries = Object.entries(stageReturns).filter(([, value]) => this.isFiniteNumber(value));
+    return entries.length ? Object.fromEntries(entries) : undefined;
+  }
+
+  private validNavHistory(
+    navHistory: number[] | undefined,
+    navHistoryDates: string[] | undefined
+  ): { navHistory: number[] | undefined; navHistoryDates: string[] | undefined } {
+    if (!navHistory?.length) return { navHistory, navHistoryDates };
+    const requiresPairedDates = Boolean(navHistoryDates?.length);
+    const validValues: number[] = [];
+    const validDates: string[] = [];
+    for (let index = 0; index < navHistory.length; index += 1) {
+      const nav = navHistory[index];
+      if (!this.isValidNavValue(nav)) continue;
+      const date = navHistoryDates?.[index];
+      if (requiresPairedDates && !date) continue;
+      validValues.push(nav);
+      if (date) validDates.push(date);
+    }
+    return {
+      navHistory: validValues.length ? validValues : undefined,
+      navHistoryDates: validValues.length && requiresPairedDates ? validDates : undefined
+    };
+  }
+
+  private isValidNavValue(value: number | undefined): value is number {
+    return typeof value === "number" && Number.isFinite(value) && value > 0;
+  }
+
+  private isFiniteNumber(value: number | undefined): value is number {
+    return typeof value === "number" && Number.isFinite(value);
   }
 
   private initialContextMergeState(context: ProviderFundPayload): ContextMergeState {

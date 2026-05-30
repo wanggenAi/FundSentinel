@@ -1248,6 +1248,27 @@ test("SourceRegistry keeps core provider payloads available to later context-awa
   assert.equal(capturedContext?.stage_returns?.one_month, 0.03);
 });
 
+test("SourceRegistry filters invalid core NAV values before sharing provider context", async () => {
+  const captureProvider = new ContextCaptureProvider();
+  const registry = new SourceRegistry({
+    providers: [new InvalidContextCoreProvider(), captureProvider],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  await registry.fetchAll({ fund_code: "007951", required_data: ["fund_meta", "current_nav", "nav_history", "policy_evidence"], demo_mode: false });
+  const capturedContext = captureProvider.capturedContext;
+
+  assert.equal(capturedContext?.fund_name, "Invalid Context Fund");
+  assert.equal(capturedContext?.fund_type, "mixed");
+  assert.equal(capturedContext?.current_nav, undefined);
+  assert.equal(capturedContext?.daily_return, undefined);
+  assert.deepEqual(capturedContext?.nav_history, undefined);
+  assert.deepEqual(capturedContext?.nav_history_dates, undefined);
+  assert.equal(capturedContext?.stage_returns?.one_month, undefined);
+  assert.deepEqual(capturedContext?.portfolio_holdings, ["无效净值源持仓"]);
+});
+
 test("SourceRegistry prefers authoritative core context over earlier low-trust core context", async () => {
   const captureProvider = new ContextCaptureProvider();
   const registry = new SourceRegistry({
@@ -1958,6 +1979,52 @@ class LowTrustContextCoreProvider implements DataProvider<FundDataSourceInput, P
         holdings_source: "low trust fixture"
       },
       raw_reference: "https://aggregator.example.test/context-core",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class InvalidContextCoreProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("invalid-context-core-provider"),
+      source_name: "Invalid Context Core Provider",
+      source_type: "nav_history",
+      trust_level: "B",
+      priority: 0
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "invalid-context-core-provider",
+      source_name: "Invalid Context Core Provider",
+      source_type: "nav_history",
+      trust_level: "B",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "Invalid Context Fund",
+        fund_type: "mixed",
+        current_nav: 0,
+        daily_return: Number.NaN,
+        nav_history: [-1, 0],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        stage_returns: { one_month: Number.POSITIVE_INFINITY },
+        portfolio_holdings: ["无效净值源持仓"],
+        holdings_as_of: "2026-03-31",
+        holdings_source: "invalid context fixture"
+      },
+      raw_reference: "https://aggregator.example.test/invalid-context-core",
       fetched_at: "2026-05-28T00:00:00.000Z",
       freshness: "fresh",
       warnings: [],
