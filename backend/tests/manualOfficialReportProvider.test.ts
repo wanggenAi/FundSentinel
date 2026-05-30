@@ -26,6 +26,23 @@ async function writeManifest(dir: string, sha256: string): Promise<void> {
   ]));
 }
 
+async function writeManifestWithPdfPath(dir: string, sha256: string, pdfPath: string): Promise<void> {
+  await writeFile(path.join(dir, "007951.reports.json"), JSON.stringify([
+    {
+      fund_code: "007951",
+      title: "招商信用增强债券C2026年第1季度报告",
+      announcement_id: "manual-007951-2026q1",
+      published_at: "2026-04-22",
+      document_kind: "periodic_report",
+      source_name: "中国证监会基金电子披露网站",
+      source_url: "https://eid.csrc.gov.cn/fund/disclosure/007951/20260422/report.pdf",
+      pdf_path: pdfPath,
+      pdf_sha256: sha256,
+      category: "quarterly_report"
+    }
+  ]));
+}
+
 test("ManualOfficialReportProvider imports verified official report PDF metadata", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "fundsentinel-manual-report-"));
   try {
@@ -83,6 +100,52 @@ test("ManualOfficialReportProvider rejects mismatched official PDF hashes", asyn
     assert.equal(result.data, null);
     assert.match(result.error ?? "", /SHA256 mismatch/);
     assert.ok(result.warnings.some((warning) => warning.includes("校验失败")));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ManualOfficialReportProvider rejects official PDF paths outside the manual report directory", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fundsentinel-escaped-manual-report-"));
+  const outsideDir = await mkdtemp(path.join(os.tmpdir(), "fundsentinel-outside-manual-report-"));
+  try {
+    const sha256 = createHash("sha256").update(pdfBytes).digest("hex");
+    await writeFile(path.join(outsideDir, "007951-2026q1.pdf"), pdfBytes);
+    await writeManifestWithPdfPath(dir, sha256, path.relative(dir, path.join(outsideDir, "007951-2026q1.pdf")));
+
+    const result = await new ManualOfficialReportProvider(dir).fetch({
+      fund_code: "007951",
+      required_data: ["fund_reports"],
+      demo_mode: false
+    });
+
+    assert.equal(result.success, false);
+    assert.equal(result.data, null);
+    assert.match(result.error ?? "", /inside FUNDSENTINEL_MANUAL_REPORT_DIR/);
+    assert.ok(result.warnings.some((warning) => warning.includes("校验失败")));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+    await rm(outsideDir, { recursive: true, force: true });
+  }
+});
+
+test("ManualOfficialReportProvider rejects absolute official PDF paths", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fundsentinel-absolute-manual-report-"));
+  try {
+    const sha256 = createHash("sha256").update(pdfBytes).digest("hex");
+    const pdfPath = path.join(dir, "007951-2026q1.pdf");
+    await writeFile(pdfPath, pdfBytes);
+    await writeManifestWithPdfPath(dir, sha256, pdfPath);
+
+    const result = await new ManualOfficialReportProvider(dir).fetch({
+      fund_code: "007951",
+      required_data: ["fund_reports"],
+      demo_mode: false
+    });
+
+    assert.equal(result.success, false);
+    assert.equal(result.data, null);
+    assert.match(result.error ?? "", /relative and stay inside FUNDSENTINEL_MANUAL_REPORT_DIR/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

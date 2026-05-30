@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { access, readFile, stat } from "node:fs/promises";
+import { access, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { nowIso } from "../../schemas/index.js";
 import type { FundReportDocument } from "../../schemas/index.js";
@@ -149,7 +149,7 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
   }
 
   private async documentForManifest(manifest: ManualOfficialReportManifest): Promise<VerifiedManualReport> {
-    const pdfPath = path.isAbsolute(manifest.pdf_path) ? manifest.pdf_path : path.join(this.dataDir ?? "", manifest.pdf_path);
+    const pdfPath = await this.resolvePdfPath(manifest.pdf_path);
     const [pdfBuffer, pdfStats] = await Promise.all([readFile(pdfPath), stat(pdfPath)]);
     if (!pdfBuffer.subarray(0, 5).equals(Buffer.from("%PDF-"))) throw new Error(`Official report PDF is not a PDF file: ${pdfPath}`);
     const actualSha256 = createHash("sha256").update(pdfBuffer).digest("hex");
@@ -180,6 +180,28 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
         pdf_size_bytes: pdfStats.size
       }
     };
+  }
+
+  private async resolvePdfPath(manifestPdfPath: string): Promise<string> {
+    if (!this.dataDir) throw new Error("FUNDSENTINEL_MANUAL_REPORT_DIR is not configured");
+    if (path.isAbsolute(manifestPdfPath)) throw new Error("Official report PDF path must be relative and stay inside FUNDSENTINEL_MANUAL_REPORT_DIR.");
+
+    const baseDir = path.resolve(this.dataDir);
+    const resolvedPath = path.resolve(baseDir, manifestPdfPath);
+    if (!this.isInsideDirectory(resolvedPath, baseDir)) {
+      throw new Error("Official report PDF path must be relative and stay inside FUNDSENTINEL_MANUAL_REPORT_DIR.");
+    }
+
+    const [baseRealPath, pdfRealPath] = await Promise.all([realpath(baseDir), realpath(resolvedPath)]);
+    if (!this.isInsideDirectory(pdfRealPath, baseRealPath)) {
+      throw new Error("Official report PDF path must stay inside FUNDSENTINEL_MANUAL_REPORT_DIR.");
+    }
+    return resolvedPath;
+  }
+
+  private isInsideDirectory(candidatePath: string, baseDir: string): boolean {
+    const relativePath = path.relative(baseDir, candidatePath);
+    return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
   }
 
   private reportRefFor(document: FundReportDocument): string {
