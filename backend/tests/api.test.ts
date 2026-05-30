@@ -63,6 +63,20 @@ test("API opportunities returns OpportunitySquareResponse", async () => {
   assert.doesNotMatch(JSON.stringify(payload), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
 });
 
+test("API opportunities clamps unsafe limits without mock candidates", async () => {
+  const app = await buildApp();
+  const response = await app.inject({ method: "GET", url: "/api/opportunities?limit=-5" });
+  await app.close();
+
+  assert.equal(response.statusCode, 200);
+  const payload = response.json();
+  assert.equal(payload.is_mock, false);
+  assert.equal(payload.candidates.length, 0);
+  assert.equal(payload.universe_audit.requested_limit, 0);
+  assert.equal(payload.universe_audit.selected_count, 0);
+  assert.match(payload.summary, /限制为 0/);
+});
+
 test("API fund analysis and analyze post return public analysis", async () => {
   const app = await buildApp();
   const userRequest = "分析这个基金现在是否适合进入观察或试探买入";
