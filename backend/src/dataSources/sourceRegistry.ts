@@ -291,7 +291,7 @@ export class SourceRegistry {
       .sort((a, b) => this.sourceStates.get(a.sourceInfo().source_id)!.priority - this.sourceStates.get(b.sourceInfo().source_id)!.priority);
 
     const results: Array<DataProviderResult<ProviderFundPayload>> = [];
-    let context: ProviderFundPayload = this.validatedContextPayload(input.context ?? {});
+    let context: ProviderFundPayload = this.validatedContextPayload(input.context ?? {}, input.fund_code);
     const contextMergeState = this.initialContextMergeState(context);
     for (const provider of activeProviders) {
       const providerInput = { ...input, context, demo_mode: this.demoMode };
@@ -299,7 +299,7 @@ export class SourceRegistry {
       const result = await this.fetchProvider(provider, providerInput);
       this.recordResult(result);
       results.push(result);
-      if (result.success && result.data) context = this.mergeContextForResult(context, result, contextMergeState);
+      if (result.success && result.data) context = this.mergeContextForResult(context, result, contextMergeState, input.fund_code);
     }
     return results;
   }
@@ -754,15 +754,21 @@ export class SourceRegistry {
     return merged;
   }
 
-  private mergeContextForResult(left: ProviderFundPayload, result: DataProviderResult<ProviderFundPayload>, state: ContextMergeState): ProviderFundPayload {
+  private mergeContextForResult(
+    left: ProviderFundPayload,
+    result: DataProviderResult<ProviderFundPayload>,
+    state: ContextMergeState,
+    fundCode: string
+  ): ProviderFundPayload {
     if (!result.data) return left;
-    return this.mergeContext(left, this.contextPayloadForResult(result), state, this.contextPayloadPriority(result));
+    return this.mergeContext(left, this.contextPayloadForResult(result, fundCode), state, this.contextPayloadPriority(result));
   }
 
-  private contextPayloadForResult(result: DataProviderResult<ProviderFundPayload>): ProviderFundPayload {
+  private contextPayloadForResult(result: DataProviderResult<ProviderFundPayload>, fundCode: string): ProviderFundPayload {
     const payload = result.data!;
-    if (result.source_type === "manual_import" && !result.is_demo) return this.validatedContextPayload(this.manualImportContextPayload(payload));
-    if (this.canMergeFundCoreContext(result)) return this.validatedContextPayload(payload);
+    if (!this.matchesRequestedFund(fundCode, payload)) return {};
+    if (result.source_type === "manual_import" && !result.is_demo) return this.validatedContextPayload(this.manualImportContextPayload(payload), fundCode);
+    if (this.canMergeFundCoreContext(result)) return this.validatedContextPayload(payload, fundCode);
     return {
       themes: payload.themes,
       policy_signals: payload.policy_signals,
@@ -792,8 +798,9 @@ export class SourceRegistry {
     };
   }
 
-  private validatedContextPayload(payload: ProviderFundPayload): ProviderFundPayload {
+  private validatedContextPayload(payload: ProviderFundPayload, fundCode?: string): ProviderFundPayload {
     const validated: ProviderFundPayload = { ...payload };
+    if (!this.matchesRequestedFund(fundCode, validated)) return {};
     if (validated.current_nav !== undefined && !this.isValidNavValue(validated.current_nav)) validated.current_nav = undefined;
     if (validated.daily_return !== undefined && !this.isFiniteNumber(validated.daily_return)) validated.daily_return = undefined;
     if (validated.social_sentiment_score !== undefined && !this.isFiniteNumber(validated.social_sentiment_score)) validated.social_sentiment_score = undefined;
@@ -838,6 +845,11 @@ export class SourceRegistry {
 
   private isFiniteNumber(value: number | undefined): value is number {
     return typeof value === "number" && Number.isFinite(value);
+  }
+
+  private matchesRequestedFund(fundCode: string | undefined, payload: ProviderFundPayload | null | undefined): boolean {
+    const providerFundCode = payload?.fund_code?.trim();
+    return !fundCode || !providerFundCode || providerFundCode === fundCode;
   }
 
   private initialContextMergeState(context: ProviderFundPayload): ContextMergeState {

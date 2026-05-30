@@ -1248,6 +1248,36 @@ test("SourceRegistry keeps core provider payloads available to later context-awa
   assert.equal(capturedContext?.stage_returns?.one_month, 0.03);
 });
 
+test("SourceRegistry does not share provider context when returned fund_code mismatches the request", async () => {
+  const captureProvider = new ContextCaptureProvider();
+  const registry = new SourceRegistry({
+    providers: [new MismatchedContextCoreProvider(), captureProvider],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  await registry.fetchAll({ fund_code: "007951", required_data: ["fund_meta", "current_nav", "nav_history", "policy_evidence"], demo_mode: false });
+  const capturedContext = captureProvider.capturedContext;
+
+  assert.ok(capturedContext);
+  assert.equal(capturedContext.fund_code, undefined);
+  assert.equal(capturedContext.fund_name, undefined);
+  assert.equal(capturedContext.fund_type, undefined);
+  assert.equal(capturedContext.current_nav, undefined);
+  assert.equal(capturedContext.daily_return, undefined);
+  assert.deepEqual(capturedContext.nav_history, undefined);
+  assert.deepEqual(capturedContext.nav_history_dates, undefined);
+  assert.equal(capturedContext.stage_returns, undefined);
+  assert.deepEqual(capturedContext.portfolio_holdings, []);
+  assert.deepEqual(capturedContext.fund_report_refs, []);
+  assert.deepEqual(capturedContext.fund_report_documents, []);
+  assert.deepEqual(capturedContext.themes, []);
+  assert.deepEqual(capturedContext.policy_signals, []);
+  assert.deepEqual(capturedContext.news_summaries, []);
+  assert.equal(capturedContext.macro_indicators, undefined);
+  assert.equal(capturedContext.social_sentiment_score, undefined);
+});
+
 test("SourceRegistry filters invalid core NAV values before sharing provider context", async () => {
   const captureProvider = new ContextCaptureProvider();
   const registry = new SourceRegistry({
@@ -2105,6 +2135,71 @@ class ContextCoreProvider implements DataProvider<FundDataSourceInput, ProviderF
         fund_report_refs: ["official report ref"]
       },
       raw_reference: "https://official.example.test/context-core",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class MismatchedContextCoreProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("mismatched-context-core-provider"),
+      source_name: "Mismatched Context Core Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      priority: 1
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "mismatched-context-core-provider",
+      source_name: "Mismatched Context Core Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "ready",
+      success: true,
+      data: {
+        fund_code: "000001",
+        fund_name: "Mismatched Context Fund",
+        fund_type: "mixed",
+        current_nav: 8.8888,
+        daily_return: 0.88,
+        nav_history: [8.8, 8.8888],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        stage_returns: { one_month: 0.08 },
+        portfolio_holdings: ["错配上下文持仓"],
+        holdings_as_of: "2026-03-31",
+        holdings_source: "mismatched context fixture",
+        fund_report_refs: ["mismatched official report ref"],
+        themes: ["错配主题"],
+        policy_signals: ["错配政策"],
+        news_summaries: ["错配新闻"],
+        social_sentiment_score: 0.88,
+        macro_indicators: [
+          {
+            country_code: "CN",
+            country_name: "China",
+            indicator_id: "MISMATCHED.CONTEXT",
+            indicator_name: "Mismatched context",
+            value: 1,
+            date: "2026",
+            unit: "index",
+            source_url: "https://macro.example.test/mismatched-context",
+            source_name: "Mismatched Context",
+            fetched_at: "2026-05-28T00:00:00.000Z"
+          }
+        ]
+      },
+      raw_reference: "https://official.example.test/mismatched-context-core",
       fetched_at: "2026-05-28T00:00:00.000Z",
       freshness: "fresh",
       warnings: [],
