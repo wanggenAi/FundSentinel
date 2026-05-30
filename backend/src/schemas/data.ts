@@ -37,6 +37,7 @@ export interface DataQualityReport {
   source_composition: SourceComposition;
   missing_core_fields: string[];
   missing_auxiliary_fields: string[];
+  placeholder_fields: string[];
   stale_sources: string[];
   warnings: string[];
   blocking_issues: string[];

@@ -649,6 +649,7 @@ test("public fund analysis sanitizes full demo DAG action language", async () =>
   assert.equal("blackboard_snapshot" in response, false);
   assert.equal("action" in response.final_review, false);
   assert.equal("source_composition" in response.data_pack.data_quality_report, true);
+  assert.deepEqual(response.data_pack.data_quality_report.placeholder_fields, []);
   assert.equal("source_comreview" in response.data_pack.data_quality_report, false);
   assert.equal(response.agent_results.Aegis?.agent_role, "Risk Review Agent");
   assert.equal(response.agent_results.Nadir?.agent_role, "Valuation Review Agent");
@@ -665,6 +666,7 @@ test("public fund analysis surfaces degraded strong-conclusion blocks in final r
 
   assert.equal(response.is_mock, false);
   assert.equal(response.data_pack.data_status, "partial");
+  assert.deepEqual(response.data_pack.data_quality_report.placeholder_fields, []);
   assert.equal(response.data_pack.allow_downstream_analysis, true);
   assert.equal(response.data_pack.allow_strong_conclusion, false);
   assert.equal(response.final_review.review_status, "evidence_review");

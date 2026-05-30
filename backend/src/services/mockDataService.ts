@@ -221,6 +221,7 @@ export class MockDataService {
       },
       missing_core_fields: [],
       missing_auxiliary_fields: [],
+      placeholder_fields: [],
       stale_sources: [],
       warnings: ["Demo fixture 数据不能用于真实投资判断。", ...raw.quality_warnings],
       blocking_issues: [],

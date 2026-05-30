@@ -71,6 +71,7 @@ export class ArgusAgent extends BaseAgent {
           source_composition: quality.source_composition,
           missing_core_fields: quality.missing_core_fields,
           missing_auxiliary_fields: quality.missing_auxiliary_fields,
+          placeholder_fields: quality.placeholder_fields,
           allow_downstream_analysis: quality.allow_downstream_analysis,
           allow_strong_conclusion: quality.allow_strong_conclusion,
           nav_points: dataPack.nav_history.length,
@@ -257,6 +258,7 @@ export class ArgusAgent extends BaseAgent {
       !merged.news_summaries?.length ? "industry_news" : null,
       merged.social_sentiment_score === undefined ? "social_sentiment" : null
     ].filter(Boolean) as string[];
+    const placeholderFields = this.placeholderFieldsFor(merged, missingCoreFields, missingAuxiliaryFields);
     const staleSources = providerResults.filter((result) => result.freshness === "stale").map((result) => result.source_name);
     const ignoredCoreFieldWarnings = successful.flatMap((result) => this.ignoredFundCoreFieldWarnings(result));
     const warnings = [...providerResults.flatMap((result) => result.warnings), ...ignoredCoreFieldWarnings];
@@ -336,6 +338,7 @@ export class ArgusAgent extends BaseAgent {
         navConsistencyReport.status === "conflict"
           ? [...new Set([...missingAuxiliaryFields, ...freshnessGapFields, "nav_consistency"])]
           : [...new Set([...missingAuxiliaryFields, ...freshnessGapFields])],
+      placeholder_fields: placeholderFields,
       stale_sources: staleSources,
       warnings,
       blocking_issues: blockingIssues,
@@ -345,6 +348,14 @@ export class ArgusAgent extends BaseAgent {
       generated_by: "Argus",
       generated_at: nowIso()
     };
+  }
+
+  private placeholderFieldsFor(merged: ProviderFundPayload, missingCoreFields: string[], missingAuxiliaryFields: string[]): string[] {
+    return [
+      missingCoreFields.includes("fund_meta") ? ["fund_name", "fund_type"] : [],
+      missingCoreFields.includes("current_nav") ? ["current_nav", "daily_return"] : [],
+      missingAuxiliaryFields.includes("social_sentiment") && merged.social_sentiment_score === undefined ? ["social_sentiment_score"] : []
+    ].flat();
   }
 
   private buildGapReport(

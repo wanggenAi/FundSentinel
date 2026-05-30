@@ -507,6 +507,7 @@ test("Argus ignores fund core fields accidentally returned by macro providers", 
   assert.equal(dataPack.current_nav, 0);
   assert.deepEqual(dataPack.nav_history, []);
   assert.deepEqual(dataPack.nav_history_dates, []);
+  assert.deepEqual(dataPack.data_quality_report.placeholder_fields, ["fund_name", "fund_type", "current_nav", "daily_return", "social_sentiment_score"]);
   assert.equal(dataPack.macro_indicators.length, 1);
   assert.ok(composition.macro.includes("misleading-macro-nav-test"));
   assert.equal(composition.official_core_coverage.fund_meta, false);

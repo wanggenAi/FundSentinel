@@ -17,6 +17,8 @@ test("Argus returns AgentResult with unavailable data by default", async () => {
   assert.equal(dataPack.data_status, "unavailable");
   assert.equal(dataPack.allow_downstream_analysis, false);
   assert.equal(dataPack.allow_strong_conclusion, false);
+  assert.deepEqual(dataPack.data_quality_report.placeholder_fields, ["fund_name", "fund_type", "current_nav", "daily_return", "social_sentiment_score"]);
+  assert.deepEqual(argusResult.metrics.placeholder_fields, dataPack.data_quality_report.placeholder_fields);
 });
 
 test("specialist agents still return AgentResult with explicit demo fixture input", async () => {
@@ -52,6 +54,7 @@ test("demo mode allows demo dataPack but forbids strong conclusion", async () =>
   assert.equal(dataPack.allow_downstream_analysis, true);
   assert.equal(dataPack.allow_strong_conclusion, false);
   assert.equal(dataPack.data_quality.is_mock, true);
+  assert.deepEqual(dataPack.data_quality_report.placeholder_fields, []);
   assert.equal(result.is_mock, true);
   assert.equal(result.metrics.data_status, "demo");
   assert.ok(result.confidence <= 0.35);
