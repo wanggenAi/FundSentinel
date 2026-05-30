@@ -190,6 +190,7 @@ export class ArgusAgent extends BaseAgent {
     const merged: ProviderFundPayload = {};
     const coreFieldPriorities: Partial<Record<PreferredCoreField, number>> = {};
     const stageReturnPriorities: Record<string, number> = {};
+    const reportDocumentPriorities: Record<string, number> = {};
     let navHistoryPriority = Number.NEGATIVE_INFINITY;
     let holdingsPriority = Number.NEGATIVE_INFINITY;
     for (const result of results) {
@@ -213,7 +214,12 @@ export class ArgusAgent extends BaseAgent {
         this.mergeStageReturnsByPriority(merged, stageReturnPriorities, payload.stage_returns, corePriority, shouldUseCandidateNavHistory);
         holdingsPriority = this.mergeHoldingsByPriority(merged, payload, corePriority, holdingsPriority);
         merged.fund_report_refs = this.mergeUnique(merged.fund_report_refs, payload.fund_report_refs);
-        merged.fund_report_documents = this.mergeReportDocuments(merged.fund_report_documents, payload.fund_report_documents);
+        merged.fund_report_documents = this.mergeReportDocuments(
+          merged.fund_report_documents,
+          payload.fund_report_documents,
+          reportDocumentPriorities,
+          corePriority
+        );
       }
 
       merged.themes = this.mergeUnique(merged.themes, payload.themes);
@@ -766,18 +772,39 @@ export class ArgusAgent extends BaseAgent {
 
   private mergeReportDocuments(
     left: ProviderFundPayload["fund_report_documents"] | undefined,
-    right: ProviderFundPayload["fund_report_documents"] | undefined
+    right: ProviderFundPayload["fund_report_documents"] | undefined,
+    sourcePriorities: Record<string, number>,
+    rightSourcePriority: number
   ): ProviderFundPayload["fund_report_documents"] | undefined {
     if (!left?.length && !right?.length) return left ?? right;
     const merged = new Map<string, NonNullable<ProviderFundPayload["fund_report_documents"]>[number]>();
-    for (const document of [...(left ?? []), ...(right ?? [])]) {
-      const key = document.announcement_id || document.title;
+    for (const document of left ?? []) {
+      merged.set(this.reportDocumentKey(document), document);
+    }
+    for (const document of right ?? []) {
+      const key = this.reportDocumentKey(document);
       const current = merged.get(key);
-      if (!current || this.reportDocumentPriority(document) > this.reportDocumentPriority(current)) {
+      const currentSourcePriority = sourcePriorities[key] ?? Number.NEGATIVE_INFINITY;
+      if (
+        !current ||
+        rightSourcePriority > currentSourcePriority ||
+        (rightSourcePriority === currentSourcePriority && this.reportDocumentPriority(document) > this.reportDocumentPriority(current))
+      ) {
         merged.set(key, document);
+        sourcePriorities[key] = rightSourcePriority;
       }
     }
-    return [...merged.values()].sort((leftDocument, rightDocument) => this.reportDocumentPriority(rightDocument) - this.reportDocumentPriority(leftDocument));
+    return [...merged.values()].sort((leftDocument, rightDocument) => {
+      const sourcePriorityDelta =
+        (sourcePriorities[this.reportDocumentKey(rightDocument)] ?? Number.NEGATIVE_INFINITY) -
+        (sourcePriorities[this.reportDocumentKey(leftDocument)] ?? Number.NEGATIVE_INFINITY);
+      if (sourcePriorityDelta !== 0) return sourcePriorityDelta;
+      return this.reportDocumentPriority(rightDocument) - this.reportDocumentPriority(leftDocument);
+    });
+  }
+
+  private reportDocumentKey(document: NonNullable<ProviderFundPayload["fund_report_documents"]>[number]): string {
+    return document.announcement_id || document.title;
   }
 
   private reportDocumentPriority(document: NonNullable<ProviderFundPayload["fund_report_documents"]>[number]): number {

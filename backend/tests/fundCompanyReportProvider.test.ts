@@ -145,6 +145,31 @@ test("Argus does not let manual report fallback satisfy coordinator official cov
   assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), true);
 });
 
+test("Argus prefers automated official report documents over manual fallback duplicates", async () => {
+  const manualDocument: FundReportDocument = {
+    ...verifiedOfficialReport,
+    detail_url: "manual://operator/007951-2026q1",
+    pdf_url: "manual://operator/007951-2026q1.pdf",
+    source_name: "人工官方报告导入"
+  };
+  const registry = new SourceRegistry({
+    providers: [new ManualReportDocumentContextProvider(manualDocument), new ReportDocumentContextProvider("verified-report-context", verifiedOfficialReport)],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("manual-plus-automated-report-context", "007951");
+  const document = dataPack.fund_report_documents.find((item) => item.announcement_id === "official-2026q1");
+
+  assert.equal(dataPack.data_quality_report.source_composition.manual.includes("manual-report-context"), true);
+  assert.equal(dataPack.data_quality_report.source_composition.authoritative.includes("verified-report-context"), true);
+  assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.fund_reports, true);
+  assert.equal(document?.detail_url, verifiedOfficialReport.detail_url);
+  assert.equal(document?.pdf_url, verifiedOfficialReport.pdf_url);
+  assert.equal(document?.source_name, verifiedOfficialReport.source_name);
+  assert.equal(dataPack.fund_report_documents.filter((item) => item.announcement_id === "official-2026q1").length, 1);
+});
+
 test("SourceRegistry cache keys include official report document context", async () => {
   const input = {
     fund_code: "CACHE-SIG-001",
@@ -185,6 +210,8 @@ test("default SourceRegistry runs report coordinator after automated official re
 });
 
 class ManualReportDocumentContextProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  constructor(private readonly reportDocument: FundReportDocument = verifiedOfficialReport) {}
+
   sourceInfo(): DataSourceInfo {
     return {
       source_id: "manual-report-context",
@@ -226,7 +253,7 @@ class ManualReportDocumentContextProvider implements DataProvider<FundDataSource
       data: {
         fund_code: input.fund_code,
         fund_name: "招商信用增强债券C",
-        fund_report_documents: [verifiedOfficialReport],
+        fund_report_documents: [this.reportDocument],
         manual_report_import_audit: {
           manifest_path: "/tmp/fundsentinel/manual-reports/manifest.json",
           manifest_sha256: "0".repeat(64),
@@ -239,7 +266,7 @@ class ManualReportDocumentContextProvider implements DataProvider<FundDataSource
           reports: [
             {
               announcement_id: "official-2026q1",
-              source_url: verifiedOfficialReport.detail_url ?? "",
+              source_url: this.reportDocument.detail_url ?? "",
               pdf_path: "/tmp/fundsentinel/manual-reports/007951-2026q1.pdf",
               pdf_sha256: "1".repeat(64),
               pdf_size_bytes: 345678
