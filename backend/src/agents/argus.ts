@@ -191,6 +191,7 @@ export class ArgusAgent extends BaseAgent {
     const coreFieldPriorities: Partial<Record<PreferredCoreField, number>> = {};
     const stageReturnPriorities: Record<string, number> = {};
     let navHistoryPriority = Number.NEGATIVE_INFINITY;
+    let holdingsPriority = Number.NEGATIVE_INFINITY;
     for (const result of results) {
       const payload = result.data!;
       if (this.canMergeFundCorePayload(result)) {
@@ -210,13 +211,9 @@ export class ArgusAgent extends BaseAgent {
           this.setPreferredCoreField(merged, coreFieldPriorities, "daily_return", payload.daily_return, corePriority, true);
         }
         this.mergeStageReturnsByPriority(merged, stageReturnPriorities, payload.stage_returns, corePriority, shouldUseCandidateNavHistory);
-        merged.portfolio_holdings = this.mergeUnique(merged.portfolio_holdings, payload.portfolio_holdings);
+        holdingsPriority = this.mergeHoldingsByPriority(merged, payload, corePriority, holdingsPriority);
         merged.fund_report_refs = this.mergeUnique(merged.fund_report_refs, payload.fund_report_refs);
         merged.fund_report_documents = this.mergeReportDocuments(merged.fund_report_documents, payload.fund_report_documents);
-        if (payload.holdings_as_of && (!merged.holdings_as_of || payload.holdings_as_of > merged.holdings_as_of)) {
-          merged.holdings_as_of = payload.holdings_as_of;
-        }
-        this.setIfMissing(merged, "holdings_source", payload.holdings_source);
       }
 
       merged.themes = this.mergeUnique(merged.themes, payload.themes);
@@ -589,6 +586,39 @@ export class ArgusAgent extends BaseAgent {
         priorities[period] = priority;
       }
     }
+  }
+
+  private mergeHoldingsByPriority(
+    target: ProviderFundPayload,
+    payload: ProviderFundPayload,
+    priority: number,
+    currentPriority: number
+  ): number {
+    if (!payload.portfolio_holdings?.length) return currentPriority;
+    if (!target.portfolio_holdings?.length || priority > currentPriority) {
+      this.assignHoldings(target, payload);
+      return priority;
+    }
+    if (priority < currentPriority) return currentPriority;
+
+    const candidateDate = payload.holdings_as_of;
+    const currentDate = target.holdings_as_of;
+    if (candidateDate && (!currentDate || candidateDate > currentDate)) {
+      this.assignHoldings(target, payload);
+      return priority;
+    }
+    if (currentDate && candidateDate && candidateDate < currentDate) return currentPriority;
+
+    target.portfolio_holdings = this.mergeUnique(target.portfolio_holdings, payload.portfolio_holdings);
+    this.setIfMissing(target, "holdings_as_of", candidateDate);
+    this.setIfMissing(target, "holdings_source", payload.holdings_source);
+    return currentPriority;
+  }
+
+  private assignHoldings(target: ProviderFundPayload, payload: ProviderFundPayload): void {
+    target.portfolio_holdings = [...new Set(payload.portfolio_holdings ?? [])];
+    target.holdings_as_of = payload.holdings_as_of;
+    target.holdings_source = payload.holdings_source;
   }
 
   private mergeUnique(left: string[] | undefined, right: string[] | undefined): string[] | undefined {

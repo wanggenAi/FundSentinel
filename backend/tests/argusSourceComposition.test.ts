@@ -424,6 +424,60 @@ class LowTrustAggregatorCoreProvider implements DataProvider<FundDataSourceInput
   }
 }
 
+class LowTrustAggregatorHoldingsProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "low-trust-holdings-test",
+      source_name: "Low Trust Holdings Test Provider",
+      source_type: "holdings",
+      trust_level: "B",
+      enabled: true,
+      priority: -10,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "low-trust-holdings-test",
+      source_name: "Low Trust Holdings Test Provider",
+      source_type: "holdings",
+      trust_level: "B",
+      data_status: "partial",
+      success: true,
+      data: {
+        portfolio_holdings: ["聚合源错配股票A", "聚合源错配股票B"],
+        holdings_as_of: "2026-03-31",
+        holdings_source: "low-trust aggregator fixture"
+      },
+      raw_reference: "https://aggregator.example.test/holdings",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
 class MisleadingMacroNavProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   sourceInfo(): DataSourceInfo {
     return {
@@ -703,6 +757,24 @@ test("Argus prefers authoritative core payloads over earlier low-trust aggregato
   assert.equal(dataPack.data_quality_report.nav_consistency_report.status, "conflict");
   assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("nav_consistency"));
   assert.equal(dataPack.allow_strong_conclusion, false);
+});
+
+test("Argus prefers authoritative holdings over earlier low-trust holdings payloads", async () => {
+  const registry = new SourceRegistry({
+    providers: [new LowTrustAggregatorHoldingsProvider(), new ReadyOfficialCoreProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("preferred-official-holdings", "007951");
+  const composition = dataPack.data_quality_report.source_composition;
+
+  assert.ok(composition.aggregator.includes("low-trust-holdings-test"));
+  assert.ok(composition.authoritative.includes("ready-official-core-test"));
+  assert.equal(composition.official_core_coverage.holdings, true);
+  assert.deepEqual(dataPack.portfolio_holdings, ["国债", "政策性金融债"]);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("holdings"), false);
+  assert.equal(dataPack.allow_strong_conclusion, true);
 });
 
 test("Argus surfaces stale successful providers as data freshness gaps", async () => {
