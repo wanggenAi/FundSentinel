@@ -1308,6 +1308,36 @@ test("SourceRegistry rejects and does not cache successful results with mismatch
   assert.ok(health?.last_failed_at);
 });
 
+test("SourceRegistry rejects and does not cache core results without fund_code", async () => {
+  const provider = new UnidentifiedContextCoreProvider();
+  const registry = new SourceRegistry({
+    providers: [provider],
+    cacheTtlMs: 60_000,
+    retryCount: 0
+  });
+  const input = { fund_code: "007951", required_data: ["fund_meta", "current_nav", "nav_history"], demo_mode: false };
+
+  const first = (await registry.fetchAll(input))[0];
+  const second = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "unidentified-context-core-provider");
+
+  assert.equal(first.success, false);
+  assert.equal(first.data_status, "unavailable");
+  assert.equal(first.data, null);
+  assert.equal(first.freshness, "unknown");
+  assert.equal(first.cache_hit, false);
+  assert.match(first.error ?? "", /without fund_code/u);
+  assert.ok(first.warnings.some((warning) => warning.includes("requested fund_code=007951")));
+  assert.equal(second.success, false);
+  assert.equal(second.cache_hit, false);
+  assert.equal(provider.callCount, 2);
+  assert.equal(health?.failure_count, 2);
+  assert.equal(health?.consecutive_failure_count, 2);
+  assert.equal(health?.cache_entries, 0);
+  assert.equal(health?.last_success_at, null);
+  assert.ok(health?.last_failed_at);
+});
+
 test("SourceRegistry filters invalid core NAV values before sharing provider context", async () => {
   const captureProvider = new ContextCaptureProvider();
   const registry = new SourceRegistry({
@@ -2233,6 +2263,55 @@ class MismatchedContextCoreProvider implements DataProvider<FundDataSourceInput,
         ]
       },
       raw_reference: "https://official.example.test/mismatched-context-core",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class UnidentifiedContextCoreProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("unidentified-context-core-provider"),
+      source_name: "Unidentified Context Core Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      priority: 1
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return {
+      source_id: "unidentified-context-core-provider",
+      source_name: "Unidentified Context Core Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "ready",
+      success: true,
+      data: {
+        fund_name: "Unidentified Context Fund",
+        fund_type: "mixed",
+        current_nav: 8.8888,
+        daily_return: 0.88,
+        nav_history: [8.8, 8.8888],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        stage_returns: { one_month: 0.08 },
+        portfolio_holdings: ["未标识上下文持仓"],
+        holdings_as_of: "2026-03-31",
+        holdings_source: "unidentified context fixture",
+        fund_report_refs: ["unidentified official report ref"]
+      },
+      raw_reference: "https://official.example.test/unidentified-context-core",
       fetched_at: "2026-05-28T00:00:00.000Z",
       freshness: "fresh",
       warnings: [],

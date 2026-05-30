@@ -370,7 +370,7 @@ export class SourceRegistry {
     let lastResult: DataProviderResult<ProviderFundPayload> | null = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const result = await this.safeProviderFetch(provider, input);
-      lastResult = this.rejectMismatchedFundResult(this.withRuntimeMetadata(result, attempt, startedAt, false, null), input.fund_code);
+      lastResult = this.rejectUnidentifiedFundResult(this.withRuntimeMetadata(result, attempt, startedAt, false, null), input.fund_code);
       if (lastResult.success) {
         this.writeCache(cacheKey, lastResult);
         return lastResult;
@@ -453,22 +453,27 @@ export class SourceRegistry {
     });
   }
 
-  private rejectMismatchedFundResult(
+  private rejectUnidentifiedFundResult(
     result: DataProviderResult<ProviderFundPayload>,
     fundCode: string
   ): DataProviderResult<ProviderFundPayload> {
-    if (!result.success || !result.data || this.matchesRequestedFund(fundCode, result.data)) return result;
+    if (!result.success || !result.data || this.canUsePayloadForRequestedFund(result, fundCode)) return result;
+    const providerFundCode = result.data.fund_code?.trim();
+    const isMissingFundCode = !providerFundCode;
+    const error = isMissingFundCode
+      ? `Provider returned core fund payload without fund_code; expected ${fundCode}.`
+      : `Provider returned mismatched fund_code=${providerFundCode}; expected ${fundCode}.`;
+    const warning = isMissingFundCode
+      ? `${result.source_name} returned core fund payload without fund_code; requested fund_code=${fundCode}. SourceRegistry rejected this payload for the current request.`
+      : `${result.source_name} returned fund_code=${providerFundCode}; requested fund_code=${fundCode}. SourceRegistry rejected this payload for the current request.`;
     return this.sanitizeProviderResult({
       ...result,
       data_status: "unavailable",
       success: false,
       data: null,
       freshness: "unknown",
-      warnings: [
-        ...result.warnings,
-        `${result.source_name} returned fund_code=${result.data.fund_code}; requested fund_code=${fundCode}. SourceRegistry rejected this payload for the current request.`
-      ],
-      error: `Provider returned mismatched fund_code=${result.data.fund_code}; expected ${fundCode}.`
+      warnings: [...result.warnings, warning],
+      error
     });
   }
 
@@ -869,6 +874,12 @@ export class SourceRegistry {
   private matchesRequestedFund(fundCode: string | undefined, payload: ProviderFundPayload | null | undefined): boolean {
     const providerFundCode = payload?.fund_code?.trim();
     return !fundCode || !providerFundCode || providerFundCode === fundCode;
+  }
+
+  private canUsePayloadForRequestedFund(result: DataProviderResult<ProviderFundPayload>, fundCode: string): boolean {
+    const providerFundCode = result.data?.fund_code?.trim();
+    if (!this.canMergeFundCoreContext(result)) return this.matchesRequestedFund(fundCode, result.data);
+    return Boolean(providerFundCode) && providerFundCode === fundCode;
   }
 
   private initialContextMergeState(context: ProviderFundPayload): ContextMergeState {

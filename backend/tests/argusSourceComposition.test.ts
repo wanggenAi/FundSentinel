@@ -52,6 +52,16 @@ const worldBankJson = JSON.stringify([
   ]
 ]);
 
+class StaticResultRegistry extends SourceRegistry {
+  constructor(private readonly results: Array<DataProviderResult<ProviderFundPayload>>) {
+    super({ providers: [], enableLiveProviders: false, shareState: false });
+  }
+
+  override async fetchAll(): Promise<Array<DataProviderResult<ProviderFundPayload>>> {
+    return this.results;
+  }
+}
+
 const cmfFundDetailHtml = `
 <div class="pro_name"><div class="title"><h5>招商信用增强债券C</h5><a class="type_switch"></a></div>
 <div class="info"><span class="fund_code">007951</span><span class="fund_tag">中低风险(R2)</span><span class="fund_tag">债券型</span></div></div>
@@ -172,7 +182,7 @@ class FailingOfficialReportProvider implements DataProvider<FundDataSourceInput,
     return true;
   }
 
-  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
     return {
       source_id: "failing-official-report-test",
       source_name: "Failing Official Report Test Provider",
@@ -778,7 +788,7 @@ class MismatchedOfficialCoreProvider implements DataProvider<FundDataSourceInput
     return true;
   }
 
-  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
     return {
       source_id: "mismatched-official-core-test",
       source_name: "Mismatched Official Core Test Provider",
@@ -841,6 +851,82 @@ class MismatchedOfficialCoreProvider implements DataProvider<FundDataSourceInput
   }
 }
 
+class UnidentifiedOfficialCoreProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "unidentified-official-core-test",
+      source_name: "Unidentified Official Core Test Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      enabled: true,
+      priority: 0,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "unidentified-official-core-test",
+      source_name: "Unidentified Official Core Test Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "ready",
+      success: true,
+      data: {
+        fund_name: "未标识官方基金",
+        fund_type: "债券型",
+        current_nav: 2.3456,
+        daily_return: 0.01,
+        nav_history: [2.3, 2.3456],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        portfolio_holdings: ["未标识持仓"],
+        fund_report_documents: [
+          {
+            title: "未标识基金2026年第1季度报告",
+            announcement_id: "unidentified-2026q1",
+            published_at: "2026-04-22",
+            category: null,
+            document_kind: "periodic_report",
+            detail_url: "https://official.example.test/unidentified-detail",
+            pdf_url: "https://official.example.test/unidentified-report.pdf",
+            pdf_verified: true,
+            pdf_content_type: "application/pdf",
+            pdf_content_length: 2048,
+            source_name: "未标识官方披露测试源",
+            source_type: "official_disclosure",
+            trust_level: "A"
+          }
+        ],
+        policy_signals: ["未标识政策"]
+      },
+      raw_reference: "https://official.example.test/unidentified",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
 class LowTrustAggregatorHoldingsProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   sourceInfo(): DataSourceInfo {
     return {
@@ -872,7 +958,7 @@ class LowTrustAggregatorHoldingsProvider implements DataProvider<FundDataSourceI
     return true;
   }
 
-  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
     return {
       source_id: "low-trust-holdings-test",
       source_name: "Low Trust Holdings Test Provider",
@@ -881,6 +967,7 @@ class LowTrustAggregatorHoldingsProvider implements DataProvider<FundDataSourceI
       data_status: "partial",
       success: true,
       data: {
+        fund_code: input.fund_code,
         portfolio_holdings: ["聚合源错配股票A", "聚合源错配股票B"],
         holdings_as_of: "2026-03-31",
         holdings_source: "low-trust aggregator fixture"
@@ -926,7 +1013,7 @@ class AggregatorReportDocumentProvider implements DataProvider<FundDataSourceInp
     return true;
   }
 
-  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
     return {
       source_id: "aggregator-report-doc-test",
       source_name: "Aggregator Report Document Test Provider",
@@ -935,6 +1022,7 @@ class AggregatorReportDocumentProvider implements DataProvider<FundDataSourceInp
       data_status: "partial",
       success: true,
       data: {
+        fund_code: input.fund_code,
         fund_report_refs: ["2026-04-22 聚合公告索引 pdf_verified=false"],
         fund_report_documents: [
           {
@@ -1282,6 +1370,43 @@ test("Argus ignores successful provider payloads whose fund_code does not match 
   assert.equal(failedDetail.freshness, "unknown");
   assert.match(failedDetail.error ?? "", /mismatched fund_code=000001/u);
   assert.ok(failedDetail.warnings.some((warning) => warning.includes("requested fund_code=007951")));
+});
+
+test("Argus ignores successful core provider payloads without fund_code", async () => {
+  const registry = new StaticResultRegistry([await new UnidentifiedOfficialCoreProvider().fetch()]);
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("unidentified-official-core", "007951");
+  const composition = dataPack.data_quality_report.source_composition;
+
+  assert.equal(dataPack.fund_code, "007951");
+  assert.equal(dataPack.fund_name, "Unknown fund");
+  assert.equal(dataPack.current_nav, 0);
+  assert.equal(dataPack.daily_return, 0);
+  assert.deepEqual(dataPack.nav_history, []);
+  assert.deepEqual(dataPack.portfolio_holdings, []);
+  assert.deepEqual(dataPack.fund_report_documents, []);
+  assert.deepEqual(dataPack.policy_signals, []);
+  assert.deepEqual(composition.authoritative, []);
+  assert.deepEqual(composition.aggregator, []);
+  assert.equal(composition.official_core_coverage.fund_meta, false);
+  assert.equal(composition.official_core_coverage.current_nav, false);
+  assert.equal(composition.official_core_coverage.nav_history, false);
+  assert.equal(composition.official_core_coverage.holdings, false);
+  assert.equal(composition.official_core_coverage.fund_reports, false);
+  assert.equal(dataPack.data_quality_report.real_source_count, 0);
+  assert.equal(dataPack.data_quality_report.successful_source_count, 0);
+  assert.equal(dataPack.data_quality_report.data_status, "unavailable");
+  assert.equal(dataPack.allow_downstream_analysis, false);
+  assert.equal(dataPack.allow_strong_conclusion, false);
+  assert.ok(
+    dataPack.data_quality_report.warnings.some(
+      (warning) =>
+        warning.includes("Unidentified Official Core Test Provider") &&
+        warning.includes("缺少 fund_code") &&
+        warning.includes("fund_code=007951") &&
+        warning.includes("已忽略")
+    )
+  );
 });
 
 test("Argus ignores fund core fields accidentally returned by macro providers", async () => {
