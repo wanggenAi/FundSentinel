@@ -1129,41 +1129,41 @@ test("SourceRegistry redacts sensitive context strings before using cache keys",
     required_data: ["industry_news"],
     demo_mode: false,
     context: {
-      fund_name: "Sensitive Fund token=fund-secret",
-      fund_type: "mixed password=fund-type-secret",
-      themes: ["theme api_key=theme-secret"],
-      portfolio_holdings: ["holding access_token=holding-secret"],
-      holdings_as_of: "2026-03-31 credential=holding-date-secret",
-      fund_report_refs: ["report token=report-ref-secret"],
-      policy_signals: ["policy authorization: Bearer policy-secret"],
-      news_summaries: ["news password=news-secret"],
+      fund_name: "Sensitive Fund must buy guaranteed returns token=fund-secret",
+      fund_type: "mixed risk-free password=fund-type-secret",
+      themes: ["theme api_key=theme-secret 保证收益"],
+      portfolio_holdings: ["holding access_token=holding-secret 必须买入"],
+      holdings_as_of: "2026-03-31 credential=holding-date-secret 无风险",
+      fund_report_refs: ["report token=report-ref-secret guaranteed"],
+      policy_signals: ["policy authorization: Bearer policy-secret must buy"],
+      news_summaries: ["news password=news-secret risk-free"],
       macro_indicators: [
         {
           country_code: "US",
           country_name: "United States",
-          indicator_id: "TEST",
+          indicator_id: "TEST must buy",
           indicator_name: "Sensitive macro",
           value: 1,
-          date: "2026",
+          date: "2026 guaranteed",
           unit: "index",
-          source_url: "https://macro.example.test?credential=macro-secret",
-          source_name: "Macro api_key=macro-name-secret"
+          source_url: "https://macro.example.test?credential=macro-secret&claim=risk-free",
+          source_name: "Macro api_key=macro-name-secret 保证收益"
         }
       ],
       fund_report_documents: [
         {
-          title: "Report token=title-secret",
-          announcement_id: "announcement-secret=report-id-secret",
+          title: "Report must buy token=title-secret",
+          announcement_id: "announcement-secret=report-id-secret guaranteed",
           published_at: "2026-04-22",
           category: null,
           document_kind: "periodic_report",
-          detail_url: "https://reports.example.test/detail?token=detail-secret",
-          pdf_url: "https://reports.example.test/report.pdf?api_key=pdf-secret",
+          detail_url: "https://reports.example.test/detail?token=detail-secret&note=must%20buy",
+          pdf_url: "https://reports.example.test/report.pdf?api_key=pdf-secret&claim=guaranteed",
           pdf_verified: true,
           pdf_content_type: "application/pdf",
           pdf_content_length: 1024,
-          pdf_sha256: "token=pdf-sha-secret",
-          source_name: "Official password=source-secret",
+          pdf_sha256: "token=pdf-sha-secret risk-free",
+          source_name: "Official password=source-secret 保证收益",
           source_type: "official_disclosure",
           trust_level: "A"
         }
@@ -1186,6 +1186,9 @@ test("SourceRegistry redacts sensitive context strings before using cache keys",
     `${cacheKeys}\n${serialized}`,
     /fund-secret|fund-type-secret|theme-secret|holding-secret|holding-date-secret|report-ref-secret|policy-secret|news-secret|macro-secret|macro-name-secret|title-secret|report-id-secret|detail-secret|pdf-secret|pdf-sha-secret|source-secret/u
   );
+  assert.doesNotMatch(`${cacheKeys}\n${serialized}`, /must buy|guaranteed|risk[-\s]?free|保证收益|无风险|必须买入/iu);
+  assert.match(cacheKeys, /must review/u);
+  assert.match(cacheKeys, /requires evidence review/u);
 });
 
 test("SourceRegistry health recovers after a later provider success", async () => {
