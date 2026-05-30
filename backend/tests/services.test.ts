@@ -1302,6 +1302,9 @@ test("DataSourceService returns gap and manual import plan", async () => {
     "reports[].pdf_sha256",
     "reports[].pdf_size_bytes"
   ]);
+  assert.ok(manualPlan.report_manifest_validation_rules.some((rule) => rule.includes("相对于 FUNDSENTINEL_MANUAL_REPORT_DIR")));
+  assert.ok(manualPlan.report_manifest_validation_rules.some((rule) => rule.includes("符号链接逃逸")));
+  assert.ok(manualPlan.report_manifest_validation_rules.some((rule) => rule.includes("announcement_id") && rule.includes("冲突")));
   assert.equal(manualPlan.report_manifest_filename, "{fund_code}.reports.json");
   assert.ok(manualPlan.solutions.some((solution) => solution.proposed_actions.some((action) => action.includes("FUNDSENTINEL_PORTFOLIO_FILE"))));
   assert.ok(manualPlan.solutions.some((solution) => solution.proposed_actions.some((action) => action.includes("FUNDSENTINEL_MANUAL_REPORT_DIR"))));

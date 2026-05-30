@@ -95,6 +95,7 @@ export class DataSourceService {
     required_portfolio_json_fields: string[];
     required_report_manifest_fields: string[];
     required_report_audit_fields: string[];
+    report_manifest_validation_rules: string[];
     report_manifest_filename: string;
     warnings: string[];
   } {
@@ -127,6 +128,13 @@ export class DataSourceService {
         "reports[].pdf_path",
         "reports[].pdf_sha256",
         "reports[].pdf_size_bytes"
+      ],
+      report_manifest_validation_rules: [
+        "pdf_path 必须是相对于 FUNDSENTINEL_MANUAL_REPORT_DIR 的路径，不能是绝对路径。",
+        "pdf_path 解析后及真实路径校验后都必须保留在 FUNDSENTINEL_MANUAL_REPORT_DIR 内，不能通过 ../ 或符号链接逃逸。",
+        "同一 fund_code 下相同 announcement_id 的 manifest 行必须完全一致；冲突的 PDF 路径、SHA256、发布日期或来源会被拒绝。",
+        "published_at 必须是有效的 YYYY-MM-DD 日历日期，且不能晚于当前日期。",
+        "pdf_sha256 必须是 64 位十六进制 SHA256；导入时会校验 PDF 文件头和实际 SHA256。"
       ],
       report_manifest_filename: "{fund_code}.reports.json",
       warnings: [
