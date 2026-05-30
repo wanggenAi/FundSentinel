@@ -36,7 +36,7 @@ import { WorldBankMacroProvider } from "./providers/worldBankMacroProvider.js";
 import type { DataProvider } from "./providers/baseProvider.js";
 import type { DataProviderResult, DataSourceCatalogEntry, DataSourceInfo, DataSourceType, FundDataSourceInput, ProviderFundPayload } from "./sourceTypes.js";
 import { listDataSourceCatalog } from "./sourceCatalog.js";
-import { nowIso } from "../schemas/index.js";
+import { nowIso, type DataStatus } from "../schemas/index.js";
 import type { DataRequirement } from "../schemas/index.js";
 import { sanitizePublicStructure, sanitizePublicText } from "../utils/publicText.js";
 
@@ -80,6 +80,8 @@ const FUND_CORE_CONTEXT_SOURCE_TYPES = new Set<DataSourceType>([
 ]);
 type CoverageRequirement = DataRequirement | "official_current_nav" | "official_nav_history" | "official_fund_reports" | "benchmark";
 type ContextCoreField = "fund_code" | "fund_name" | "fund_type" | "current_nav" | "daily_return";
+const DATA_STATUSES = new Set<DataStatus>(["ready", "partial", "insufficient", "unavailable", "demo"]);
+const FRESHNESS_VALUES = new Set(["fresh", "acceptable", "stale", "unknown"]);
 
 interface ContextMergeState {
   coreFieldPriorities: Partial<Record<ContextCoreField, number>>;
@@ -370,7 +372,7 @@ export class SourceRegistry {
     let lastResult: DataProviderResult<ProviderFundPayload> | null = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const result = await this.safeProviderFetch(provider, input);
-      const normalized = this.normalizeProviderIdentity(result, info);
+      const normalized = this.normalizeProviderRuntimeResult(this.normalizeProviderIdentity(result, info));
       lastResult = this.rejectUnidentifiedFundResult(this.withRuntimeMetadata(normalized, attempt, startedAt, false, null), input.fund_code);
       if (lastResult.success) {
         this.writeCache(cacheKey, lastResult);
@@ -480,6 +482,65 @@ export class SourceRegistry {
       warnings,
       is_demo: info.is_demo || result.is_demo
     };
+  }
+
+  private normalizeProviderRuntimeResult(result: DataProviderResult<ProviderFundPayload>): DataProviderResult<ProviderFundPayload> {
+    const warnings = [...result.warnings];
+    let dataStatus = result.data_status;
+    let freshness = result.freshness;
+    let fetchedAt = result.fetched_at;
+    let success = result.success;
+    let data = result.data;
+    let error = result.error;
+
+    if (!DATA_STATUSES.has(dataStatus)) {
+      warnings.push(`SourceRegistry normalized invalid data_status=${String(dataStatus)} to unavailable.`);
+      dataStatus = "unavailable";
+      success = false;
+    }
+    if (!FRESHNESS_VALUES.has(freshness)) {
+      warnings.push(`SourceRegistry normalized invalid freshness=${String(freshness)} to unknown.`);
+      freshness = "unknown";
+    }
+    if (!this.isValidIsoTimestamp(fetchedAt)) {
+      warnings.push("SourceRegistry replaced invalid fetched_at timestamp with registry fetch time.");
+      fetchedAt = nowIso();
+    }
+    if (typeof (result.success as unknown) !== "boolean") {
+      warnings.push(`SourceRegistry normalized invalid success=${String(result.success)} to false.`);
+      success = false;
+      dataStatus = "unavailable";
+      freshness = "unknown";
+      error = error ?? "Provider returned non-boolean success flag.";
+    }
+    if (success && !data) {
+      warnings.push("Provider reported success without data; SourceRegistry converted it to explicit failure.");
+      success = false;
+      dataStatus = "unavailable";
+      freshness = "unknown";
+      error = error ?? "Provider reported success without data.";
+    }
+    if (!success && data) {
+      warnings.push("Provider reported failure with data; SourceRegistry discarded the payload.");
+      data = null;
+    }
+    if (!success) dataStatus = "unavailable";
+
+    return this.sanitizeProviderResult({
+      ...result,
+      data_status: dataStatus,
+      success,
+      data,
+      fetched_at: fetchedAt,
+      freshness,
+      warnings,
+      error
+    });
+  }
+
+  private isValidIsoTimestamp(value: string): boolean {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
   }
 
   private rejectUnidentifiedFundResult(

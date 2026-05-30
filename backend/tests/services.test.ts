@@ -1121,6 +1121,52 @@ test("SourceRegistry normalizes provider result identity before cache and health
   assert.equal([...cache.values()].every((cached) => cached.sourceId === "registered-identity-provider"), true);
 });
 
+test("SourceRegistry normalizes invalid provider runtime metadata before health accounting", async () => {
+  const provider = new InvalidRuntimeMetadataProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
+  const input = { fund_code: "007951", required_data: ["fund_meta"], demo_mode: false };
+
+  const result = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "invalid-runtime-provider");
+
+  assert.equal(provider.callCount, 1);
+  assert.equal(result.source_id, "invalid-runtime-provider");
+  assert.equal(result.success, false);
+  assert.equal(result.data_status, "unavailable");
+  assert.equal(result.data, null);
+  assert.equal(result.freshness, "unknown");
+  assert.notEqual(result.fetched_at, "not-a-date");
+  assert.doesNotThrow(() => new Date(result.fetched_at).toISOString());
+  assert.equal(result.cache_hit, false);
+  assert.ok(result.warnings.some((warning) => warning.includes("invalid success")));
+  assert.ok(result.warnings.some((warning) => warning.includes("invalid data_status")));
+  assert.ok(result.warnings.some((warning) => warning.includes("invalid freshness")));
+  assert.ok(result.warnings.some((warning) => warning.includes("invalid fetched_at")));
+  assert.ok(result.warnings.some((warning) => warning.includes("failure with data")));
+  assert.equal(health?.failure_count, 1);
+  assert.equal(health?.cache_entries, 0);
+  assert.equal(health?.cache_hit_count, 0);
+});
+
+test("SourceRegistry converts provider success without data into explicit failure", async () => {
+  const provider = new SuccessWithoutDataProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
+  const input = { fund_code: "007951", required_data: ["fund_meta"], demo_mode: false };
+
+  const result = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "success-without-data-provider");
+
+  assert.equal(provider.callCount, 1);
+  assert.equal(result.success, false);
+  assert.equal(result.data_status, "unavailable");
+  assert.equal(result.data, null);
+  assert.equal(result.freshness, "unknown");
+  assert.match(result.error ?? "", /success without data/);
+  assert.ok(result.warnings.some((warning) => warning.includes("success without data")));
+  assert.equal(health?.failure_count, 1);
+  assert.equal(health?.cache_entries, 0);
+});
+
 test("SourceRegistry health counts only live cache entries for the exact provider", async () => {
   const registry = new SourceRegistry({
     providers: [new CountingProvider("cache-provider"), new CountingProvider("cache-provider-extra")],
@@ -1840,6 +1886,57 @@ class MismatchedIdentityProvider implements DataProvider<FundDataSourceInput, Pr
       warnings: [],
       error: null,
       is_demo: false
+    };
+  }
+}
+
+class InvalidRuntimeMetadataProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return sourceInfo("invalid-runtime-provider");
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return {
+      ...providerResult("invalid-runtime-provider", false),
+      success: "yes" as never,
+      data_status: "not-a-status" as never,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "Invalid Runtime Fund",
+        current_nav: 1,
+        nav_history: [1]
+      },
+      fetched_at: "not-a-date",
+      freshness: "fresh-ish" as never
+    };
+  }
+}
+
+class SuccessWithoutDataProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return sourceInfo("success-without-data-provider");
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return {
+      ...providerResult("success-without-data-provider", true),
+      data_status: "ready",
+      data: null,
+      freshness: "fresh"
     };
   }
 }
