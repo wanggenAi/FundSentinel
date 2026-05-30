@@ -16,6 +16,17 @@ import { AIGateway } from "../services/aiGateway.js";
 import { sanitizePublicStructure } from "../utils/publicText.js";
 
 const COORDINATOR_SOURCE_IDS = new Set(["fund-company-report"]);
+const FUND_CORE_SOURCE_TYPES = new Set<string>([
+  "fund_meta",
+  "current_nav",
+  "nav_history",
+  "holdings",
+  "fund_report",
+  "regulatory_disclosure",
+  "fund_company",
+  "manual_import"
+]);
+const THIRD_PARTY_FUND_CORE_SOURCE_TYPES = new Set<string>(["fund_meta", "current_nav", "nav_history", "holdings", "fund_report"]);
 type PreferredCoreField = "fund_code" | "fund_name" | "fund_type" | "current_nav" | "daily_return";
 
 export class ArgusAgent extends BaseAgent {
@@ -233,9 +244,7 @@ export class ArgusAgent extends BaseAgent {
 
   private canMergeFundCorePayload(result: DataProviderResult<ProviderFundPayload>): boolean {
     if (result.is_demo) return true;
-    return ["fund_meta", "current_nav", "nav_history", "holdings", "fund_report", "regulatory_disclosure", "fund_company", "manual_import"].includes(
-      result.source_type
-    );
+    return FUND_CORE_SOURCE_TYPES.has(result.source_type);
   }
 
   private buildQualityReport(
@@ -747,7 +756,13 @@ export class ArgusAgent extends BaseAgent {
       .filter((result) => this.isAuthoritative(result) && !COORDINATOR_SOURCE_IDS.has(result.source_id))
       .map((result) => result.source_id);
     const aggregator = successful
-      .filter((result) => !result.is_demo && ["nav_history", "holdings", "fund_report"].includes(result.source_type) && result.trust_level !== "A")
+      .filter(
+        (result) =>
+          !result.is_demo &&
+          result.source_type !== "manual_import" &&
+          THIRD_PARTY_FUND_CORE_SOURCE_TYPES.has(result.source_type) &&
+          !this.isAuthoritative(result)
+      )
       .map((result) => result.source_id);
     const manual = successful.filter((result) => result.source_type === "manual_import").map((result) => result.source_id);
     const macro = successful.filter((result) => result.source_type === "macro_data").map((result) => result.source_id);
@@ -928,7 +943,7 @@ export class ArgusAgent extends BaseAgent {
       !result.is_demo &&
       result.source_type !== "manual_import" &&
       result.trust_level === "A" &&
-      ["fund_meta", "current_nav", "nav_history", "holdings", "fund_report", "regulatory_disclosure", "fund_company"].includes(result.source_type)
+      FUND_CORE_SOURCE_TYPES.has(result.source_type)
     );
   }
 

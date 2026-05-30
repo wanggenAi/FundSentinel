@@ -424,6 +424,62 @@ class LowTrustAggregatorCoreProvider implements DataProvider<FundDataSourceInput
   }
 }
 
+class LowTrustCurrentNavProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "low-trust-current-nav-test",
+      source_name: "Low Trust Current NAV Test Provider",
+      source_type: "current_nav",
+      trust_level: "B",
+      enabled: true,
+      priority: 1,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "low-trust-current-nav-test",
+      source_name: "Low Trust Current NAV Test Provider",
+      source_type: "current_nav",
+      trust_level: "B",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "第三方净值源基金名",
+        fund_type: "第三方分类",
+        current_nav: 1.1111,
+        daily_return: 0.11
+      },
+      raw_reference: "https://aggregator.example.test/current-nav",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
 class LowTrustAggregatorHoldingsProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   sourceInfo(): DataSourceInfo {
     return {
@@ -677,6 +733,30 @@ test("Argus source composition separates authoritative, aggregator, manual, and 
   assert.equal(dataPack.data_quality_report.aggregator_source_count, 2);
   assert.equal(dataPack.data_quality_report.macro_source_count, 1);
   assert.ok(result.evidence.some((item) => item.source_name.includes("EastMoney") && item.source_type === "industry_data"));
+});
+
+test("Argus classifies low-trust current NAV providers as aggregators without official core coverage", async () => {
+  const registry = new SourceRegistry({
+    providers: [new LowTrustCurrentNavProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("low-trust-current-nav-source-composition", "007951");
+  const composition = dataPack.data_quality_report.source_composition;
+
+  assert.ok(composition.aggregator.includes("low-trust-current-nav-test"));
+  assert.equal(composition.authoritative.includes("low-trust-current-nav-test"), false);
+  assert.equal(dataPack.data_quality_report.aggregator_source_count, 1);
+  assert.equal(composition.official_core_coverage.fund_meta, false);
+  assert.equal(composition.official_core_coverage.current_nav, false);
+  assert.equal(composition.official_core_coverage.nav_history, false);
+  assert.equal(dataPack.current_nav, 1.1111);
+  assert.equal(dataPack.data_quality_report.data_status, "insufficient");
+  assert.equal(dataPack.allow_downstream_analysis, false);
+  assert.equal(dataPack.allow_strong_conclusion, false);
+  assert.ok(dataPack.data_quality_report.missing_core_fields.includes("nav_history"));
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_current_nav"));
 });
 
 test("Argus ignores fund core fields accidentally returned by macro providers", async () => {
