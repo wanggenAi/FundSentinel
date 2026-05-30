@@ -44,10 +44,10 @@ export class OpportunityService {
   }
 
   async getOpportunities(limit = 6): Promise<OpportunitySquareResponse> {
-    const boundedLimit = Math.max(1, Math.min(limit, 10));
+    const boundedLimit = OpportunityService.normalizeLimit(limit);
     const universe = this.activeFundUniverse().slice(0, boundedLimit);
     const universeAudit = this.universeAudit(universe, boundedLimit);
-    if (!universe.length) return this.emptyResponse("采基广场未配置真实基金候选池；设置 FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE 后才会请求真实 provider。", universeAudit);
+    if (!universe.length) return this.emptyResponse(this.emptyUniverseSummary(universeAudit), universeAudit);
 
     const analysisSettlements = await Promise.allSettled(universe.map((fundCode) => this.fundAnalysisService.analyzeFund(fundCode, `opportunity-${fundCode}`)));
     const analyses = analysisSettlements.flatMap((settlement) => (settlement.status === "fulfilled" ? [settlement.value] : []));
@@ -120,6 +120,11 @@ export class OpportunityService {
       generated_by: "Atlas",
       generated_at: nowIso()
     });
+  }
+
+  private emptyUniverseSummary(universeAudit: OpportunitySquareResponse["universe_audit"]): string {
+    if (universeAudit.requested_limit === 0) return "采基广场本次请求限制为 0，未请求候选基金分析。";
+    return "采基广场未配置真实基金候选池；设置 FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE 后才会请求真实 provider。";
   }
 
   private universeAudit(selectedFundCodes: string[], requestedLimit: number): OpportunitySquareResponse["universe_audit"] {
@@ -258,5 +263,10 @@ export class OpportunityService {
       valid: [...new Set(valid)],
       invalid: [...new Set(invalid)]
     };
+  }
+
+  private static normalizeLimit(limit: number): number {
+    if (!Number.isFinite(limit)) return 6;
+    return Math.max(0, Math.min(Math.floor(limit), 10));
   }
 }

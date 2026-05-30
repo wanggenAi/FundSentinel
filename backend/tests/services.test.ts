@@ -432,6 +432,27 @@ test("opportunity service uses configured real universe and preserves real candi
   assert.doesNotMatch(JSON.stringify(response), /trial_buy|staged_buy|add_position|\b(buy|sell|position)\b|买入|卖出|仓位/iu);
 });
 
+test("opportunity service clamps unsafe limits without expanding the candidate pool", async () => {
+  const registry = new SourceRegistry({
+    providers: [new RealOpportunityProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const negativeLimitResponse = await new OpportunityService(undefined, new FundAnalysisService(registry), { fundUniverse: ["007951"] }).getOpportunities(-5);
+
+  assert.equal(negativeLimitResponse.candidates.length, 0);
+  assert.equal(negativeLimitResponse.universe_audit.requested_limit, 0);
+  assert.equal(negativeLimitResponse.universe_audit.selected_count, 0);
+  assert.match(negativeLimitResponse.summary, /限制为 0/);
+
+  const fractionalLimitResponse = await new OpportunityService(undefined, new FundAnalysisService(registry), { fundUniverse: ["007951", "161725"] }).getOpportunities(1.9);
+
+  assert.equal(fractionalLimitResponse.universe_audit.requested_limit, 1);
+  assert.equal(fractionalLimitResponse.universe_audit.selected_count, 1);
+  assert.deepEqual(fractionalLimitResponse.universe_audit.selected_fund_codes, ["007951"]);
+});
+
 test("opportunity service audits invalid env fund universe entries without treating them as real candidates", async () => {
   const previous = process.env.FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE;
   process.env.FUNDSENTINEL_OPPORTUNITY_FUND_UNIVERSE = "bad-code,123";
