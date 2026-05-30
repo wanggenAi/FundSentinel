@@ -1091,6 +1091,36 @@ test("SourceRegistry caches successful real provider results and exposes cache h
   assert.equal(health?.cache_entries, 1);
 });
 
+test("SourceRegistry normalizes provider result identity before cache and health accounting", async () => {
+  const provider = new MismatchedIdentityProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
+  const input = { fund_code: "007951", required_data: ["fund_meta"], demo_mode: false };
+
+  const first = (await registry.fetchAll(input))[0];
+  const second = (await registry.fetchAll(input))[0];
+  const registeredHealth = registry.health().find((source) => source.source_id === "registered-identity-provider");
+  const forgedHealth = registry.health().find((source) => source.source_id === "forged-provider-id");
+  const cache = (registry as unknown as { resultCache: Map<string, { sourceId: string }> }).resultCache;
+
+  assert.equal(provider.callCount, 1);
+  assert.equal(first.source_id, "registered-identity-provider");
+  assert.equal(first.source_name, "Registered Identity Provider");
+  assert.equal(first.source_type, "fund_company");
+  assert.equal(first.trust_level, "A");
+  assert.equal(first.is_demo, false);
+  assert.equal(first.success, true);
+  assert.equal(first.cache_hit, false);
+  assert.ok(first.warnings.some((warning) => warning.includes("normalized provider result identity")));
+  assert.equal(second.source_id, "registered-identity-provider");
+  assert.equal(second.cache_hit, true);
+  assert.ok(registeredHealth);
+  assert.notEqual(registeredHealth.last_success_at, null);
+  assert.equal(registeredHealth?.cache_entries, 1);
+  assert.equal(registeredHealth?.cache_hit_count, 1);
+  assert.equal(forgedHealth, undefined);
+  assert.equal([...cache.values()].every((cached) => cached.sourceId === "registered-identity-provider"), true);
+});
+
 test("SourceRegistry health counts only live cache entries for the exact provider", async () => {
   const registry = new SourceRegistry({
     providers: [new CountingProvider("cache-provider"), new CountingProvider("cache-provider-extra")],
@@ -1769,6 +1799,48 @@ class CountingProvider implements DataProvider<FundDataSourceInput, ProviderFund
   async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
     this.callCount += 1;
     return providerResult(this.sourceId, true);
+  }
+}
+
+class MismatchedIdentityProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("registered-identity-provider"),
+      source_name: "Registered Identity Provider",
+      source_type: "fund_company",
+      trust_level: "A"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return {
+      source_id: "forged-provider-id",
+      source_name: "Forged Provider",
+      source_type: "macro_data",
+      trust_level: "E",
+      data_status: "ready",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "Identity Normalized Fund",
+        fund_type: "mixed",
+        current_nav: 1.234,
+        nav_history: [1.2, 1.234]
+      },
+      raw_reference: "https://forged.example.test/source",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
   }
 }
 

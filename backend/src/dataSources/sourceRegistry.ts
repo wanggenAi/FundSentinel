@@ -370,7 +370,8 @@ export class SourceRegistry {
     let lastResult: DataProviderResult<ProviderFundPayload> | null = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const result = await this.safeProviderFetch(provider, input);
-      lastResult = this.rejectUnidentifiedFundResult(this.withRuntimeMetadata(result, attempt, startedAt, false, null), input.fund_code);
+      const normalized = this.normalizeProviderIdentity(result, info);
+      lastResult = this.rejectUnidentifiedFundResult(this.withRuntimeMetadata(normalized, attempt, startedAt, false, null), input.fund_code);
       if (lastResult.success) {
         this.writeCache(cacheKey, lastResult);
         return lastResult;
@@ -451,6 +452,34 @@ export class SourceRegistry {
       cache_expires_at: cacheExpiresAt,
       skipped_by_circuit_breaker: false
     });
+  }
+
+  private normalizeProviderIdentity(
+    result: DataProviderResult<ProviderFundPayload>,
+    info: DataSourceInfo
+  ): DataProviderResult<ProviderFundPayload> {
+    const mismatchedFields = [
+      result.source_id !== info.source_id ? "source_id" : null,
+      result.source_name !== info.source_name ? "source_name" : null,
+      result.source_type !== info.source_type ? "source_type" : null,
+      result.trust_level !== info.trust_level ? "trust_level" : null,
+      result.is_demo !== info.is_demo ? "is_demo" : null
+    ].filter(Boolean) as string[];
+    const warnings = mismatchedFields.length
+      ? [
+          ...result.warnings,
+          `SourceRegistry normalized provider result identity to registered sourceInfo fields: ${mismatchedFields.join(", ")}.`
+        ]
+      : result.warnings;
+    return {
+      ...result,
+      source_id: info.source_id,
+      source_name: info.source_name,
+      source_type: info.source_type,
+      trust_level: info.trust_level,
+      warnings,
+      is_demo: info.is_demo || result.is_demo
+    };
   }
 
   private rejectUnidentifiedFundResult(
