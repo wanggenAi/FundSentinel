@@ -649,6 +649,7 @@ class MisleadingMacroNavProvider implements DataProvider<FundDataSourceInput, Pr
         current_nav: 9.9999,
         nav_history: [9.5, 9.9999],
         nav_history_dates: ["2026-05-27", "2026-05-28"],
+        social_sentiment_score: 0.9,
         macro_indicators: [
           {
             country_code: "CN",
@@ -772,6 +773,7 @@ test("Argus ignores fund core fields accidentally returned by macro providers", 
   assert.equal(dataPack.fund_name, "Unknown fund");
   assert.equal(dataPack.fund_type, "unknown");
   assert.equal(dataPack.current_nav, 0);
+  assert.equal(dataPack.social_sentiment_score, 0);
   assert.deepEqual(dataPack.nav_history, []);
   assert.deepEqual(dataPack.nav_history_dates, []);
   assert.deepEqual(dataPack.data_quality_report.placeholder_fields, ["fund_name", "fund_type", "current_nav", "daily_return", "social_sentiment_score"]);
@@ -788,12 +790,21 @@ test("Argus ignores fund core fields accidentally returned by macro providers", 
   assert.ok(dataPack.data_quality_report.missing_core_fields.includes("fund_meta"));
   assert.ok(dataPack.data_quality_report.missing_core_fields.includes("current_nav"));
   assert.ok(dataPack.data_quality_report.missing_core_fields.includes("nav_history"));
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("social_sentiment"));
   assert.ok(
     dataPack.data_quality_report.warnings.some(
       (warning) =>
         warning.includes("source_type=macro_data") &&
         warning.includes("只允许作为上下文证据") &&
         warning.includes("Argus 已忽略这些核心字段")
+    )
+  );
+  assert.ok(
+    dataPack.data_quality_report.warnings.some(
+      (warning) =>
+        warning.includes("social_sentiment_score") &&
+        warning.includes("source_type=macro_data") &&
+        warning.includes("Argus 已忽略该弱信号")
     )
   );
   assert.deepEqual(dataPack.data_quality_report.nav_consistency_report.compared_sources, []);

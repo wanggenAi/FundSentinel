@@ -721,7 +721,7 @@ export class SourceRegistry {
     this.mergeNavHistoryContext(merged, right, state, priority);
     this.mergeStageReturnsContext(merged, right.stage_returns, state, priority);
     this.mergeHoldingsContext(merged, right, state, priority);
-    this.setIfMissing(merged, "social_sentiment_score", right.social_sentiment_score);
+    if (priority > Number.NEGATIVE_INFINITY) this.setIfMissing(merged, "social_sentiment_score", right.social_sentiment_score);
     return merged;
   }
 
@@ -738,8 +738,7 @@ export class SourceRegistry {
       themes: payload.themes,
       policy_signals: payload.policy_signals,
       macro_indicators: payload.macro_indicators,
-      news_summaries: payload.news_summaries,
-      social_sentiment_score: payload.social_sentiment_score
+      news_summaries: payload.news_summaries
     };
   }
 

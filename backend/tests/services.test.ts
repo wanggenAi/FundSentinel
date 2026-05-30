@@ -1222,7 +1222,7 @@ test("SourceRegistry does not let non-core provider payloads seed fund-core cont
   assert.deepEqual(capturedContext.themes, ["宏观主题"]);
   assert.deepEqual(capturedContext.policy_signals, ["宏观政策"]);
   assert.deepEqual(capturedContext.news_summaries, ["宏观新闻"]);
-  assert.equal(capturedContext.social_sentiment_score, 0.2);
+  assert.equal(capturedContext.social_sentiment_score, undefined);
   assert.equal(capturedContext.macro_indicators?.[0]?.indicator_id, "TEST.MACRO.CONTEXT");
 });
 
@@ -1459,7 +1459,8 @@ test("SourceRegistry sanitizes synthesized circuit-breaker results", async () =>
 });
 
 test("DataSourceService returns gap and manual import plan", async () => {
-  const service = new DataSourceService();
+  const registry = new SourceRegistry({ enableLiveProviders: false, shareState: false });
+  const service = new DataSourceService(registry);
   const coverage = service.coverage();
   const gap = await service.gaps("007951");
   const manualPlan = service.manualImportPlan();

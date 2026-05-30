@@ -237,7 +237,7 @@ export class ArgusAgent extends BaseAgent {
       merged.policy_signals = this.mergeUnique(merged.policy_signals, payload.policy_signals);
       merged.macro_indicators = this.mergeMacroIndicators(merged.macro_indicators, payload.macro_indicators);
       merged.news_summaries = this.mergeUnique(merged.news_summaries, payload.news_summaries);
-      this.setIfMissing(merged, "social_sentiment_score", payload.social_sentiment_score);
+      if (this.canMergeSocialSentiment(result)) this.setIfMissing(merged, "social_sentiment_score", payload.social_sentiment_score);
     }
     return merged;
   }
@@ -245,6 +245,11 @@ export class ArgusAgent extends BaseAgent {
   private canMergeFundCorePayload(result: DataProviderResult<ProviderFundPayload>): boolean {
     if (result.is_demo) return true;
     return FUND_CORE_SOURCE_TYPES.has(result.source_type);
+  }
+
+  private canMergeSocialSentiment(result: DataProviderResult<ProviderFundPayload>): boolean {
+    if (result.is_demo) return true;
+    return this.canMergeFundCorePayload(result) || result.source_type === "social";
   }
 
   private buildQualityReport(
@@ -278,7 +283,8 @@ export class ArgusAgent extends BaseAgent {
     const placeholderFields = this.placeholderFieldsFor(merged, missingCoreFields, missingAuxiliaryFields);
     const staleSources = providerResults.filter((result) => result.freshness === "stale").map((result) => result.source_name);
     const ignoredCoreFieldWarnings = successful.flatMap((result) => this.ignoredFundCoreFieldWarnings(result));
-    const warnings = [...providerResults.flatMap((result) => result.warnings), ...ignoredCoreFieldWarnings];
+    const ignoredSocialSentimentWarnings = successful.flatMap((result) => this.ignoredSocialSentimentWarnings(result));
+    const warnings = [...providerResults.flatMap((result) => result.warnings), ...ignoredCoreFieldWarnings, ...ignoredSocialSentimentWarnings];
     const freshnessGapFields = staleSources.length > 0 ? ["data_freshness"] : [];
     const blockingIssues: string[] = [];
     let dataStatus: DataStatus = "ready";
@@ -731,6 +737,13 @@ export class ArgusAgent extends BaseAgent {
     if (!ignoredFieldGroups.length) return [];
     return [
       `${result.source_name} 返回基金核心字段（${[...new Set(ignoredFieldGroups)].join(", ")}），但 source_type=${result.source_type} 只允许作为上下文证据；Argus 已忽略这些核心字段。`
+    ];
+  }
+
+  private ignoredSocialSentimentWarnings(result: DataProviderResult<ProviderFundPayload>): string[] {
+    if (this.canMergeSocialSentiment(result) || result.data?.social_sentiment_score === undefined) return [];
+    return [
+      `${result.source_name} 返回 social_sentiment_score，但 source_type=${result.source_type} 不是社交情绪或基金核心来源；Argus 已忽略该弱信号。`
     ];
   }
 
