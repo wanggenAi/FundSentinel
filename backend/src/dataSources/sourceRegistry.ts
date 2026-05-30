@@ -370,7 +370,7 @@ export class SourceRegistry {
     let lastResult: DataProviderResult<ProviderFundPayload> | null = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const result = await this.safeProviderFetch(provider, input);
-      lastResult = this.withRuntimeMetadata(result, attempt, startedAt, false, null);
+      lastResult = this.rejectMismatchedFundResult(this.withRuntimeMetadata(result, attempt, startedAt, false, null), input.fund_code);
       if (lastResult.success) {
         this.writeCache(cacheKey, lastResult);
         return lastResult;
@@ -450,6 +450,25 @@ export class SourceRegistry {
       cache_hit: cacheHit,
       cache_expires_at: cacheExpiresAt,
       skipped_by_circuit_breaker: false
+    });
+  }
+
+  private rejectMismatchedFundResult(
+    result: DataProviderResult<ProviderFundPayload>,
+    fundCode: string
+  ): DataProviderResult<ProviderFundPayload> {
+    if (!result.success || !result.data || this.matchesRequestedFund(fundCode, result.data)) return result;
+    return this.sanitizeProviderResult({
+      ...result,
+      data_status: "unavailable",
+      success: false,
+      data: null,
+      freshness: "unknown",
+      warnings: [
+        ...result.warnings,
+        `${result.source_name} returned fund_code=${result.data.fund_code}; requested fund_code=${fundCode}. SourceRegistry rejected this payload for the current request.`
+      ],
+      error: `Provider returned mismatched fund_code=${result.data.fund_code}; expected ${fundCode}.`
     });
   }
 

@@ -1268,14 +1268,44 @@ test("SourceRegistry does not share provider context when returned fund_code mis
   assert.deepEqual(capturedContext.nav_history, undefined);
   assert.deepEqual(capturedContext.nav_history_dates, undefined);
   assert.equal(capturedContext.stage_returns, undefined);
-  assert.deepEqual(capturedContext.portfolio_holdings, []);
-  assert.deepEqual(capturedContext.fund_report_refs, []);
-  assert.deepEqual(capturedContext.fund_report_documents, []);
-  assert.deepEqual(capturedContext.themes, []);
-  assert.deepEqual(capturedContext.policy_signals, []);
-  assert.deepEqual(capturedContext.news_summaries, []);
+  assert.deepEqual(capturedContext.portfolio_holdings ?? [], []);
+  assert.deepEqual(capturedContext.fund_report_refs ?? [], []);
+  assert.deepEqual(capturedContext.fund_report_documents ?? [], []);
+  assert.deepEqual(capturedContext.themes ?? [], []);
+  assert.deepEqual(capturedContext.policy_signals ?? [], []);
+  assert.deepEqual(capturedContext.news_summaries ?? [], []);
   assert.equal(capturedContext.macro_indicators, undefined);
   assert.equal(capturedContext.social_sentiment_score, undefined);
+});
+
+test("SourceRegistry rejects and does not cache successful results with mismatched fund_code", async () => {
+  const provider = new MismatchedContextCoreProvider();
+  const registry = new SourceRegistry({
+    providers: [provider],
+    cacheTtlMs: 60_000,
+    retryCount: 0
+  });
+  const input = { fund_code: "007951", required_data: ["fund_meta", "current_nav", "nav_history"], demo_mode: false };
+
+  const first = (await registry.fetchAll(input))[0];
+  const second = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "mismatched-context-core-provider");
+
+  assert.equal(first.success, false);
+  assert.equal(first.data_status, "unavailable");
+  assert.equal(first.data, null);
+  assert.equal(first.freshness, "unknown");
+  assert.equal(first.cache_hit, false);
+  assert.match(first.error ?? "", /mismatched fund_code=000001/u);
+  assert.ok(first.warnings.some((warning) => warning.includes("requested fund_code=007951")));
+  assert.equal(second.success, false);
+  assert.equal(second.cache_hit, false);
+  assert.equal(provider.callCount, 2);
+  assert.equal(health?.failure_count, 2);
+  assert.equal(health?.consecutive_failure_count, 2);
+  assert.equal(health?.cache_entries, 0);
+  assert.equal(health?.last_success_at, null);
+  assert.ok(health?.last_failed_at);
 });
 
 test("SourceRegistry filters invalid core NAV values before sharing provider context", async () => {
@@ -2145,6 +2175,8 @@ class ContextCoreProvider implements DataProvider<FundDataSourceInput, ProviderF
 }
 
 class MismatchedContextCoreProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
   sourceInfo(): DataSourceInfo {
     return {
       ...sourceInfo("mismatched-context-core-provider"),
@@ -2160,6 +2192,7 @@ class MismatchedContextCoreProvider implements DataProvider<FundDataSourceInput,
   }
 
   async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
     return {
       source_id: "mismatched-context-core-provider",
       source_name: "Mismatched Context Core Provider",

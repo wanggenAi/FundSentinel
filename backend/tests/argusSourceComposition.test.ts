@@ -1267,10 +1267,21 @@ test("Argus ignores successful provider payloads whose fund_code does not match 
       (warning) =>
         warning.includes("Mismatched Official Core Test Provider") &&
         warning.includes("fund_code=000001") &&
-        warning.includes("fund_code=007951") &&
-        warning.includes("已忽略")
+        warning.includes("requested fund_code=007951") &&
+        warning.includes("SourceRegistry rejected")
     )
   );
+  const dataSource = dataPack.data_sources.find((source) => source.source_id === "mismatched-official-core-test");
+  assert.equal(dataSource?.success, false);
+  assert.equal(dataSource?.data_status, "unavailable");
+  assert.equal(dataSource?.freshness, "unknown");
+  assert.match(dataSource?.error ?? "", /mismatched fund_code=000001/u);
+  const failedDetail = dataPack.data_gap_report?.failed_source_details.find((source) => source.source_id === "mismatched-official-core-test");
+  assert.ok(failedDetail);
+  assert.equal(failedDetail.data_status, "unavailable");
+  assert.equal(failedDetail.freshness, "unknown");
+  assert.match(failedDetail.error ?? "", /mismatched fund_code=000001/u);
+  assert.ok(failedDetail.warnings.some((warning) => warning.includes("requested fund_code=007951")));
 });
 
 test("Argus ignores fund core fields accidentally returned by macro providers", async () => {
