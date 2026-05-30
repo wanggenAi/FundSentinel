@@ -145,7 +145,8 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
   static parseManifest(text: string, fundCode: string): ManualOfficialReportManifest[] {
     const parsed = JSON.parse(text) as unknown;
     const rows = Array.isArray(parsed) ? parsed : [parsed];
-    return rows.map((row, index) => this.normalizeManifestRow(row, index)).filter((row) => row.fund_code === fundCode);
+    const matchingRows = rows.map((row, index) => this.normalizeManifestRow(row, index)).filter((row) => row.fund_code === fundCode);
+    return this.deduplicateManifestsByAnnouncement(matchingRows);
   }
 
   private async documentForManifest(manifest: ManualOfficialReportManifest): Promise<VerifiedManualReport> {
@@ -255,6 +256,35 @@ export class ManualOfficialReportProvider implements DataProvider<FundDataSource
     if (!this.isValidIsoDate(normalized.published_at)) throw new Error(`Manifest row ${index + 1} has invalid published_at.`);
     if (this.isFutureIsoDate(normalized.published_at)) throw new Error(`Manifest row ${index + 1} has future published_at.`);
     return normalized;
+  }
+
+  private static deduplicateManifestsByAnnouncement(rows: ManualOfficialReportManifest[]): ManualOfficialReportManifest[] {
+    const rowsByAnnouncement = new Map<string, ManualOfficialReportManifest>();
+    for (const row of rows) {
+      const existing = rowsByAnnouncement.get(row.announcement_id);
+      if (!existing) {
+        rowsByAnnouncement.set(row.announcement_id, row);
+        continue;
+      }
+      if (this.sameManifestRow(existing, row)) continue;
+      throw new Error(`Manifest has conflicting rows for fund ${row.fund_code} announcement ${row.announcement_id}.`);
+    }
+    return [...rowsByAnnouncement.values()];
+  }
+
+  private static sameManifestRow(left: ManualOfficialReportManifest, right: ManualOfficialReportManifest): boolean {
+    return (
+      left.fund_code === right.fund_code &&
+      left.title === right.title &&
+      left.announcement_id === right.announcement_id &&
+      left.published_at === right.published_at &&
+      left.document_kind === right.document_kind &&
+      left.source_name === right.source_name &&
+      left.source_url === right.source_url &&
+      left.pdf_path === right.pdf_path &&
+      left.pdf_sha256 === right.pdf_sha256 &&
+      left.category === right.category
+    );
   }
 
   private static requiredString(record: Record<string, unknown>, field: string, index: number): string {

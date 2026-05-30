@@ -43,6 +43,22 @@ async function writeManifestWithPdfPath(dir: string, sha256: string, pdfPath: st
   ]));
 }
 
+function manifestRow(sha256 = "0".repeat(64), overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    fund_code: "007951",
+    title: "招商信用增强债券C2026年第1季度报告",
+    announcement_id: "manual-007951-2026q1",
+    published_at: "2026-04-22",
+    document_kind: "periodic_report",
+    source_name: "中国证监会基金电子披露网站",
+    source_url: "https://eid.csrc.gov.cn/fund/disclosure/007951/20260422/report.pdf",
+    pdf_path: "007951-2026q1.pdf",
+    pdf_sha256: sha256,
+    category: "quarterly_report",
+    ...overrides
+  };
+}
+
 test("ManualOfficialReportProvider imports verified official report PDF metadata", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "fundsentinel-manual-report-"));
   try {
@@ -187,6 +203,29 @@ test("ManualOfficialReportProvider rejects invalid calendar publication dates", 
         "007951"
       ),
     /future published_at/
+  );
+});
+
+test("ManualOfficialReportProvider deduplicates identical announcement rows and rejects conflicts", () => {
+  const duplicateRows = ManualOfficialReportProvider.parseManifest(
+    JSON.stringify([manifestRow(), manifestRow()]),
+    "007951"
+  );
+  assert.equal(duplicateRows.length, 1);
+  assert.equal(duplicateRows[0]?.announcement_id, "manual-007951-2026q1");
+
+  assert.throws(
+    () =>
+      ManualOfficialReportProvider.parseManifest(
+        JSON.stringify([
+          manifestRow(),
+          manifestRow("1".repeat(64), {
+            pdf_path: "007951-2026q1-replacement.pdf"
+          })
+        ]),
+        "007951"
+      ),
+    /conflicting rows/
   );
 });
 
