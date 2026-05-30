@@ -478,6 +478,75 @@ class LowTrustAggregatorHoldingsProvider implements DataProvider<FundDataSourceI
   }
 }
 
+class AggregatorReportDocumentProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "aggregator-report-doc-test",
+      source_name: "Aggregator Report Document Test Provider",
+      source_type: "fund_report",
+      trust_level: "B",
+      enabled: true,
+      priority: -10,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "aggregator-report-doc-test",
+      source_name: "Aggregator Report Document Test Provider",
+      source_type: "fund_report",
+      trust_level: "B",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_report_refs: ["2026-04-22 聚合公告索引 pdf_verified=false"],
+        fund_report_documents: [
+          {
+            title: "招商信用增强债券C2026年第1季度报告",
+            announcement_id: "verified-2026q1",
+            published_at: "2026-04-22",
+            category: null,
+            document_kind: "periodic_report",
+            detail_url: "https://aggregator.example.test/detail",
+            pdf_url: "https://aggregator.example.test/report.pdf",
+            pdf_verified: false,
+            pdf_content_type: null,
+            pdf_content_length: null,
+            source_name: "聚合公告索引测试源",
+            source_type: "aggregator_index",
+            trust_level: "B"
+          }
+        ]
+      },
+      raw_reference: "https://aggregator.example.test/reports",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
 class MisleadingMacroNavProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   sourceInfo(): DataSourceInfo {
     return {
@@ -774,6 +843,30 @@ test("Argus prefers authoritative holdings over earlier low-trust holdings paylo
   assert.equal(composition.official_core_coverage.holdings, true);
   assert.deepEqual(dataPack.portfolio_holdings, ["国债", "政策性金融债"]);
   assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("holdings"), false);
+  assert.equal(dataPack.allow_strong_conclusion, true);
+});
+
+test("Argus prefers verified official report documents over aggregator duplicates", async () => {
+  const registry = new SourceRegistry({
+    providers: [new AggregatorReportDocumentProvider(), new ReadyOfficialCoreProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("preferred-official-report-document", "007951");
+  const composition = dataPack.data_quality_report.source_composition;
+  const document = dataPack.fund_report_documents.find((item) => item.announcement_id === "verified-2026q1");
+
+  assert.ok(composition.aggregator.includes("aggregator-report-doc-test"));
+  assert.ok(composition.authoritative.includes("ready-official-core-test"));
+  assert.equal(composition.official_core_coverage.fund_reports, true);
+  assert.equal(document?.source_type, "official_disclosure");
+  assert.equal(document?.trust_level, "A");
+  assert.equal(document?.pdf_verified, true);
+  assert.equal(document?.pdf_content_type, "application/pdf");
+  assert.equal(document?.detail_url, "https://official.example.test/detail");
+  assert.equal(dataPack.fund_report_documents.filter((item) => item.announcement_id === "verified-2026q1").length, 1);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), false);
   assert.equal(dataPack.allow_strong_conclusion, true);
 });
 

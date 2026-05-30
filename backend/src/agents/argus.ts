@@ -771,9 +771,27 @@ export class ArgusAgent extends BaseAgent {
     if (!left?.length && !right?.length) return left ?? right;
     const merged = new Map<string, NonNullable<ProviderFundPayload["fund_report_documents"]>[number]>();
     for (const document of [...(left ?? []), ...(right ?? [])]) {
-      merged.set(document.announcement_id || document.title, document);
+      const key = document.announcement_id || document.title;
+      const current = merged.get(key);
+      if (!current || this.reportDocumentPriority(document) > this.reportDocumentPriority(current)) {
+        merged.set(key, document);
+      }
     }
-    return [...merged.values()];
+    return [...merged.values()].sort((leftDocument, rightDocument) => this.reportDocumentPriority(rightDocument) - this.reportDocumentPriority(leftDocument));
+  }
+
+  private reportDocumentPriority(document: NonNullable<ProviderFundPayload["fund_report_documents"]>[number]): number {
+    let score = 0;
+    if (document.source_type === "official_disclosure") score += 100;
+    else if (document.source_type === "manual_import") score += 80;
+    else if (document.source_type === "aggregator_index") score += 20;
+    if (document.trust_level === "A") score += 20;
+    if (document.document_kind === "periodic_report") score += 20;
+    if (document.pdf_verified) score += 15;
+    if (document.pdf_url) score += 5;
+    if (document.pdf_content_type === "application/pdf") score += 3;
+    if ((document.pdf_content_length ?? 0) > 0) score += 2;
+    return score;
   }
 
   private mergeMacroIndicators(
