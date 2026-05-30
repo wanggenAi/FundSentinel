@@ -267,6 +267,7 @@ export class ArgusAgent extends BaseAgent {
     const latestNav = history.at(-1);
     const previousNav = history.at(-2);
     if (latestNav === undefined || previousNav === undefined || previousNav <= 0) return null;
+    if (payload.current_nav !== undefined && Math.abs(payload.current_nav - latestNav) > 0.000001) return null;
     const dailyReturn = latestNav / previousNav - 1;
     if (!Number.isFinite(dailyReturn)) return null;
     const dates = payload.nav_history_dates ?? [];
@@ -339,7 +340,7 @@ export class ArgusAgent extends BaseAgent {
       blockingIssues.push(`核心数据缺失：${missingCoreFields.join(", ")}。`);
     } else if (
       missingAuxiliaryFields.some((field) =>
-        ["holdings", "official_current_nav", "official_nav_history", "fund_reports", "official_fund_reports", "policy_evidence"].includes(field)
+        ["holdings", "official_current_nav", "official_nav_history", "fund_reports", "official_fund_reports", "daily_return", "policy_evidence"].includes(field)
       )
     ) {
       dataStatus = "partial";

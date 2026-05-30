@@ -592,6 +592,99 @@ class CurrentNavWithoutDailyReturnProvider implements DataProvider<FundDataSourc
   }
 }
 
+class ReadyCoreWithoutDailyReturnProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "ready-core-without-daily-return-test",
+      source_name: "Ready Core Without Daily Return Test Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      enabled: true,
+      priority: 0,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "ready-core-without-daily-return-test",
+      source_name: "Ready Core Without Daily Return Test Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "招商信用增强债券C",
+        fund_type: "债券型",
+        current_nav: 1.1111,
+        nav_history: [1.08, 1.09],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        portfolio_holdings: ["国债", "政策性金融债"],
+        fund_report_refs: ["2026-04-22 招商信用增强债券C2026年第1季度报告 pdf_verified=true"],
+        fund_report_documents: [
+          {
+            title: "招商信用增强债券C2026年第1季度报告",
+            announcement_id: "ready-no-daily-return-2026q1",
+            published_at: "2026-04-22",
+            category: null,
+            document_kind: "periodic_report",
+            detail_url: "https://official.example.test/detail",
+            pdf_url: "https://official.example.test/report.pdf",
+            pdf_verified: true,
+            pdf_content_type: "application/pdf",
+            pdf_content_length: 2048,
+            source_name: "官方披露测试源",
+            source_type: "official_disclosure",
+            trust_level: "A"
+          }
+        ],
+        policy_signals: ["2026-05-20 官方政策背景证据"],
+        macro_indicators: [
+          {
+            country_code: "CN",
+            country_name: "China",
+            indicator_id: "NY.GDP.MKTP.KD.ZG",
+            indicator_name: "GDP growth",
+            value: 5.1,
+            date: "2025",
+            unit: "percent",
+            source_url: "https://api.worldbank.org/test",
+            source_name: "World Bank",
+            fetched_at: "2026-05-28T00:00:00.000Z"
+          }
+        ],
+        news_summaries: ["2026-05-20 官方行业新闻背景证据"],
+        social_sentiment_score: 0.42
+      },
+      raw_reference: "https://official.example.test/detail",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
 class LowTrustAggregatorHoldingsProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   sourceInfo(): DataSourceInfo {
     return {
@@ -890,7 +983,7 @@ test("Argus derives daily return from NAV history instead of emitting placeholde
 
 test("Argus marks daily return as placeholder when current NAV lacks daily return and history", async () => {
   const registry = new SourceRegistry({
-    providers: [new CurrentNavWithoutDailyReturnProvider()],
+    providers: [new ReadyCoreWithoutDailyReturnProvider()],
     cacheTtlMs: 0,
     retryCount: 0
   });
@@ -899,8 +992,14 @@ test("Argus marks daily return as placeholder when current NAV lacks daily retur
 
   assert.equal(dataPack.current_nav, 1.1111);
   assert.equal(dataPack.daily_return, 0);
+  assert.equal(dataPack.data_quality_report.data_status, "partial");
+  assert.equal(dataPack.allow_downstream_analysis, true);
+  assert.equal(dataPack.allow_strong_conclusion, false);
   assert.ok(dataPack.data_quality_report.placeholder_fields.includes("daily_return"));
   assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("daily_return"));
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_current_nav"), false);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_nav_history"), false);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), false);
   assert.ok(dataPack.data_gap_report?.missing_data.includes("daily_return"));
   assert.ok(dataPack.data_gap_report?.recommended_solutions.some((solution) => solution.includes("placeholder_fields=daily_return")));
   assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("daily_return 缺失")));
