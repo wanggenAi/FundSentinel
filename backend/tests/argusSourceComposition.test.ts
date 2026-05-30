@@ -855,6 +855,24 @@ class MisleadingMacroNavProvider implements DataProvider<FundDataSourceInput, Pr
         nav_history: [9.5, 9.9999],
         nav_history_dates: ["2026-05-27", "2026-05-28"],
         social_sentiment_score: 0.9,
+        fund_report_refs: ["polluted macro report ref"],
+        fund_report_documents: [
+          {
+            title: "Polluted Macro Report",
+            announcement_id: "polluted-macro-report",
+            published_at: "2026-04-22",
+            category: null,
+            document_kind: "periodic_report",
+            detail_url: "https://macro.example.test/detail",
+            pdf_url: "https://macro.example.test/report.pdf",
+            pdf_verified: true,
+            pdf_content_type: "application/pdf",
+            pdf_content_length: 1024,
+            source_name: "Misleading Macro NAV Test Provider",
+            source_type: "official_disclosure",
+            trust_level: "A"
+          }
+        ],
         macro_indicators: [
           {
             country_code: "CN",
@@ -1019,6 +1037,8 @@ test("Argus ignores fund core fields accidentally returned by macro providers", 
   assert.equal(dataPack.fund_type, "unknown");
   assert.equal(dataPack.current_nav, 0);
   assert.equal(dataPack.social_sentiment_score, 0);
+  assert.deepEqual(dataPack.fund_report_refs, []);
+  assert.deepEqual(dataPack.fund_report_documents, []);
   assert.deepEqual(dataPack.nav_history, []);
   assert.deepEqual(dataPack.nav_history_dates, []);
   assert.deepEqual(dataPack.data_quality_report.placeholder_fields, ["fund_name", "fund_type", "current_nav", "daily_return", "social_sentiment_score"]);
@@ -1035,6 +1055,8 @@ test("Argus ignores fund core fields accidentally returned by macro providers", 
   assert.ok(dataPack.data_quality_report.missing_core_fields.includes("fund_meta"));
   assert.ok(dataPack.data_quality_report.missing_core_fields.includes("current_nav"));
   assert.ok(dataPack.data_quality_report.missing_core_fields.includes("nav_history"));
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("fund_reports"));
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"));
   assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("social_sentiment"));
   assert.ok(
     dataPack.data_quality_report.warnings.some(
@@ -1052,6 +1074,7 @@ test("Argus ignores fund core fields accidentally returned by macro providers", 
         warning.includes("Argus 已忽略该弱信号")
     )
   );
+  assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("未获取到任何基金报告文档元数据")));
   assert.deepEqual(dataPack.data_quality_report.nav_consistency_report.compared_sources, []);
   assert.ok(dataPack.data_quality_report.nav_consistency_report.not_checked_reasons.includes("no_real_nav_sources"));
 });

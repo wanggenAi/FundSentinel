@@ -932,7 +932,7 @@ export class ArgusAgent extends BaseAgent {
   }
 
   private officialReportGapWarnings(results: Array<DataProviderResult<ProviderFundPayload>>): string[] {
-    const documents = results.flatMap((result) =>
+    const documents = results.filter((result) => this.canUseFundReportEvidence(result)).flatMap((result) =>
       (result.data?.fund_report_documents ?? []).map((document) => ({
         sourceId: result.source_id,
         sourceName: result.source_name,
@@ -977,7 +977,12 @@ export class ArgusAgent extends BaseAgent {
   }
 
   private hasFundReportEvidence(result: DataProviderResult<ProviderFundPayload>): boolean {
-    return Boolean(result.data?.fund_report_refs?.length || result.data?.fund_report_documents?.length);
+    return this.canUseFundReportEvidence(result) && Boolean(result.data?.fund_report_refs?.length || result.data?.fund_report_documents?.length);
+  }
+
+  private canUseFundReportEvidence(result: DataProviderResult<ProviderFundPayload>): boolean {
+    if (result.is_demo) return true;
+    return ["fund_report", "regulatory_disclosure", "fund_company", "manual_import"].includes(result.source_type);
   }
 
   private hasAuthoritativeCoreField<K extends keyof ProviderFundPayload>(results: Array<DataProviderResult<ProviderFundPayload>>, field: K): boolean {
