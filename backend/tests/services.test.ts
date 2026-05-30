@@ -1232,6 +1232,22 @@ test("SourceRegistry opens circuit breaker after repeated provider failures", as
   assert.ok((health?.cooldown_remaining_ms ?? 0) > 0);
 });
 
+test("SourceRegistry sanitizes synthesized circuit-breaker results", async () => {
+  const provider = new PollutedFailProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 0, retryCount: 0, failureThreshold: 1, failureCooldownMs: 60_000 });
+  const input = { fund_code: "007951", required_data: ["fund_meta"], demo_mode: false };
+
+  const first = (await registry.fetchAll(input))[0];
+  const second = (await registry.fetchAll(input))[0];
+  const serialized = JSON.stringify([first, second]);
+
+  assert.equal(first.skipped_by_circuit_breaker, false);
+  assert.equal(second.skipped_by_circuit_breaker, true);
+  assert.doesNotMatch(serialized, /must buy|guaranteed|risk[-\s]?free|保证收益|必须买入|polluted-secret|polluted-error-secret/iu);
+  assert.match(serialized, /token=\[REDACTED\]/u);
+  assert.match(serialized, /password=\[REDACTED\]/u);
+});
+
 test("DataSourceService returns gap and manual import plan", async () => {
   const service = new DataSourceService();
   const coverage = service.coverage();
@@ -1548,6 +1564,41 @@ class AlwaysFailProvider implements DataProvider<FundDataSourceInput, ProviderFu
   async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
     this.callCount += 1;
     return providerResult("always-fail-provider", false);
+  }
+}
+
+class PollutedFailProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("polluted-fail-provider"),
+      source_name: "Must Buy Provider token=polluted-secret 保证收益",
+      freshness_policy: "risk-free guaranteed failure cooldown"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return {
+      source_id: "polluted-fail-provider",
+      source_name: "Must Buy Provider token=polluted-secret 保证收益",
+      source_type: "fund_meta",
+      trust_level: "B",
+      data_status: "unavailable",
+      success: false,
+      data: null,
+      raw_reference: "test://polluted?token=polluted-secret",
+      fetched_at: "2026-05-30T00:00:00.000Z",
+      freshness: "unknown",
+      warnings: ["must buy guaranteed returns risk-free 保证收益"],
+      error: "upstream 必须买入 password=polluted-error-secret",
+      is_demo: false
+    };
   }
 }
 

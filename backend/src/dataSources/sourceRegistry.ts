@@ -402,7 +402,7 @@ export class SourceRegistry {
       this.resultCache.delete(cacheKey);
       return null;
     }
-    return {
+    return this.sanitizeProviderResult({
       ...cached.result,
       warnings: [...cached.result.warnings, "SourceRegistry cache hit; using recently fetched provider result."],
       fetched_at: nowIso(),
@@ -410,7 +410,7 @@ export class SourceRegistry {
       cache_expires_at: new Date(cached.expiresAt).toISOString(),
       latency_ms: 0,
       skipped_by_circuit_breaker: false
-    };
+    });
   }
 
   private writeCache(cacheKey: string, result: DataProviderResult<ProviderFundPayload>): void {
@@ -429,7 +429,7 @@ export class SourceRegistry {
     cacheHit: boolean,
     cacheExpiresAt: string | null
   ): DataProviderResult<ProviderFundPayload> {
-    return sanitizePublicStructure({
+    return this.sanitizeProviderResult({
       ...result,
       warnings: [...result.warnings],
       attempt_count: attemptCount,
@@ -443,7 +443,7 @@ export class SourceRegistry {
   private circuitResultFor(info: DataSourceInfo, startedAt: number): DataProviderResult<ProviderFundPayload> | null {
     const current = this.sourceStates.get(info.source_id);
     if (!current || this.cooldownRemainingMs(current) <= 0) return null;
-    return {
+    return this.sanitizeProviderResult({
       source_id: current.source_id,
       source_name: current.source_name,
       source_type: current.source_type,
@@ -462,7 +462,7 @@ export class SourceRegistry {
       cache_hit: false,
       cache_expires_at: null,
       skipped_by_circuit_breaker: true
-    };
+    });
   }
 
   private shouldRetry(result: DataProviderResult<ProviderFundPayload>): boolean {
@@ -596,7 +596,7 @@ export class SourceRegistry {
     startedAt: number,
     attemptCount: number
   ): DataProviderResult<ProviderFundPayload> {
-    return {
+    return this.sanitizeProviderResult({
       source_id: info.source_id,
       source_name: info.source_name,
       source_type: info.source_type,
@@ -615,7 +615,11 @@ export class SourceRegistry {
       cache_hit: false,
       cache_expires_at: null,
       skipped_by_circuit_breaker: false
-    };
+    });
+  }
+
+  private sanitizeProviderResult(result: DataProviderResult<ProviderFundPayload>): DataProviderResult<ProviderFundPayload> {
+    return sanitizePublicStructure(result);
   }
 
   private shouldOpenCircuit(current: DataSourceInfo): boolean {
