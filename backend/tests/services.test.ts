@@ -657,6 +657,80 @@ test("public fund analysis sanitizes dynamic metric keys and sensitive metric va
   assert.doesNotMatch(payload, /buy_signal|risk_position_score|metric-secret|must buy|guaranteed|risk[-\s]?free|保证收益/iu);
 });
 
+test("public fund analysis sanitizes agent evidence URLs and related themes", () => {
+  const dataPack = new MockDataService().getFundDataPack("007951");
+  const response: FundAnalysisResponse = {
+    task_id: "public-agent-evidence",
+    fund_code: dataPack.fund_code,
+    fund_name: dataPack.fund_name,
+    is_mock: true,
+    data_pack: dataPack,
+    agent_results: {
+      Argus: {
+        task_id: "public-agent-evidence",
+        agent_name: "Argus",
+        agent_role: "Data Acquisition Agent",
+        agent_version: "0.1.0",
+        fund_code: dataPack.fund_code,
+        status: "warning",
+        score: 40,
+        confidence: 0.4,
+        summary: "provider evidence",
+        evidence: [
+          {
+            title: "Provider raw evidence",
+            source_name: "Provider",
+            source_type: "industry_data",
+            trust_level: "B",
+            summary: "raw reference contains api_key=evidence-summary-secret",
+            importance_score: 0.5,
+            related_theme: "must buy guaranteed theme token=theme-secret",
+            published_at: "2026-05-29T00:00:00.000Z",
+            url: "https://provider.example.test/detail?api_key=evidence-url-secret&access_token=evidence-token-secret",
+            is_mock: false
+          }
+        ],
+        metrics: {},
+        warnings: [],
+        next_suggestions: [],
+        created_at: "2026-05-29T00:00:00.000Z",
+        is_mock: true
+      }
+    },
+    final_decision: {
+      action: "observe",
+      confidence: 0.4,
+      risk_level: "medium",
+      summary: "observe",
+      reasons: [],
+      risk_warnings: [],
+      invalidation_conditions: [],
+      source_agents: ["Argus"],
+      metrics: {
+        overall_score: 40,
+        hard_logic_score: 40,
+        low_position_score: 40,
+        risk_position_score: 40
+      },
+      generated_by: "Atlas",
+      generated_at: "2026-05-29T00:00:00.000Z",
+      is_mock: true
+    },
+    blackboard_snapshot: {},
+    generated_at: "2026-05-29T00:00:00.000Z"
+  };
+
+  const publicResponse = new FundAnalysisService().presentPublicFundAnalysis(response);
+  const evidence = publicResponse.agent_results.Argus?.evidence[0];
+  const payload = JSON.stringify(publicResponse);
+
+  assert.match(evidence?.url ?? "", /api_key=\[REDACTED\]/u);
+  assert.match(evidence?.url ?? "", /access_token=\[REDACTED\]/u);
+  assert.match(evidence?.related_theme ?? "", /must review/u);
+  assert.match(evidence?.summary ?? "", /api_key=\[REDACTED\]/u);
+  assert.doesNotMatch(payload, /evidence-url-secret|evidence-token-secret|theme-secret|evidence-summary-secret|must buy|guaranteed/iu);
+});
+
 test("SourceRegistry lists real providers and demo fixture provider", () => {
   const sources = new SourceRegistry(false).listSources();
 

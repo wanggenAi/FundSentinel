@@ -161,12 +161,18 @@ export class FundAnalysisService {
       metrics: this.publicMetrics(result.metrics),
       warnings: result.warnings.map((warning) => this.sanitizeText(warning)),
       next_suggestions: result.next_suggestions.map((suggestion) => this.sanitizeText(suggestion)),
-      evidence: result.evidence.map((item) => ({
-        ...item,
-        title: this.sanitizeText(item.title),
-        source_name: this.sanitizeText(item.source_name),
-        summary: this.sanitizeText(item.summary)
-      }))
+      evidence: result.evidence.map((item) => this.publicEvidence(item))
+    };
+  }
+
+  private publicEvidence(item: AgentResult["evidence"][number]): AgentResult["evidence"][number] {
+    return {
+      ...item,
+      title: this.sanitizeText(item.title),
+      source_name: this.sanitizeText(item.source_name),
+      summary: this.sanitizeText(item.summary),
+      url: item.url ? this.sanitizeText(item.url) : null,
+      related_theme: item.related_theme ? this.sanitizeText(item.related_theme) : null
     };
   }
 
