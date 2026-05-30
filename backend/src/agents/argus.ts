@@ -266,10 +266,17 @@ export class ArgusAgent extends BaseAgent {
     if (validated.current_nav !== undefined && !this.isValidNavValue(validated.current_nav)) validated.current_nav = undefined;
     if (validated.daily_return !== undefined && !this.isFiniteNumber(validated.daily_return)) validated.daily_return = undefined;
     if (validated.social_sentiment_score !== undefined && !this.isFiniteNumber(validated.social_sentiment_score)) validated.social_sentiment_score = undefined;
+    validated.stage_returns = this.validStageReturns(validated.stage_returns);
     const sanitizedHistory = this.validNavHistory(validated.nav_history, validated.nav_history_dates);
     validated.nav_history = sanitizedHistory.navHistory;
     validated.nav_history_dates = sanitizedHistory.navHistoryDates;
     return validated;
+  }
+
+  private validStageReturns(stageReturns: ProviderFundPayload["stage_returns"]): ProviderFundPayload["stage_returns"] {
+    if (!stageReturns) return stageReturns;
+    const entries = Object.entries(stageReturns).filter(([, value]) => this.isFiniteNumber(value));
+    return entries.length ? Object.fromEntries(entries) : undefined;
   }
 
   private validNavHistory(
@@ -840,6 +847,7 @@ export class ArgusAgent extends BaseAgent {
     const invalidFields = [
       result.data.current_nav !== undefined && !this.isValidNavValue(result.data.current_nav) ? "current_nav" : null,
       result.data.nav_history?.some((nav) => !this.isValidNavValue(nav)) ? "nav_history" : null,
+      result.data.stage_returns && Object.values(result.data.stage_returns).some((value) => !this.isFiniteNumber(value)) ? "stage_returns" : null,
       result.data.daily_return !== undefined && !this.isFiniteNumber(result.data.daily_return) ? "daily_return" : null,
       result.data.social_sentiment_score !== undefined && !this.isFiniteNumber(result.data.social_sentiment_score) ? "social_sentiment_score" : null
     ].filter(Boolean) as string[];

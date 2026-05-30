@@ -731,7 +731,11 @@ class InvalidOfficialNavProvider implements DataProvider<FundDataSourceInput, Pr
         current_nav: 0,
         daily_return: Number.POSITIVE_INFINITY,
         nav_history: [-1, 0],
-        nav_history_dates: ["2026-05-27", "2026-05-28"]
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        stage_returns: {
+          one_week: Number.POSITIVE_INFINITY,
+          one_month: 0.02
+        }
       },
       raw_reference: "https://official.example.test/invalid-nav",
       fetched_at: "2026-05-28T00:00:00.000Z",
@@ -1096,6 +1100,7 @@ test("Argus ignores invalid official NAV values instead of counting them as core
   assert.equal(dataPack.daily_return, 0);
   assert.deepEqual(dataPack.nav_history, []);
   assert.deepEqual(dataPack.nav_history_dates, []);
+  assert.deepEqual(dataPack.stage_returns, { one_month: 0.02 });
   assert.equal(composition.authoritative.includes("invalid-official-nav-test"), true);
   assert.equal(composition.official_core_coverage.fund_meta, true);
   assert.equal(composition.official_core_coverage.current_nav, false);
@@ -1118,6 +1123,7 @@ test("Argus ignores invalid official NAV values instead of counting them as core
         warning.includes("无效基金数值字段") &&
         warning.includes("current_nav") &&
         warning.includes("nav_history") &&
+        warning.includes("stage_returns") &&
         warning.includes("daily_return")
     )
   );
