@@ -313,6 +313,9 @@ class ReadyOfficialCoreProvider implements DataProvider<FundDataSourceInput, Pro
         daily_return: -0.02,
         nav_history: [1.0801, 1.0799],
         nav_history_dates: ["2026-05-27", "2026-05-28"],
+        stage_returns: {
+          "1w": -0.0019
+        },
         portfolio_holdings: ["国债", "政策性金融债"],
         fund_report_refs: ["2026-04-22 招商信用增强债券C2026年第1季度报告 pdf_verified=true"],
         fund_report_documents: [
@@ -354,6 +357,67 @@ class ReadyOfficialCoreProvider implements DataProvider<FundDataSourceInput, Pro
       fetched_at: "2026-05-28T00:00:00.000Z",
       freshness: this.freshness,
       warnings: this.freshness === "stale" ? ["测试官方核心数据已过期，强结论应降级。"] : [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class LowTrustAggregatorCoreProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "low-trust-nav-test",
+      source_name: "Low Trust NAV Test Provider",
+      source_type: "nav_history",
+      trust_level: "B",
+      enabled: true,
+      priority: -10,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "low-trust-nav-test",
+      source_name: "Low Trust NAV Test Provider",
+      source_type: "nav_history",
+      trust_level: "B",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "聚合源错误基金名",
+        fund_type: "聚合源类型",
+        current_nav: 9.9999,
+        daily_return: 8.8,
+        nav_history: [9.7, 9.8, 9.9999],
+        nav_history_dates: ["2026-05-26", "2026-05-27", "2026-05-28"],
+        stage_returns: {
+          "1w": 99
+        }
+      },
+      raw_reference: "https://aggregator.example.test/nav",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
       error: null,
       is_demo: false
     };
@@ -612,6 +676,33 @@ test("Argus keeps provider failures in DataGapReport even when core data is read
   assert.ok(gapReport.recommended_solutions.some((solution) => solution.includes("失败 provider")));
   assert.equal(dataPack.acquisition_solutions[0]?.severity, "medium");
   assert.ok(dataPack.acquisition_solutions[0]?.problem.includes("provider 获取失败"));
+});
+
+test("Argus prefers authoritative core payloads over earlier low-trust aggregators", async () => {
+  const registry = new SourceRegistry({
+    providers: [new LowTrustAggregatorCoreProvider(), new ReadyOfficialCoreProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("preferred-official-core", "007951");
+  const composition = dataPack.data_quality_report.source_composition;
+
+  assert.ok(composition.aggregator.includes("low-trust-nav-test"));
+  assert.ok(composition.authoritative.includes("ready-official-core-test"));
+  assert.equal(composition.official_core_coverage.fund_meta, true);
+  assert.equal(composition.official_core_coverage.current_nav, true);
+  assert.equal(composition.official_core_coverage.nav_history, true);
+  assert.equal(dataPack.fund_name, "招商信用增强债券C");
+  assert.equal(dataPack.fund_type, "债券型");
+  assert.equal(dataPack.current_nav, 1.0799);
+  assert.equal(dataPack.daily_return, -0.02);
+  assert.deepEqual(dataPack.nav_history, [1.0801, 1.0799]);
+  assert.deepEqual(dataPack.nav_history_dates, ["2026-05-27", "2026-05-28"]);
+  assert.equal(dataPack.stage_returns["1w"], -0.0019);
+  assert.equal(dataPack.data_quality_report.nav_consistency_report.status, "conflict");
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("nav_consistency"));
+  assert.equal(dataPack.allow_strong_conclusion, false);
 });
 
 test("Argus surfaces stale successful providers as data freshness gaps", async () => {

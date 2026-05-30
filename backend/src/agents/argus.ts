@@ -16,6 +16,7 @@ import { AIGateway } from "../services/aiGateway.js";
 import { sanitizePublicStructure } from "../utils/publicText.js";
 
 const COORDINATOR_SOURCE_IDS = new Set(["fund-company-report"]);
+type PreferredCoreField = "fund_code" | "fund_name" | "fund_type" | "current_nav" | "daily_return";
 
 export class ArgusAgent extends BaseAgent {
   readonly name = "Argus";
@@ -187,24 +188,28 @@ export class ArgusAgent extends BaseAgent {
 
   private mergeProviderPayloads(results: Array<DataProviderResult<ProviderFundPayload>>): ProviderFundPayload {
     const merged: ProviderFundPayload = {};
+    const coreFieldPriorities: Partial<Record<PreferredCoreField, number>> = {};
+    const stageReturnPriorities: Record<string, number> = {};
+    let navHistoryPriority = Number.NEGATIVE_INFINITY;
     for (const result of results) {
       const payload = result.data!;
       if (this.canMergeFundCorePayload(result)) {
-        this.setIfMissing(merged, "fund_code", payload.fund_code);
-        this.setIfMissing(merged, "fund_name", payload.fund_name);
-        this.setIfMissing(merged, "fund_type", payload.fund_type);
-        this.setIfMissing(merged, "current_nav", payload.current_nav);
-        this.setIfMissing(merged, "daily_return", payload.daily_return);
+        const corePriority = this.corePayloadPriority(result);
+        this.setPreferredCoreField(merged, coreFieldPriorities, "fund_code", payload.fund_code, corePriority);
+        this.setPreferredCoreField(merged, coreFieldPriorities, "fund_name", payload.fund_name, corePriority);
+        this.setPreferredCoreField(merged, coreFieldPriorities, "fund_type", payload.fund_type, corePriority);
+        this.setPreferredCoreField(merged, coreFieldPriorities, "current_nav", payload.current_nav, corePriority);
+        this.setPreferredCoreField(merged, coreFieldPriorities, "daily_return", payload.daily_return, corePriority);
 
-        if (this.shouldUseNavHistory(payload, merged)) {
+        const shouldUseCandidateNavHistory = this.shouldUseNavHistory(payload, merged, corePriority, navHistoryPriority);
+        if (shouldUseCandidateNavHistory) {
           merged.nav_history = payload.nav_history;
           merged.nav_history_dates = payload.nav_history_dates;
-          if (payload.current_nav !== undefined) merged.current_nav = payload.current_nav;
-          if (payload.daily_return !== undefined) merged.daily_return = payload.daily_return;
+          navHistoryPriority = corePriority;
+          this.setPreferredCoreField(merged, coreFieldPriorities, "current_nav", payload.current_nav, corePriority, true);
+          this.setPreferredCoreField(merged, coreFieldPriorities, "daily_return", payload.daily_return, corePriority, true);
         }
-        if (payload.stage_returns) {
-          merged.stage_returns = { ...(merged.stage_returns ?? {}), ...payload.stage_returns };
-        }
+        this.mergeStageReturnsByPriority(merged, stageReturnPriorities, payload.stage_returns, corePriority, shouldUseCandidateNavHistory);
         merged.portfolio_holdings = this.mergeUnique(merged.portfolio_holdings, payload.portfolio_holdings);
         merged.fund_report_refs = this.mergeUnique(merged.fund_report_refs, payload.fund_report_refs);
         merged.fund_report_documents = this.mergeReportDocuments(merged.fund_report_documents, payload.fund_report_documents);
@@ -543,14 +548,63 @@ export class ArgusAgent extends BaseAgent {
     }
   }
 
+  private setPreferredCoreField<K extends PreferredCoreField>(
+    target: ProviderFundPayload,
+    priorities: Partial<Record<PreferredCoreField, number>>,
+    key: K,
+    value: ProviderFundPayload[K],
+    priority: number,
+    replaceOnTie = false
+  ): void {
+    if (value === undefined || value === null) return;
+    const currentPriority = priorities[key] ?? Number.NEGATIVE_INFINITY;
+    if (target[key] === undefined || priority > currentPriority || (replaceOnTie && priority === currentPriority)) {
+      target[key] = value;
+      priorities[key] = priority;
+    }
+  }
+
+  private corePayloadPriority(result: DataProviderResult<ProviderFundPayload>): number {
+    if (!this.canMergeFundCorePayload(result)) return Number.NEGATIVE_INFINITY;
+    if (this.isAuthoritativeCoreFundSource(result)) return 40;
+    if (this.isAuthoritative(result)) return 30;
+    if (!result.is_demo && result.source_type === "manual_import") return 20;
+    if (!result.is_demo) return 10;
+    return 0;
+  }
+
+  private mergeStageReturnsByPriority(
+    target: ProviderFundPayload,
+    priorities: Record<string, number>,
+    stageReturns: ProviderFundPayload["stage_returns"],
+    priority: number,
+    replaceOnTie = false
+  ): void {
+    if (!stageReturns) return;
+    const mergedStageReturns = (target.stage_returns ??= {});
+    for (const [period, value] of Object.entries(stageReturns)) {
+      const currentPriority = priorities[period] ?? Number.NEGATIVE_INFINITY;
+      if (priority > currentPriority || mergedStageReturns[period] === undefined || (replaceOnTie && priority === currentPriority)) {
+        mergedStageReturns[period] = value;
+        priorities[period] = priority;
+      }
+    }
+  }
+
   private mergeUnique(left: string[] | undefined, right: string[] | undefined): string[] | undefined {
     if (!left?.length && !right?.length) return left ?? right;
     return [...new Set([...(left ?? []), ...(right ?? [])])];
   }
 
-  private shouldUseNavHistory(candidate: ProviderFundPayload, current: ProviderFundPayload): boolean {
+  private shouldUseNavHistory(
+    candidate: ProviderFundPayload,
+    current: ProviderFundPayload,
+    candidatePriority: number,
+    currentPriority: number
+  ): boolean {
     if (!candidate.nav_history?.length) return false;
     if (!current.nav_history?.length) return true;
+    if (candidatePriority !== currentPriority) return candidatePriority > currentPriority;
     const candidateLatest = candidate.nav_history_dates?.at(-1);
     const currentLatest = current.nav_history_dates?.at(-1);
     if (candidateLatest && currentLatest && candidateLatest !== currentLatest) return candidateLatest > currentLatest;
