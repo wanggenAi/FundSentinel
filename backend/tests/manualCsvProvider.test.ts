@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -103,6 +103,28 @@ test("ManualCsvProvider rejects same-date NAV conflicts and deduplicates identic
       ),
     /conflicting rows/
   );
+});
+
+test("ManualCsvProvider rejects symlinked CSV files outside the manual directory", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fundsentinel-manual-csv-symlink-"));
+  const outsideDir = await mkdtemp(path.join(os.tmpdir(), "fundsentinel-outside-csv-"));
+  try {
+    await writeFile(path.join(outsideDir, "007951.csv"), ["fund_code,date,nav", "007951,2026-05-28,1.018"].join("\n"));
+    await symlink(path.join(outsideDir, "007951.csv"), path.join(dir, "007951.csv"));
+
+    const result = await new ManualCsvProvider(dir).fetch({
+      fund_code: "007951",
+      required_data: ["fund_meta", "current_nav", "nav_history"],
+      demo_mode: false
+    });
+
+    assert.equal(result.success, false);
+    assert.equal(result.data, null);
+    assert.match(result.error ?? "", /inside FUNDSENTINEL_MANUAL_CSV_DIR/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+    await rm(outsideDir, { recursive: true, force: true });
+  }
 });
 
 test("Argus can use manual CSV as explicit real-data fallback", async () => {

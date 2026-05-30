@@ -2,7 +2,7 @@ import { nowIso } from "../../schemas/index.js";
 import type { DataProvider } from "./baseProvider.js";
 import type { DataProviderResult, DataSourceInfo, FundDataSourceInput, ProviderFundPayload } from "../sourceTypes.js";
 import { createHash } from "node:crypto";
-import { access, readFile, stat } from "node:fs/promises";
+import { access, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
 interface ManualCsvRow {
@@ -62,6 +62,7 @@ export class ManualCsvProvider implements DataProvider<FundDataSourceInput, Prov
     const filePath = path.join(this.dataDir, `${input.fund_code}.csv`);
     try {
       await access(filePath);
+      await this.assertFileInsideDataDir(filePath);
       const [fileBuffer, fileStats] = await Promise.all([readFile(filePath), stat(filePath)]);
       const fileText = fileBuffer.toString("utf8");
       const rows = ManualCsvProvider.parseCsv(fileText).filter((row) => row.fund_code === input.fund_code);
@@ -178,6 +179,19 @@ export class ManualCsvProvider implements DataProvider<FundDataSourceInput, Prov
       }
     }
     return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  private async assertFileInsideDataDir(filePath: string): Promise<void> {
+    if (!this.dataDir) throw new Error("FUNDSENTINEL_MANUAL_CSV_DIR is not configured");
+    const [baseRealPath, csvRealPath] = await Promise.all([realpath(path.resolve(this.dataDir)), realpath(filePath)]);
+    if (!this.isInsideDirectory(csvRealPath, baseRealPath)) {
+      throw new Error("Manual CSV file path must stay inside FUNDSENTINEL_MANUAL_CSV_DIR.");
+    }
+  }
+
+  private isInsideDirectory(candidatePath: string, baseDir: string): boolean {
+    const relativePath = path.relative(baseDir, candidatePath);
+    return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
   }
 
   private static rowsEquivalent(left: ManualCsvRow, right: ManualCsvRow): boolean {
