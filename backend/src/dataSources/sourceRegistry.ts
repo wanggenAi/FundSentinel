@@ -37,7 +37,7 @@ import type { DataProviderResult, DataSourceCatalogEntry, DataSourceInfo, DataSo
 import { listDataSourceCatalog } from "./sourceCatalog.js";
 import { nowIso } from "../schemas/index.js";
 import type { DataRequirement } from "../schemas/index.js";
-import { redactSensitiveStrings } from "../utils/safeLogging.js";
+import { redactSensitiveStrings, redactSensitiveText } from "../utils/safeLogging.js";
 
 export interface SourceRegistryOptions {
   demoMode?: boolean;
@@ -492,8 +492,44 @@ export class SourceRegistry {
       themes: [...(context.themes ?? [])].sort(),
       portfolio_holdings: [...(context.portfolio_holdings ?? [])].sort().slice(0, 50),
       holdings_as_of: context.holdings_as_of,
-      fund_report_refs: [...(context.fund_report_refs ?? [])].sort().slice(0, 20)
+      fund_report_refs: [...(context.fund_report_refs ?? [])].sort().slice(0, 20),
+      fund_report_documents: this.fundReportDocumentSignature(context.fund_report_documents)
     };
+  }
+
+  private fundReportDocumentSignature(documents: ProviderFundPayload["fund_report_documents"] | undefined): Array<Record<string, unknown>> {
+    return (documents ?? [])
+      .map((document) => ({
+        title: document.title,
+        announcement_id: document.announcement_id,
+        published_at: document.published_at,
+        document_kind: document.document_kind,
+        detail_url: document.detail_url ? redactSensitiveText(document.detail_url) : null,
+        pdf_url: document.pdf_url ? redactSensitiveText(document.pdf_url) : null,
+        pdf_verified: document.pdf_verified,
+        pdf_content_type: document.pdf_content_type,
+        pdf_content_length: document.pdf_content_length,
+        pdf_sha256: document.pdf_sha256 ?? null,
+        source_name: document.source_name,
+        source_type: document.source_type,
+        trust_level: document.trust_level
+      }))
+      .sort((left, right) =>
+        [
+          String(left.announcement_id ?? ""),
+          String(left.pdf_url ?? ""),
+          String(left.detail_url ?? ""),
+          String(left.title ?? "")
+        ].join("|").localeCompare(
+          [
+            String(right.announcement_id ?? ""),
+            String(right.pdf_url ?? ""),
+            String(right.detail_url ?? ""),
+            String(right.title ?? "")
+          ].join("|")
+        )
+      )
+      .slice(0, 20);
   }
 
   private cacheEntryCountFor(sourceId: string): number {

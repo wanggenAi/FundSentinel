@@ -107,6 +107,35 @@ test("Argus surfaces fund-company report coordination gaps in DataGapReport deta
   assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"));
 });
 
+test("SourceRegistry cache keys include official report document context", async () => {
+  const input = {
+    fund_code: "CACHE-SIG-001",
+    required_data: ["fund_reports", "cache_signature_test"],
+    demo_mode: false
+  };
+  const firstRegistry = new SourceRegistry({
+    providers: [new ReportDocumentContextProvider("verified-report-cache-context", verifiedOfficialReport), new FundCompanyReportProvider()],
+    cacheTtlMs: 60_000,
+    retryCount: 0,
+    shareState: true
+  });
+  const secondRegistry = new SourceRegistry({
+    providers: [new ReportDocumentContextProvider("unverified-report-cache-context", unverifiedOfficialReport), new FundCompanyReportProvider()],
+    cacheTtlMs: 60_000,
+    retryCount: 0,
+    shareState: true
+  });
+
+  const firstReportResult = (await firstRegistry.fetchAll(input)).find((result) => result.source_id === "fund-company-report");
+  const secondReportResult = (await secondRegistry.fetchAll(input)).find((result) => result.source_id === "fund-company-report");
+
+  assert.equal(firstReportResult?.success, true);
+  assert.equal(firstReportResult?.cache_hit, false);
+  assert.equal(secondReportResult?.success, false);
+  assert.equal(secondReportResult?.cache_hit, false);
+  assert.match(secondReportResult?.error ?? "", /No verified official periodic report/);
+});
+
 class UnverifiedOfficialReportContextProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   sourceInfo(): DataSourceInfo {
     return {
@@ -155,6 +184,68 @@ class UnverifiedOfficialReportContextProvider implements DataProvider<FundDataSo
         fund_report_documents: [unverifiedOfficialReport]
       },
       raw_reference: "https://www.cmfchina.com/web/noticedetails/223999/index.html",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class ReportDocumentContextProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  constructor(
+    private readonly sourceId: string,
+    private readonly reportDocument: FundReportDocument
+  ) {}
+
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: this.sourceId,
+      source_name: this.sourceId,
+      source_type: "fund_company",
+      trust_level: "A",
+      enabled: true,
+      priority: 1,
+      access_method: "test fixture",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: this.sourceId,
+      source_name: this.sourceId,
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "Cache Signature Test Fund",
+        current_nav: 1.0799,
+        nav_history: [1.0801, 1.0799],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        fund_report_documents: [this.reportDocument]
+      },
+      raw_reference: this.reportDocument.detail_url,
       fetched_at: "2026-05-28T00:00:00.000Z",
       freshness: "fresh",
       warnings: [],
