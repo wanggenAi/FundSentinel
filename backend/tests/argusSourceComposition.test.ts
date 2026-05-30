@@ -480,6 +480,118 @@ class LowTrustCurrentNavProvider implements DataProvider<FundDataSourceInput, Pr
   }
 }
 
+class NavHistoryWithoutDailyReturnProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "nav-history-without-daily-return-test",
+      source_name: "NAV History Without Daily Return Test Provider",
+      source_type: "nav_history",
+      trust_level: "B",
+      enabled: true,
+      priority: 1,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "nav-history-without-daily-return-test",
+      source_name: "NAV History Without Daily Return Test Provider",
+      source_type: "nav_history",
+      trust_level: "B",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "第三方净值历史基金名",
+        fund_type: "第三方分类",
+        current_nav: 1.05,
+        nav_history: [1, 1.05],
+        nav_history_dates: ["2026-05-27", "2026-05-28"]
+      },
+      raw_reference: "https://aggregator.example.test/nav-history",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class CurrentNavWithoutDailyReturnProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "current-nav-without-daily-return-test",
+      source_name: "Current NAV Without Daily Return Test Provider",
+      source_type: "current_nav",
+      trust_level: "B",
+      enabled: true,
+      priority: 1,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "current-nav-without-daily-return-test",
+      source_name: "Current NAV Without Daily Return Test Provider",
+      source_type: "current_nav",
+      trust_level: "B",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "第三方当前净值基金名",
+        fund_type: "第三方分类",
+        current_nav: 1.1111
+      },
+      raw_reference: "https://aggregator.example.test/current-nav-only",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
 class LowTrustAggregatorHoldingsProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   sourceInfo(): DataSourceInfo {
     return {
@@ -758,6 +870,40 @@ test("Argus classifies low-trust current NAV providers as aggregators without of
   assert.equal(dataPack.allow_strong_conclusion, false);
   assert.ok(dataPack.data_quality_report.missing_core_fields.includes("nav_history"));
   assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_current_nav"));
+});
+
+test("Argus derives daily return from NAV history instead of emitting placeholder zero", async () => {
+  const registry = new SourceRegistry({
+    providers: [new NavHistoryWithoutDailyReturnProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("derive-daily-return-from-nav-history", "007951");
+
+  assert.equal(dataPack.current_nav, 1.05);
+  assert.equal(dataPack.daily_return, 0.05);
+  assert.equal(dataPack.data_quality_report.placeholder_fields.includes("daily_return"), false);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("daily_return"), false);
+  assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("daily_return 已由 nav_history 最近两点推导")));
+});
+
+test("Argus marks daily return as placeholder when current NAV lacks daily return and history", async () => {
+  const registry = new SourceRegistry({
+    providers: [new CurrentNavWithoutDailyReturnProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("daily-return-placeholder-without-history", "007951");
+
+  assert.equal(dataPack.current_nav, 1.1111);
+  assert.equal(dataPack.daily_return, 0);
+  assert.ok(dataPack.data_quality_report.placeholder_fields.includes("daily_return"));
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("daily_return"));
+  assert.ok(dataPack.data_gap_report?.missing_data.includes("daily_return"));
+  assert.ok(dataPack.data_gap_report?.recommended_solutions.some((solution) => solution.includes("placeholder_fields=daily_return")));
+  assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("daily_return 缺失")));
 });
 
 test("Argus ignores fund core fields accidentally returned by macro providers", async () => {

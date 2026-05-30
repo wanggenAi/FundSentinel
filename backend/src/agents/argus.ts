@@ -28,6 +28,13 @@ const FUND_CORE_SOURCE_TYPES = new Set<string>([
 ]);
 const THIRD_PARTY_FUND_CORE_SOURCE_TYPES = new Set<string>(["fund_meta", "current_nav", "nav_history", "holdings", "fund_report"]);
 type PreferredCoreField = "fund_code" | "fund_name" | "fund_type" | "current_nav" | "daily_return";
+type DerivedDailyReturn = {
+  daily_return: number;
+  previous_nav: number;
+  latest_nav: number;
+  previous_date: string | null;
+  latest_date: string | null;
+};
 
 export class ArgusAgent extends BaseAgent {
   readonly name = "Argus";
@@ -121,7 +128,9 @@ export class ArgusAgent extends BaseAgent {
     providerResults: Array<DataProviderResult<ProviderFundPayload>>
   ): FundDataPack {
     const merged = this.mergeProviderPayloads(providerResults.filter((result) => result.success && result.data));
-    const quality = this.buildQualityReport(providerResults, merged);
+    const derivedDailyReturn = merged.daily_return === undefined ? this.deriveDailyReturnFromNavHistory(merged) : null;
+    if (derivedDailyReturn) merged.daily_return = derivedDailyReturn.daily_return;
+    const quality = this.buildQualityReport(providerResults, merged, derivedDailyReturn);
     const gapReport = this.buildGapReport(fundCode, quality, providerResults);
     const solutions = this.buildSolutions(quality, gapReport);
     const isMock = this.isMockQuality(quality);
@@ -252,9 +261,28 @@ export class ArgusAgent extends BaseAgent {
     return this.canMergeFundCorePayload(result) || result.source_type === "social";
   }
 
+  private deriveDailyReturnFromNavHistory(payload: ProviderFundPayload): DerivedDailyReturn | null {
+    const history = payload.nav_history ?? [];
+    if (history.length < 2) return null;
+    const latestNav = history.at(-1);
+    const previousNav = history.at(-2);
+    if (latestNav === undefined || previousNav === undefined || previousNav <= 0) return null;
+    const dailyReturn = latestNav / previousNav - 1;
+    if (!Number.isFinite(dailyReturn)) return null;
+    const dates = payload.nav_history_dates ?? [];
+    return {
+      daily_return: Number(dailyReturn.toFixed(6)),
+      previous_nav: previousNav,
+      latest_nav: latestNav,
+      previous_date: dates.at(-2) ?? null,
+      latest_date: dates.at(-1) ?? null
+    };
+  }
+
   private buildQualityReport(
     providerResults: Array<DataProviderResult<ProviderFundPayload>>,
-    merged: ProviderFundPayload
+    merged: ProviderFundPayload,
+    derivedDailyReturn: DerivedDailyReturn | null = null
   ): DataQualityReport {
     const successful = providerResults.filter((result) => result.success);
     const failed = providerResults.filter((result) => !result.success);
@@ -275,6 +303,7 @@ export class ArgusAgent extends BaseAgent {
       sourceComposition.official_core_coverage.nav_history ? null : "official_nav_history",
       hasFundReportSource ? null : "fund_reports",
       hasAuthoritativeFundReportSource ? null : "official_fund_reports",
+      merged.current_nav !== undefined && merged.daily_return === undefined ? "daily_return" : null,
       !merged.policy_signals?.length ? "policy_evidence" : null,
       !merged.macro_indicators?.length ? "macro_data" : null,
       !merged.news_summaries?.length ? "industry_news" : null,
@@ -331,6 +360,12 @@ export class ArgusAgent extends BaseAgent {
     if (missingAuxiliaryFields.includes("industry_news")) warnings.push("industry_news 缺失，不影响核心数据但会降低解释完整性。");
     if (missingAuxiliaryFields.includes("macro_data")) warnings.push("macro_data 缺失，不影响基金核心净值分析，但会降低跨市场/宏观解释能力。");
     if (missingAuxiliaryFields.includes("social_sentiment")) warnings.push("social_sentiment 缺失，不影响核心分析，只能作为弱可选信号。");
+    if (missingAuxiliaryFields.includes("daily_return")) warnings.push("daily_return 缺失；FundDataPack.daily_return 使用 0 占位，下游必须通过 placeholder_fields 识别。");
+    if (derivedDailyReturn) {
+      warnings.push(
+        `daily_return 已由 nav_history 最近两点推导：${derivedDailyReturn.previous_date ?? "unknown"}=${derivedDailyReturn.previous_nav} -> ${derivedDailyReturn.latest_date ?? "unknown"}=${derivedDailyReturn.latest_nav}。`
+      );
+    }
     if (missingAuxiliaryFields.includes("official_fund_reports")) {
       warnings.push(...this.officialReportGapWarnings(successful));
     }
@@ -374,11 +409,12 @@ export class ArgusAgent extends BaseAgent {
   }
 
   private placeholderFieldsFor(merged: ProviderFundPayload, missingCoreFields: string[], missingAuxiliaryFields: string[]): string[] {
-    return [
+    return [...new Set([
       missingCoreFields.includes("fund_meta") ? ["fund_name", "fund_type"] : [],
       missingCoreFields.includes("current_nav") ? ["current_nav", "daily_return"] : [],
+      !missingCoreFields.includes("current_nav") && missingAuxiliaryFields.includes("daily_return") && merged.daily_return === undefined ? ["daily_return"] : [],
       missingAuxiliaryFields.includes("social_sentiment") && merged.social_sentiment_score === undefined ? ["social_sentiment_score"] : []
-    ].flat();
+    ].flat())];
   }
 
   private buildGapReport(
