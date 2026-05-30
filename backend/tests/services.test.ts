@@ -982,6 +982,73 @@ test("SourceRegistry cache keys include auxiliary provider context", async () =>
   assert.match(second.data?.news_summaries?.[0] ?? "", /美股新闻背景/);
 });
 
+test("SourceRegistry redacts sensitive context strings before using cache keys", async () => {
+  const provider = new ContextEchoProvider("context-cache-redaction-provider");
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
+  const input = {
+    fund_code: "007951",
+    required_data: ["industry_news"],
+    demo_mode: false,
+    context: {
+      fund_name: "Sensitive Fund token=fund-secret",
+      fund_type: "mixed password=fund-type-secret",
+      themes: ["theme api_key=theme-secret"],
+      portfolio_holdings: ["holding access_token=holding-secret"],
+      holdings_as_of: "2026-03-31 credential=holding-date-secret",
+      fund_report_refs: ["report token=report-ref-secret"],
+      policy_signals: ["policy authorization: Bearer policy-secret"],
+      news_summaries: ["news password=news-secret"],
+      macro_indicators: [
+        {
+          country_code: "US",
+          country_name: "United States",
+          indicator_id: "TEST",
+          indicator_name: "Sensitive macro",
+          value: 1,
+          date: "2026",
+          unit: "index",
+          source_url: "https://macro.example.test?credential=macro-secret",
+          source_name: "Macro api_key=macro-name-secret"
+        }
+      ],
+      fund_report_documents: [
+        {
+          title: "Report token=title-secret",
+          announcement_id: "announcement-secret=report-id-secret",
+          published_at: "2026-04-22",
+          category: null,
+          document_kind: "periodic_report",
+          detail_url: "https://reports.example.test/detail?token=detail-secret",
+          pdf_url: "https://reports.example.test/report.pdf?api_key=pdf-secret",
+          pdf_verified: true,
+          pdf_content_type: "application/pdf",
+          pdf_content_length: 1024,
+          pdf_sha256: "token=pdf-sha-secret",
+          source_name: "Official password=source-secret",
+          source_type: "official_disclosure",
+          trust_level: "A"
+        }
+      ]
+    }
+  };
+
+  const first = (await registry.fetchAll(input))[0];
+  const second = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "context-cache-redaction-provider");
+  const cacheKeys = [...((registry as unknown as { resultCache: Map<string, unknown> }).resultCache.keys())].join("\n");
+  const serialized = JSON.stringify([first, second]);
+
+  assert.equal(first.cache_hit, false);
+  assert.equal(second.cache_hit, true);
+  assert.equal(provider.callCount, 1);
+  assert.equal(health?.cache_entries, 1);
+  assert.match(cacheKeys, /\[REDACTED\]/u);
+  assert.doesNotMatch(
+    `${cacheKeys}\n${serialized}`,
+    /fund-secret|fund-type-secret|theme-secret|holding-secret|holding-date-secret|report-ref-secret|policy-secret|news-secret|macro-secret|macro-name-secret|title-secret|report-id-secret|detail-secret|pdf-secret|pdf-sha-secret|source-secret/u
+  );
+});
+
 test("SourceRegistry health recovers after a later provider success", async () => {
   const provider = new RecoveringProvider();
   const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 0, retryCount: 0 });
@@ -1518,10 +1585,13 @@ class ContextCaptureProvider implements DataProvider<FundDataSourceInput, Provid
 
 class ContextEchoProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   callCount = 0;
+  capturedContexts: ProviderFundPayload[] = [];
+
+  constructor(private readonly sourceId = "context-echo-provider") {}
 
   sourceInfo(): DataSourceInfo {
     return {
-      ...sourceInfo("context-echo-provider"),
+      ...sourceInfo(this.sourceId),
       source_name: "Context Echo Provider",
       source_type: "news",
       trust_level: "A",
@@ -1535,8 +1605,9 @@ class ContextEchoProvider implements DataProvider<FundDataSourceInput, ProviderF
 
   async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
     this.callCount += 1;
+    this.capturedContexts.push(JSON.parse(JSON.stringify(input.context ?? {})) as ProviderFundPayload);
     return {
-      source_id: "context-echo-provider",
+      source_id: this.sourceId,
       source_name: "Context Echo Provider",
       source_type: "news",
       trust_level: "A",

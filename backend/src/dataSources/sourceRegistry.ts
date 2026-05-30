@@ -487,29 +487,37 @@ export class SourceRegistry {
   private contextSignature(context: ProviderFundPayload | undefined): Record<string, unknown> {
     if (!context) return {};
     return {
-      fund_name: context.fund_name,
-      fund_type: context.fund_type,
-      themes: [...(context.themes ?? [])].sort(),
-      portfolio_holdings: [...(context.portfolio_holdings ?? [])].sort().slice(0, 50),
-      holdings_as_of: context.holdings_as_of,
-      fund_report_refs: [...(context.fund_report_refs ?? [])].sort().slice(0, 20),
+      fund_name: this.redactedOptionalText(context.fund_name),
+      fund_type: this.redactedOptionalText(context.fund_type),
+      themes: this.redactedStringList(context.themes).sort(),
+      portfolio_holdings: this.redactedStringList(context.portfolio_holdings).sort().slice(0, 50),
+      holdings_as_of: this.redactedOptionalText(context.holdings_as_of),
+      fund_report_refs: this.redactedStringList(context.fund_report_refs).sort().slice(0, 20),
       fund_report_documents: this.fundReportDocumentSignature(context.fund_report_documents),
-      policy_signals: [...(context.policy_signals ?? [])].sort().slice(0, 20),
-      news_summaries: [...(context.news_summaries ?? [])].sort().slice(0, 20),
+      policy_signals: this.redactedStringList(context.policy_signals).sort().slice(0, 20),
+      news_summaries: this.redactedStringList(context.news_summaries).sort().slice(0, 20),
       macro_indicators: this.macroIndicatorSignature(context.macro_indicators),
       social_sentiment_score: context.social_sentiment_score
     };
   }
 
+  private redactedStringList(values: string[] | undefined): string[] {
+    return (values ?? []).map((value) => redactSensitiveText(value));
+  }
+
+  private redactedOptionalText(value: string | undefined | null): string | undefined | null {
+    return value === undefined || value === null ? value : redactSensitiveText(value);
+  }
+
   private macroIndicatorSignature(indicators: ProviderFundPayload["macro_indicators"] | undefined): Array<Record<string, unknown>> {
     return (indicators ?? [])
       .map((indicator) => ({
-        country_code: indicator.country_code,
-        indicator_id: indicator.indicator_id,
-        date: indicator.date,
+        country_code: redactSensitiveText(indicator.country_code),
+        indicator_id: redactSensitiveText(indicator.indicator_id),
+        date: redactSensitiveText(indicator.date),
         value: indicator.value,
         source_url: redactSensitiveText(indicator.source_url),
-        source_name: indicator.source_name
+        source_name: redactSensitiveText(indicator.source_name)
       }))
       .sort((left, right) =>
         [
@@ -532,19 +540,19 @@ export class SourceRegistry {
   private fundReportDocumentSignature(documents: ProviderFundPayload["fund_report_documents"] | undefined): Array<Record<string, unknown>> {
     return (documents ?? [])
       .map((document) => ({
-        title: document.title,
-        announcement_id: document.announcement_id,
-        published_at: document.published_at,
-        document_kind: document.document_kind,
+        title: redactSensitiveText(document.title),
+        announcement_id: redactSensitiveText(document.announcement_id),
+        published_at: this.redactedOptionalText(document.published_at),
+        document_kind: redactSensitiveText(document.document_kind),
         detail_url: document.detail_url ? redactSensitiveText(document.detail_url) : null,
         pdf_url: document.pdf_url ? redactSensitiveText(document.pdf_url) : null,
         pdf_verified: document.pdf_verified,
-        pdf_content_type: document.pdf_content_type,
+        pdf_content_type: this.redactedOptionalText(document.pdf_content_type),
         pdf_content_length: document.pdf_content_length,
-        pdf_sha256: document.pdf_sha256 ?? null,
-        source_name: document.source_name,
-        source_type: document.source_type,
-        trust_level: document.trust_level
+        pdf_sha256: this.redactedOptionalText(document.pdf_sha256 ?? null),
+        source_name: redactSensitiveText(document.source_name),
+        source_type: redactSensitiveText(document.source_type),
+        trust_level: redactSensitiveText(document.trust_level)
       }))
       .sort((left, right) =>
         [
