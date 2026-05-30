@@ -1,4 +1,5 @@
 import type { DataQuality, RiskLevel } from "./common.js";
+import type { ManualPortfolioImportAudit } from "./portfolio.js";
 import type { HoldingAlert, StrategyTrigger, TodayFocusItem } from "./strategy.js";
 
 export interface HomeDashboardResponse {
@@ -12,7 +13,7 @@ export interface HomeDashboardResponse {
   holding_alerts: HoldingAlert[];
   today_focus: TodayFocusItem[];
   data_quality: DataQuality;
+  manual_import_audit?: ManualPortfolioImportAudit;
   generated_by: "Atlas";
   generated_at: string;
 }
-

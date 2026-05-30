@@ -56,12 +56,21 @@ export class PortfolioService {
 
     const importedAt = this.now();
     const generatedAt = this.generatedAtFor(parsed.generated_at, importedAt);
+    const manualImportAudit = {
+      file_path: filePath,
+      file_sha256: createHash("sha256").update(fileBuffer).digest("hex"),
+      file_size_bytes: fileStats.size,
+      file_mtime: fileStats.mtime.toISOString(),
+      imported_at: importedAt,
+      generated_at: generatedAt,
+      holding_count: Array.isArray(parsed.holdings) ? parsed.holdings.length : 0
+    };
     const baseWarnings = [
       "手动持仓 JSON 是用户/运营维护的真实数据 workaround；仅代表离线快照来源。",
-      `file_sha256=${createHash("sha256").update(fileBuffer).digest("hex")}`,
-      `file_size_bytes=${fileStats.size}`,
-      `file_mtime=${fileStats.mtime.toISOString()}`,
-      `imported_at=${importedAt}`
+      `file_sha256=${manualImportAudit.file_sha256}`,
+      `file_size_bytes=${manualImportAudit.file_size_bytes}`,
+      `file_mtime=${manualImportAudit.file_mtime}`,
+      `imported_at=${manualImportAudit.imported_at}`
     ];
     if (generatedAt === importedAt) baseWarnings.push("手动持仓文件未提供 generated_at，已使用导入时间。");
     if (typeof parsed.user_id === "string" && parsed.user_id.trim() && parsed.user_id !== userId) {
@@ -70,7 +79,10 @@ export class PortfolioService {
 
     const holdings = parsed.holdings.map((item, index) => this.parseManualHolding(item, index));
     if (!holdings.length) {
-      return this.emptySnapshot(userId, `ManualPortfolioJsonProvider:${filePath}`, ["手动持仓文件已读取，但 holdings 为空。", ...baseWarnings], generatedAt);
+      return {
+        ...this.emptySnapshot(userId, `ManualPortfolioJsonProvider:${filePath}`, ["手动持仓文件已读取，但 holdings 为空。", ...baseWarnings], generatedAt),
+        manual_import_audit: manualImportAudit
+      };
     }
 
     const totalAssets = this.round(holdings.reduce((sum, holding) => sum + holding.holding_amount, 0), 2);
@@ -92,6 +104,7 @@ export class PortfolioService {
         warnings: this.publicWarnings(baseWarnings),
         is_mock: false
       },
+      manual_import_audit: manualImportAudit,
       generated_at: generatedAt,
       is_mock: false
     };

@@ -89,6 +89,7 @@ export class HomeService {
         }))
       ],
       data_quality: homeDataQuality,
+      ...(portfolio.manual_import_audit ? { manual_import_audit: portfolio.manual_import_audit } : {}),
       generated_by: "Atlas",
       generated_at: portfolio.generated_at
     };

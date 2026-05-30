@@ -204,12 +204,56 @@ test("portfolio service reads explicit manual JSON snapshot as non-mock user-pro
     assert.equal(snapshot.total_assets, 15000);
     assert.equal(snapshot.daily_pnl, 15);
     assert.equal(snapshot.daily_pnl_ratio, 0.001);
+    assert.equal(snapshot.manual_import_audit?.file_path, portfolioFile);
+    assert.equal(snapshot.manual_import_audit?.file_sha256.length, 64);
+    assert.ok((snapshot.manual_import_audit?.file_size_bytes ?? 0) > 0);
+    assert.match(snapshot.manual_import_audit?.file_mtime ?? "", /^\d{4}-\d{2}-\d{2}T/u);
+    assert.equal(snapshot.manual_import_audit?.imported_at, "2026-05-29T00:00:00.000Z");
+    assert.equal(snapshot.manual_import_audit?.generated_at, "2026-05-28T00:00:00.000Z");
+    assert.equal(snapshot.manual_import_audit?.holding_count, 2);
     assert.equal(snapshot.holdings[0]?.weight, 0.6667);
     assert.equal(snapshot.holdings[1]?.weight, 0.3333);
     assert.equal(snapshot.holdings[0]?.is_mock, false);
     assert.ok(snapshot.data_quality.warnings.some((warning) => warning.startsWith("file_sha256=")));
     assert.doesNotMatch(JSON.stringify(snapshot.data_quality), /must buy|guaranteed|portfolio-user-secret/iu);
     assert.match(JSON.stringify(snapshot.data_quality), /token=\[REDACTED\]/u);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("home service exposes sanitized manual portfolio import audit", async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "fundsentinel-home-audit-"));
+  const portfolioFile = path.join(tempDir, "portfolio-token=portfolio-secret-guaranteed.json");
+
+  try {
+    writeFileSync(
+      portfolioFile,
+      JSON.stringify({
+        generated_at: "2026-05-28T00:00:00.000Z",
+        holdings: [
+          {
+            fund_code: "007951",
+            fund_name: "真实手动持仓基金 A",
+            holding_amount: 10000,
+            cost_nav: 1.25,
+            current_nav: 1.3
+          }
+        ]
+      })
+    );
+
+    const response = await new HomeService(
+      new PortfolioService(undefined, { portfolioFile, demoMode: false, now: () => "2026-05-29T00:00:00.000Z" }),
+      new FundAnalysisService(new SourceRegistry({ enableLiveProviders: false }))
+    ).getHomeDashboard("user-a");
+    const payload = JSON.stringify(response);
+
+    assert.equal(response.manual_import_audit?.holding_count, 1);
+    assert.equal(response.manual_import_audit?.file_sha256.length, 64);
+    assert.equal(response.manual_import_audit?.imported_at, "2026-05-29T00:00:00.000Z");
+    assert.match(response.manual_import_audit?.file_path ?? "", /token=\[REDACTED\]/u);
+    assert.doesNotMatch(payload, /portfolio-secret|guaranteed|must buy/iu);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
