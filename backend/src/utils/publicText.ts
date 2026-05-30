@@ -1,9 +1,18 @@
 import { isSensitiveKey, REDACTED_LOG_VALUE, redactSensitiveText } from "./safeLogging.js";
 
 const SEPARATED_ACTION_PATTERN = /(^|[_\-\s])(buy|sell|position)(?=$|[_\-\s])/giu;
+const ENCODED_PUBLIC_CLAIM_PATTERNS: Array<[RegExp, string]> = [
+  [/must(?:%20|\+|\s)+buy/giu, "must review"],
+  [/guaranteed(?:%20|\+|\s)*(?:returns?|profits?|income|yield|outcomes?)?/giu, "requires evidence review"],
+  [/risk(?:%2d|%20|\+|-|\s)*free/giu, "risk-reviewed"],
+  [/%E4%BF%9D%E8%AF%81%E6%94%B6%E7%9B%8A/giu, "风险复核"],
+  [/%E6%97%A0%E9%A3%8E%E9%99%A9/giu, "风险复核"],
+  [/%E5%BF%85%E9%A1%BB%E4%B9%B0%E5%85%A5|%E5%BF%85%E4%B9%B0/giu, "风险复核"],
+  [/%E4%B9%B0%E5%85%A5|%E5%8D%96%E5%87%BA|%E4%BB%93%E4%BD%8D/giu, "复核"]
+];
 
 export function sanitizePublicText(value: string): string {
-  return redactSensitiveText(value)
+  return ENCODED_PUBLIC_CLAIM_PATTERNS.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), redactSensitiveText(value))
     .replace(/trial_buy|staged_buy|add_position/giu, "observe")
     .replace(/\bmust\s+(buy|sell)\b/giu, "must review")
     .replace(/\bguaranteed(?:\s+(returns?|profits?|income|yield|outcomes?))?\b/giu, "requires evidence review")

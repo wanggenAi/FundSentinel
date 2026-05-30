@@ -4,11 +4,13 @@ import { publicErrorMessage, redactSensitiveStrings, redactSensitiveText, safeSt
 
 test("safe logging redacts query credentials and bearer tokens", () => {
   const text =
-    "GET /provider?api_key=query-secret&authorization=Bearer%20query-token authorization: Bearer header-secret token=body-secret password: quoted-secret";
+    "GET /provider?api_key=query-secret&api%5Fkey=encoded-secret&access%2Dtoken=dash-secret&authorization=Bearer%20query-token authorization: Bearer header-secret token=body-secret password: quoted-secret";
   const redacted = redactSensitiveText(text);
 
-  assert.doesNotMatch(redacted, /query-secret|query-token|header-secret|body-secret|quoted-secret/u);
+  assert.doesNotMatch(redacted, /query-secret|encoded-secret|dash-secret|query-token|header-secret|body-secret|quoted-secret/u);
   assert.match(redacted, /api_key=\[REDACTED\]/u);
+  assert.match(redacted, /api%5Fkey=\[REDACTED\]/u);
+  assert.match(redacted, /access%2Dtoken=\[REDACTED\]/u);
   assert.match(redacted, /authorization=\[REDACTED\]/u);
   assert.match(redacted, /Bearer \[REDACTED\]/u);
   assert.match(redacted, /token=\[REDACTED\]/u);

@@ -12,6 +12,18 @@ test("public text sanitizer removes action and guaranteed-return language", () =
   assert.match(sanitized, /风险复核/u);
 });
 
+test("public text sanitizer removes percent-encoded action and guaranteed-return language", () => {
+  const text =
+    "https://provider.test/fund?note=must%20buy&claim=guaranteed%20returns&risk=risk%2Dfree&cn=%E4%BF%9D%E8%AF%81%E6%94%B6%E7%9B%8A-%E6%97%A0%E9%A3%8E%E9%99%A9-%E5%BF%85%E9%A1%BB%E4%B9%B0%E5%85%A5";
+  const sanitized = sanitizePublicText(text);
+
+  assert.doesNotMatch(sanitized, /must%20buy|guaranteed%20returns|risk%2Dfree|%E4%BF%9D%E8%AF%81%E6%94%B6%E7%9B%8A|%E6%97%A0%E9%A3%8E%E9%99%A9|%E5%BF%85%E9%A1%BB%E4%B9%B0%E5%85%A5/iu);
+  assert.match(sanitized, /must review/u);
+  assert.match(sanitized, /requires evidence review/u);
+  assert.match(sanitized, /risk-reviewed/u);
+  assert.match(sanitized, /风险复核/u);
+});
+
 test("public text sanitizer recursively redacts secrets and claims", () => {
   const sanitized = sanitizePublicStructure({
     source: "must buy with api_key=public-secret",

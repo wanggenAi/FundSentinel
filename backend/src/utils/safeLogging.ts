@@ -1,6 +1,6 @@
 export const REDACTED_LOG_VALUE = "[REDACTED]";
 
-const SECRET_KEY_PATTERN = "(?:api[_-]?key|access[_-]?token|token|secret|password|credential)";
+const SECRET_KEY_PATTERN = "(?:api(?:[_-]|%5f|%2d)?key|access(?:[_-]|%5f|%2d)?token|token|secret|password|credential)";
 const QUERY_SECRET_KEY_PATTERN = `(?:${SECRET_KEY_PATTERN}|authorization)`;
 const SENSITIVE_OBJECT_KEY_PATTERN = new RegExp(`${SECRET_KEY_PATTERN}|authorization`, "iu");
 
