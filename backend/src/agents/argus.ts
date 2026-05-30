@@ -214,7 +214,7 @@ export class ArgusAgent extends BaseAgent {
     let navHistoryPriority = Number.NEGATIVE_INFINITY;
     let holdingsPriority = Number.NEGATIVE_INFINITY;
     for (const result of results) {
-      const payload = result.data!;
+      const payload = this.validatedProviderPayload(result.data!);
       if (this.canMergeFundCorePayload(result)) {
         const corePriority = this.corePayloadPriority(result);
         this.setPreferredCoreField(merged, coreFieldPriorities, "fund_code", payload.fund_code, corePriority);
@@ -259,6 +259,47 @@ export class ArgusAgent extends BaseAgent {
   private canMergeSocialSentiment(result: DataProviderResult<ProviderFundPayload>): boolean {
     if (result.is_demo) return true;
     return this.canMergeFundCorePayload(result) || result.source_type === "social";
+  }
+
+  private validatedProviderPayload(payload: ProviderFundPayload): ProviderFundPayload {
+    const validated: ProviderFundPayload = { ...payload };
+    if (validated.current_nav !== undefined && !this.isValidNavValue(validated.current_nav)) validated.current_nav = undefined;
+    if (validated.daily_return !== undefined && !this.isFiniteNumber(validated.daily_return)) validated.daily_return = undefined;
+    if (validated.social_sentiment_score !== undefined && !this.isFiniteNumber(validated.social_sentiment_score)) validated.social_sentiment_score = undefined;
+    const sanitizedHistory = this.validNavHistory(validated.nav_history, validated.nav_history_dates);
+    validated.nav_history = sanitizedHistory.navHistory;
+    validated.nav_history_dates = sanitizedHistory.navHistoryDates;
+    return validated;
+  }
+
+  private validNavHistory(
+    navHistory: number[] | undefined,
+    navHistoryDates: string[] | undefined
+  ): { navHistory: number[] | undefined; navHistoryDates: string[] | undefined } {
+    if (!navHistory?.length) return { navHistory, navHistoryDates };
+    const requiresPairedDates = Boolean(navHistoryDates?.length);
+    const validValues: number[] = [];
+    const validDates: string[] = [];
+    for (let index = 0; index < navHistory.length; index += 1) {
+      const nav = navHistory[index];
+      if (!this.isValidNavValue(nav)) continue;
+      const date = navHistoryDates?.[index];
+      if (requiresPairedDates && !date) continue;
+      validValues.push(nav);
+      if (date) validDates.push(date);
+    }
+    return {
+      navHistory: validValues.length ? validValues : undefined,
+      navHistoryDates: validValues.length && requiresPairedDates ? validDates : undefined
+    };
+  }
+
+  private isValidNavValue(value: number | undefined): value is number {
+    return typeof value === "number" && Number.isFinite(value) && value > 0;
+  }
+
+  private isFiniteNumber(value: number | undefined): value is number {
+    return typeof value === "number" && Number.isFinite(value);
   }
 
   private deriveDailyReturnFromNavHistory(payload: ProviderFundPayload): DerivedDailyReturn | null {
@@ -314,7 +355,13 @@ export class ArgusAgent extends BaseAgent {
     const staleSources = providerResults.filter((result) => result.freshness === "stale").map((result) => result.source_name);
     const ignoredCoreFieldWarnings = successful.flatMap((result) => this.ignoredFundCoreFieldWarnings(result));
     const ignoredSocialSentimentWarnings = successful.flatMap((result) => this.ignoredSocialSentimentWarnings(result));
-    const warnings = [...providerResults.flatMap((result) => result.warnings), ...ignoredCoreFieldWarnings, ...ignoredSocialSentimentWarnings];
+    const invalidNumericWarnings = successful.flatMap((result) => this.invalidFundNumericWarnings(result));
+    const warnings = [
+      ...providerResults.flatMap((result) => result.warnings),
+      ...ignoredCoreFieldWarnings,
+      ...ignoredSocialSentimentWarnings,
+      ...invalidNumericWarnings
+    ];
     const freshnessGapFields = staleSources.length > 0 ? ["data_freshness"] : [];
     const blockingIssues: string[] = [];
     let dataStatus: DataStatus = "ready";
@@ -703,13 +750,17 @@ export class ArgusAgent extends BaseAgent {
 
   private buildNavConsistencyReport(results: Array<DataProviderResult<ProviderFundPayload>>): DataQualityReport["nav_consistency_report"] {
     const comparedSources = results
-      .filter((result) => this.canMergeFundCorePayload(result) && !result.is_demo && (result.data?.current_nav !== undefined || result.data?.nav_history?.length))
-      .map((result) => ({
+      .map((result) => ({ result, payload: result.data ? this.validatedProviderPayload(result.data) : null }))
+      .filter(
+        ({ result, payload }) =>
+          this.canMergeFundCorePayload(result) && !result.is_demo && Boolean(payload) && (payload?.current_nav !== undefined || Boolean(payload?.nav_history?.length))
+      )
+      .map(({ result, payload }) => ({
         source_id: result.source_id,
         source_name: result.source_name,
-        current_nav: result.data?.current_nav ?? null,
-        latest_date: result.data?.nav_history_dates?.at(-1) ?? null,
-        nav_points: result.data?.nav_history?.length ?? 0
+        current_nav: payload?.current_nav ?? null,
+        latest_date: payload?.nav_history_dates?.at(-1) ?? null,
+        nav_points: payload?.nav_history?.length ?? 0
       }));
 
     const navSources = comparedSources.filter((source) => source.current_nav !== null);
@@ -784,6 +835,20 @@ export class ArgusAgent extends BaseAgent {
     ];
   }
 
+  private invalidFundNumericWarnings(result: DataProviderResult<ProviderFundPayload>): string[] {
+    if (!this.canMergeFundCorePayload(result) || !result.data) return [];
+    const invalidFields = [
+      result.data.current_nav !== undefined && !this.isValidNavValue(result.data.current_nav) ? "current_nav" : null,
+      result.data.nav_history?.some((nav) => !this.isValidNavValue(nav)) ? "nav_history" : null,
+      result.data.daily_return !== undefined && !this.isFiniteNumber(result.data.daily_return) ? "daily_return" : null,
+      result.data.social_sentiment_score !== undefined && !this.isFiniteNumber(result.data.social_sentiment_score) ? "social_sentiment_score" : null
+    ].filter(Boolean) as string[];
+    if (!invalidFields.length) return [];
+    return [
+      `${result.source_name} 返回无效基金数值字段（${[...new Set(invalidFields)].join(", ")}）；Argus 已忽略这些字段并保留相应数据缺口。`
+    ];
+  }
+
   private navConsistencyNotCheckedReasons(
     comparedSources: Array<{ current_nav: number | null; latest_date: string | null }>,
     navSources: Array<{ current_nav: number | null; latest_date: string | null }>,
@@ -828,7 +893,10 @@ export class ArgusAgent extends BaseAgent {
       official_core_coverage: {
         fund_meta: this.hasAuthoritativeFundMeta(successful),
         current_nav: this.hasAuthoritativeCoreField(successful, "current_nav"),
-        nav_history: successful.some((result) => this.isAuthoritativeCoreFundSource(result) && Boolean(result.data?.nav_history?.length)),
+        nav_history: successful.some((result) => {
+          const payload = result.data ? this.validatedProviderPayload(result.data) : null;
+          return this.isAuthoritativeCoreFundSource(result) && Boolean(payload?.nav_history?.length);
+        }),
         holdings: successful.some((result) => this.isAuthoritativeCoreFundSource(result) && Boolean(result.data?.portfolio_holdings?.length)),
         fund_reports: this.hasAuthoritativeFundReportDocument(successful)
       }
@@ -986,7 +1054,10 @@ export class ArgusAgent extends BaseAgent {
   }
 
   private hasAuthoritativeCoreField<K extends keyof ProviderFundPayload>(results: Array<DataProviderResult<ProviderFundPayload>>, field: K): boolean {
-    return results.some((result) => this.isAuthoritativeCoreFundSource(result) && result.data?.[field] !== undefined && result.data?.[field] !== null);
+    return results.some((result) => {
+      const payload = result.data ? this.validatedProviderPayload(result.data) : null;
+      return this.isAuthoritativeCoreFundSource(result) && payload?.[field] !== undefined && payload?.[field] !== null;
+    });
   }
 
   private isAuthoritative(result: DataProviderResult<ProviderFundPayload>): boolean {

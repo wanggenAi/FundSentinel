@@ -685,6 +685,64 @@ class ReadyCoreWithoutDailyReturnProvider implements DataProvider<FundDataSource
   }
 }
 
+class InvalidOfficialNavProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "invalid-official-nav-test",
+      source_name: "Invalid Official NAV Test Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      enabled: true,
+      priority: 0,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "invalid-official-nav-test",
+      source_name: "Invalid Official NAV Test Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "招商信用增强债券C",
+        fund_type: "债券型",
+        current_nav: 0,
+        daily_return: Number.POSITIVE_INFINITY,
+        nav_history: [-1, 0],
+        nav_history_dates: ["2026-05-27", "2026-05-28"]
+      },
+      raw_reference: "https://official.example.test/invalid-nav",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
 class LowTrustAggregatorHoldingsProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   sourceInfo(): DataSourceInfo {
     return {
@@ -1021,6 +1079,48 @@ test("Argus marks daily return as placeholder when current NAV lacks daily retur
   assert.ok(dataPack.data_gap_report?.missing_data.includes("daily_return"));
   assert.ok(dataPack.data_gap_report?.recommended_solutions.some((solution) => solution.includes("placeholder_fields=daily_return")));
   assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("daily_return 缺失")));
+});
+
+test("Argus ignores invalid official NAV values instead of counting them as core coverage", async () => {
+  const registry = new SourceRegistry({
+    providers: [new InvalidOfficialNavProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("invalid-official-nav-values", "007951");
+  const composition = dataPack.data_quality_report.source_composition;
+
+  assert.equal(dataPack.fund_name, "招商信用增强债券C");
+  assert.equal(dataPack.current_nav, 0);
+  assert.equal(dataPack.daily_return, 0);
+  assert.deepEqual(dataPack.nav_history, []);
+  assert.deepEqual(dataPack.nav_history_dates, []);
+  assert.equal(composition.authoritative.includes("invalid-official-nav-test"), true);
+  assert.equal(composition.official_core_coverage.fund_meta, true);
+  assert.equal(composition.official_core_coverage.current_nav, false);
+  assert.equal(composition.official_core_coverage.nav_history, false);
+  assert.equal(dataPack.data_quality_report.data_status, "insufficient");
+  assert.equal(dataPack.allow_downstream_analysis, false);
+  assert.equal(dataPack.allow_strong_conclusion, false);
+  assert.ok(dataPack.data_quality_report.missing_core_fields.includes("current_nav"));
+  assert.ok(dataPack.data_quality_report.missing_core_fields.includes("nav_history"));
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_current_nav"));
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_nav_history"));
+  assert.ok(dataPack.data_quality_report.placeholder_fields.includes("current_nav"));
+  assert.ok(dataPack.data_quality_report.placeholder_fields.includes("daily_return"));
+  assert.deepEqual(dataPack.data_quality_report.nav_consistency_report.compared_sources, []);
+  assert.ok(dataPack.data_quality_report.nav_consistency_report.not_checked_reasons.includes("no_real_nav_sources"));
+  assert.ok(
+    dataPack.data_quality_report.warnings.some(
+      (warning) =>
+        warning.includes("Invalid Official NAV Test Provider") &&
+        warning.includes("无效基金数值字段") &&
+        warning.includes("current_nav") &&
+        warning.includes("nav_history") &&
+        warning.includes("daily_return")
+    )
+  );
 });
 
 test("Argus ignores fund core fields accidentally returned by macro providers", async () => {
