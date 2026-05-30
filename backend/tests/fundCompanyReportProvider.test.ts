@@ -125,6 +125,26 @@ test("Argus does not count report coordinator as an external authoritative sourc
   assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), false);
 });
 
+test("Argus does not let manual report fallback satisfy coordinator official coverage", async () => {
+  const registry = new SourceRegistry({
+    providers: [new ManualReportDocumentContextProvider(), new FundCompanyReportProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("manual-report-context", "007951");
+  const composition = dataPack.data_quality_report.source_composition;
+
+  assert.equal(dataPack.fund_report_documents.some((document) => document.announcement_id === "official-2026q1"), true);
+  assert.equal(dataPack.data_sources.some((source) => source.source_id === "manual-report-context" && source.success), true);
+  assert.equal(dataPack.data_sources.some((source) => source.source_id === "fund-company-report" && !source.success), true);
+  assert.equal(composition.manual.includes("manual-report-context"), true);
+  assert.equal(composition.authoritative.includes("fund-company-report"), false);
+  assert.equal(composition.official_core_coverage.fund_reports, false);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("fund_reports"), false);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), true);
+});
+
 test("SourceRegistry cache keys include official report document context", async () => {
   const input = {
     fund_code: "CACHE-SIG-001",
@@ -163,6 +183,79 @@ test("default SourceRegistry runs report coordinator after automated official re
   assert.ok(priorityFor("fund-company-report") > priorityFor("csrc-fund-disclosure"));
   assert.ok(priorityFor("manual-official-report-import") > priorityFor("fund-company-report"));
 });
+
+class ManualReportDocumentContextProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "manual-report-context",
+      source_name: "Manual Report Context Provider",
+      source_type: "manual_import",
+      trust_level: "A",
+      enabled: true,
+      priority: 1,
+      access_method: "test fixture",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "manual-report-context",
+      source_name: "Manual Report Context Provider",
+      source_type: "manual_import",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "招商信用增强债券C",
+        fund_report_documents: [verifiedOfficialReport],
+        manual_report_import_audit: {
+          manifest_path: "/tmp/fundsentinel/manual-reports/manifest.json",
+          manifest_sha256: "0".repeat(64),
+          manifest_size_bytes: 1024,
+          manifest_mtime: "2026-05-28T00:00:00.000Z",
+          report_count: 1,
+          verified_pdf_count: 1,
+          latest_report_date: "2026-04-22",
+          imported_at: "2026-05-28T00:00:00.000Z",
+          reports: [
+            {
+              announcement_id: "official-2026q1",
+              source_url: verifiedOfficialReport.detail_url ?? "",
+              pdf_path: "/tmp/fundsentinel/manual-reports/007951-2026q1.pdf",
+              pdf_sha256: "1".repeat(64),
+              pdf_size_bytes: 345678
+            }
+          ]
+        }
+      },
+      raw_reference: "/tmp/fundsentinel/manual-reports/manifest.json",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: ["人工导入报告只能作为显式兜底，不计入自动官方覆盖。"],
+      error: null,
+      is_demo: false
+    };
+  }
+}
 
 class UnverifiedOfficialReportContextProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   sourceInfo(): DataSourceInfo {

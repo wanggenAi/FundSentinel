@@ -695,8 +695,30 @@ export class SourceRegistry {
 
   private contextPayloadForResult(result: DataProviderResult<ProviderFundPayload>): ProviderFundPayload {
     const payload = result.data!;
+    if (result.source_type === "manual_import" && !result.is_demo) return this.manualImportContextPayload(payload);
     if (this.canMergeFundCoreContext(result)) return payload;
     return {
+      themes: payload.themes,
+      policy_signals: payload.policy_signals,
+      macro_indicators: payload.macro_indicators,
+      news_summaries: payload.news_summaries,
+      social_sentiment_score: payload.social_sentiment_score
+    };
+  }
+
+  private manualImportContextPayload(payload: ProviderFundPayload): ProviderFundPayload {
+    return {
+      fund_code: payload.fund_code,
+      fund_name: payload.fund_name,
+      fund_type: payload.fund_type,
+      current_nav: payload.current_nav,
+      daily_return: payload.daily_return,
+      nav_history: payload.nav_history,
+      nav_history_dates: payload.nav_history_dates,
+      stage_returns: payload.stage_returns,
+      portfolio_holdings: payload.portfolio_holdings,
+      holdings_as_of: payload.holdings_as_of,
+      holdings_source: payload.holdings_source,
       themes: payload.themes,
       policy_signals: payload.policy_signals,
       macro_indicators: payload.macro_indicators,
