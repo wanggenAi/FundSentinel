@@ -1,5 +1,5 @@
 import type { FundAnalysisResponse, HomeDashboardResponse, RiskLevel, TodayFocusItem } from "../schemas/index.js";
-import { sanitizePublicStructure } from "../utils/publicText.js";
+import { sanitizePublicStructure, sanitizePublicText } from "../utils/publicText.js";
 import { FundAnalysisService } from "./fundAnalysisService.js";
 import { PortfolioService } from "./portfolioService.js";
 import { StrategyTriggerService } from "./strategyTriggerService.js";
@@ -156,6 +156,6 @@ export class HomeService {
   }
 
   private publicFailureMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
+    return sanitizePublicText(error instanceof Error ? error.message : String(error));
   }
 }

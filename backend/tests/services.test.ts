@@ -153,6 +153,8 @@ test("home service degrades individual analysis failures without dropping the da
     assert.equal(response.data_quality.level, "low");
     assert.equal(response.data_quality.score, 0.35);
     assert.ok(response.data_quality.warnings.some((warning) => warning.includes("161725 首页分析失败")));
+    assert.ok(response.data_quality.warnings.some((warning) => warning.includes("requires evidence review")));
+    assert.ok(response.data_quality.warnings.some((warning) => warning.includes("token=[REDACTED]")));
     assert.ok(response.today_focus.some((item) => item.title === "分析链路失败" && item.related_funds.includes("161725")));
     assert.ok(response.strategy_triggers.some((trigger) => trigger.fund_code === "007951"));
     assert.doesNotMatch(payload, /must buy|guaranteed|risk[-\s]?free|保证收益|无风险|home-failure-secret/iu);
