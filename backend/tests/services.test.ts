@@ -1346,6 +1346,39 @@ test("SourceRegistry cache keys include auxiliary provider context", async () =>
   assert.match(second.data?.news_summaries?.[0] ?? "", /美股新闻背景/);
 });
 
+test("SourceRegistry cache keys include validated core provider context", async () => {
+  const provider = new ContextEchoProvider("context-core-cache-provider");
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
+  const baseInput = { fund_code: "007951", required_data: ["industry_news"], demo_mode: false };
+
+  const first = (await registry.fetchAll({
+    ...baseInput,
+    context: {
+      current_nav: 1.2,
+      daily_return: -0.1,
+      nav_history: [1.18, 1.2],
+      nav_history_dates: ["2026-05-27", "2026-05-28"],
+      stage_returns: { one_month: 0.02 }
+    }
+  }))[0];
+  const second = (await registry.fetchAll({
+    ...baseInput,
+    context: {
+      current_nav: 1.3,
+      daily_return: 0.2,
+      nav_history: [1.18, 1.3],
+      nav_history_dates: ["2026-05-27", "2026-05-29"],
+      stage_returns: { one_month: 0.03 }
+    }
+  }))[0];
+
+  assert.equal(provider.callCount, 2);
+  assert.equal(first.cache_hit, false);
+  assert.equal(second.cache_hit, false);
+  assert.match(first.data?.news_summaries?.[0] ?? "", /nav:1\.2/u);
+  assert.match(second.data?.news_summaries?.[0] ?? "", /nav:1\.3/u);
+});
+
 test("SourceRegistry redacts sensitive context strings before using cache keys", async () => {
   const provider = new ContextEchoProvider("context-cache-redaction-provider");
   const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
@@ -2156,7 +2189,12 @@ class ContextEchoProvider implements DataProvider<FundDataSourceInput, ProviderF
             input.context?.news_summaries?.join("|") ?? "",
             input.context?.policy_signals?.join("|") ?? "",
             input.context?.macro_indicators?.map((indicator) => `${indicator.country_code}:${indicator.indicator_id}:${indicator.value}`).join("|") ?? "",
-            String(input.context?.social_sentiment_score ?? "")
+            String(input.context?.social_sentiment_score ?? ""),
+            input.context?.current_nav === undefined ? "" : `nav:${input.context.current_nav}`,
+            input.context?.daily_return === undefined ? "" : `daily:${input.context.daily_return}`,
+            input.context?.nav_history?.length ? `history:${input.context.nav_history.join("|")}` : "",
+            input.context?.nav_history_dates?.length ? `dates:${input.context.nav_history_dates.join("|")}` : "",
+            input.context?.stage_returns ? Object.entries(input.context.stage_returns).map(([period, value]) => `${period}:${value}`).join("|") : ""
           ]
             .filter(Boolean)
             .join(" / ")

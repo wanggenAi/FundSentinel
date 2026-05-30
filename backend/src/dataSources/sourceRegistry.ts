@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { AmacPublicFundDataProvider } from "./providers/amacPublicFundDataProvider.js";
 import { ChinaAmcOfficialProvider } from "./providers/chinaAmcOfficialProvider.js";
 import { CninfoReportProvider } from "./providers/cninfoReportProvider.js";
@@ -503,18 +504,24 @@ export class SourceRegistry {
 
   private contextSignature(context: ProviderFundPayload | undefined): Record<string, unknown> {
     if (!context) return {};
+    const validated = this.validatedContextPayload(context);
     return {
-      fund_name: this.publicOptionalText(context.fund_name),
-      fund_type: this.publicOptionalText(context.fund_type),
-      themes: this.publicStringList(context.themes).sort(),
-      portfolio_holdings: this.publicStringList(context.portfolio_holdings).sort().slice(0, 50),
-      holdings_as_of: this.publicOptionalText(context.holdings_as_of),
-      fund_report_refs: this.publicStringList(context.fund_report_refs).sort().slice(0, 20),
-      fund_report_documents: this.fundReportDocumentSignature(context.fund_report_documents),
-      policy_signals: this.publicStringList(context.policy_signals).sort().slice(0, 20),
-      news_summaries: this.publicStringList(context.news_summaries).sort().slice(0, 20),
-      macro_indicators: this.macroIndicatorSignature(context.macro_indicators),
-      social_sentiment_score: context.social_sentiment_score
+      fund_code: this.publicOptionalText(validated.fund_code),
+      fund_name: this.publicOptionalText(validated.fund_name),
+      fund_type: this.publicOptionalText(validated.fund_type),
+      current_nav: validated.current_nav,
+      daily_return: validated.daily_return,
+      nav_history: this.navHistorySignature(validated.nav_history, validated.nav_history_dates),
+      stage_returns: this.stageReturnSignature(validated.stage_returns),
+      themes: this.publicStringList(validated.themes).sort(),
+      portfolio_holdings: this.publicStringList(validated.portfolio_holdings).sort().slice(0, 50),
+      holdings_as_of: this.publicOptionalText(validated.holdings_as_of),
+      fund_report_refs: this.publicStringList(validated.fund_report_refs).sort().slice(0, 20),
+      fund_report_documents: this.fundReportDocumentSignature(validated.fund_report_documents),
+      policy_signals: this.publicStringList(validated.policy_signals).sort().slice(0, 20),
+      news_summaries: this.publicStringList(validated.news_summaries).sort().slice(0, 20),
+      macro_indicators: this.macroIndicatorSignature(validated.macro_indicators),
+      social_sentiment_score: validated.social_sentiment_score
     };
   }
 
@@ -552,6 +559,28 @@ export class SourceRegistry {
         )
       )
       .slice(0, 50);
+  }
+
+  private navHistorySignature(
+    navHistory: ProviderFundPayload["nav_history"] | undefined,
+    navHistoryDates: ProviderFundPayload["nav_history_dates"] | undefined
+  ): Record<string, unknown> | undefined {
+    if (!navHistory?.length) return undefined;
+    const dates = this.publicStringList(navHistoryDates);
+    return {
+      count: navHistory.length,
+      latest_nav: navHistory.at(-1),
+      latest_date: dates.at(-1) ?? null,
+      sha256: createHash("sha256").update(JSON.stringify({ navHistory, dates })).digest("hex")
+    };
+  }
+
+  private stageReturnSignature(stageReturns: ProviderFundPayload["stage_returns"] | undefined): Array<Record<string, unknown>> | undefined {
+    const entries = Object.entries(stageReturns ?? {})
+      .filter(([, value]) => this.isFiniteNumber(value))
+      .map(([period, value]) => ({ period: sanitizePublicText(period), value }))
+      .sort((left, right) => left.period.localeCompare(right.period));
+    return entries.length ? entries : undefined;
   }
 
   private fundReportDocumentSignature(documents: ProviderFundPayload["fund_report_documents"] | undefined): Array<Record<string, unknown>> {
