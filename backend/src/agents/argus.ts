@@ -127,10 +127,10 @@ export class ArgusAgent extends BaseAgent {
     plan: DataAcquisitionPlan,
     providerResults: Array<DataProviderResult<ProviderFundPayload>>
   ): FundDataPack {
-    const merged = this.mergeProviderPayloads(providerResults.filter((result) => result.success && result.data));
+    const merged = this.mergeProviderPayloads(fundCode, providerResults.filter((result) => result.success && result.data));
     const derivedDailyReturn = merged.daily_return === undefined ? this.deriveDailyReturnFromNavHistory(merged) : null;
     if (derivedDailyReturn) merged.daily_return = derivedDailyReturn.daily_return;
-    const quality = this.buildQualityReport(providerResults, merged, derivedDailyReturn);
+    const quality = this.buildQualityReport(fundCode, providerResults, merged, derivedDailyReturn);
     const gapReport = this.buildGapReport(fundCode, quality, providerResults);
     const solutions = this.buildSolutions(quality, gapReport);
     const isMock = this.isMockQuality(quality);
@@ -206,7 +206,7 @@ export class ArgusAgent extends BaseAgent {
     return sanitizePublicStructure(value);
   }
 
-  private mergeProviderPayloads(results: Array<DataProviderResult<ProviderFundPayload>>): ProviderFundPayload {
+  private mergeProviderPayloads(fundCode: string, results: Array<DataProviderResult<ProviderFundPayload>>): ProviderFundPayload {
     const merged: ProviderFundPayload = {};
     const coreFieldPriorities: Partial<Record<PreferredCoreField, number>> = {};
     const stageReturnPriorities: Record<string, number> = {};
@@ -215,7 +215,9 @@ export class ArgusAgent extends BaseAgent {
     let holdingsPriority = Number.NEGATIVE_INFINITY;
     for (const result of results) {
       const payload = this.validatedProviderPayload(result.data!);
+      const canUseFundPayload = this.matchesRequestedFund(fundCode, payload);
       if (this.canMergeFundCorePayload(result)) {
+        if (!canUseFundPayload) continue;
         const corePriority = this.corePayloadPriority(result);
         this.setPreferredCoreField(merged, coreFieldPriorities, "fund_code", payload.fund_code, corePriority);
         this.setPreferredCoreField(merged, coreFieldPriorities, "fund_name", payload.fund_name, corePriority);
@@ -242,13 +244,20 @@ export class ArgusAgent extends BaseAgent {
         );
       }
 
-      merged.themes = this.mergeUnique(merged.themes, payload.themes);
-      merged.policy_signals = this.mergeUnique(merged.policy_signals, payload.policy_signals);
-      merged.macro_indicators = this.mergeMacroIndicators(merged.macro_indicators, payload.macro_indicators);
-      merged.news_summaries = this.mergeUnique(merged.news_summaries, payload.news_summaries);
-      if (this.canMergeSocialSentiment(result)) this.setIfMissing(merged, "social_sentiment_score", payload.social_sentiment_score);
+      if (canUseFundPayload) {
+        merged.themes = this.mergeUnique(merged.themes, payload.themes);
+        merged.policy_signals = this.mergeUnique(merged.policy_signals, payload.policy_signals);
+        merged.macro_indicators = this.mergeMacroIndicators(merged.macro_indicators, payload.macro_indicators);
+        merged.news_summaries = this.mergeUnique(merged.news_summaries, payload.news_summaries);
+        if (this.canMergeSocialSentiment(result)) this.setIfMissing(merged, "social_sentiment_score", payload.social_sentiment_score);
+      }
     }
     return merged;
+  }
+
+  private matchesRequestedFund(requestedFundCode: string, payload: ProviderFundPayload | null | undefined): boolean {
+    const providerFundCode = payload?.fund_code?.trim();
+    return !providerFundCode || providerFundCode === requestedFundCode;
   }
 
   private canMergeFundCorePayload(result: DataProviderResult<ProviderFundPayload>): boolean {
@@ -329,23 +338,25 @@ export class ArgusAgent extends BaseAgent {
   }
 
   private buildQualityReport(
+    fundCode: string,
     providerResults: Array<DataProviderResult<ProviderFundPayload>>,
     merged: ProviderFundPayload,
     derivedDailyReturn: DerivedDailyReturn | null = null
   ): DataQualityReport {
     const successful = providerResults.filter((result) => result.success);
     const failed = providerResults.filter((result) => !result.success);
-    const demoSuccess = successful.filter((result) => result.is_demo);
-    const realSuccess = successful.filter((result) => !result.is_demo);
-    const sourceComposition = this.buildSourceComposition(successful, failed);
+    const usableSuccessful = successful.filter((result) => this.matchesRequestedFund(fundCode, result.data));
+    const usableDemoSuccess = usableSuccessful.filter((result) => result.is_demo);
+    const usableRealSuccess = usableSuccessful.filter((result) => !result.is_demo);
+    const sourceComposition = this.buildSourceComposition(fundCode, successful, failed);
     const missingCoreFields = [
       !merged.fund_code || !merged.fund_name ? "fund_meta" : null,
       merged.current_nav === undefined ? "current_nav" : null,
       !merged.nav_history?.length ? "nav_history" : null
     ].filter(Boolean) as string[];
-    const hasFundReportSource = successful.some((result) => this.hasFundReportEvidence(result));
-    const hasAuthoritativeFundReportSource = this.hasAuthoritativeFundReportDocument(successful);
-    const navConsistencyReport = this.buildNavConsistencyReport(successful);
+    const hasFundReportSource = successful.some((result) => this.hasFundReportEvidence(fundCode, result));
+    const hasAuthoritativeFundReportSource = this.hasAuthoritativeFundReportDocument(fundCode, successful);
+    const navConsistencyReport = this.buildNavConsistencyReport(fundCode, successful);
     const missingAuxiliaryFields = [
       !merged.portfolio_holdings?.length ? "holdings" : null,
       sourceComposition.official_core_coverage.current_nav ? null : "official_current_nav",
@@ -363,11 +374,13 @@ export class ArgusAgent extends BaseAgent {
     const ignoredCoreFieldWarnings = successful.flatMap((result) => this.ignoredFundCoreFieldWarnings(result));
     const ignoredSocialSentimentWarnings = successful.flatMap((result) => this.ignoredSocialSentimentWarnings(result));
     const invalidNumericWarnings = successful.flatMap((result) => this.invalidFundNumericWarnings(result));
+    const fundCodeMismatchWarnings = successful.flatMap((result) => this.fundCodeMismatchWarnings(fundCode, result));
     const warnings = [
       ...providerResults.flatMap((result) => result.warnings),
       ...ignoredCoreFieldWarnings,
       ...ignoredSocialSentimentWarnings,
-      ...invalidNumericWarnings
+      ...invalidNumericWarnings,
+      ...fundCodeMismatchWarnings
     ];
     const freshnessGapFields = staleSources.length > 0 ? ["data_freshness"] : [];
     const blockingIssues: string[] = [];
@@ -375,14 +388,14 @@ export class ArgusAgent extends BaseAgent {
     let allowDownstreamAnalysis = true;
     let allowStrongConclusion = true;
 
-    if (demoSuccess.length > 0 && realSuccess.length === 0) {
+    if (usableDemoSuccess.length > 0 && usableRealSuccess.length === 0) {
       dataStatus = "demo";
       allowStrongConclusion = false;
-    } else if (demoSuccess.length > 0) {
+    } else if (usableDemoSuccess.length > 0) {
       dataStatus = "demo";
       allowStrongConclusion = false;
       warnings.push("显式 demo fixture 已参与数据合并；整包仅可作为 mock/demo 输出，不能标记为真实业务分析。");
-    } else if (successful.length === 0) {
+    } else if (usableSuccessful.length === 0) {
       dataStatus = "unavailable";
       allowDownstreamAnalysis = false;
       allowStrongConclusion = false;
@@ -422,14 +435,14 @@ export class ArgusAgent extends BaseAgent {
       );
     }
     if (missingAuxiliaryFields.includes("official_fund_reports")) {
-      warnings.push(...this.officialReportGapWarnings(successful));
+      warnings.push(...this.officialReportGapWarnings(fundCode, successful));
     }
 
     const score = this.scoreFor(
       dataStatus,
       missingCoreFields.length,
-      realSuccess.length,
-      demoSuccess.length,
+      usableRealSuccess.length,
+      usableDemoSuccess.length,
       failed.length,
       navConsistencyReport.status === "conflict"
     );
@@ -437,13 +450,13 @@ export class ArgusAgent extends BaseAgent {
       data_status: dataStatus,
       level: score >= 75 ? "high" : score >= 45 ? "medium" : "low",
       score,
-      real_source_count: realSuccess.length,
-      demo_source_count: demoSuccess.length,
+      real_source_count: usableRealSuccess.length,
+      demo_source_count: usableDemoSuccess.length,
       authoritative_source_count: sourceComposition.authoritative.length,
       aggregator_source_count: sourceComposition.aggregator.length,
       manual_source_count: sourceComposition.manual.length,
       macro_source_count: sourceComposition.macro.length,
-      successful_source_count: successful.length,
+      successful_source_count: usableSuccessful.length,
       failed_source_count: failed.length,
       source_composition: sourceComposition,
       missing_core_fields: missingCoreFields,
@@ -755,12 +768,16 @@ export class ArgusAgent extends BaseAgent {
     return candidate.nav_history.length > current.nav_history.length;
   }
 
-  private buildNavConsistencyReport(results: Array<DataProviderResult<ProviderFundPayload>>): DataQualityReport["nav_consistency_report"] {
+  private buildNavConsistencyReport(fundCode: string, results: Array<DataProviderResult<ProviderFundPayload>>): DataQualityReport["nav_consistency_report"] {
     const comparedSources = results
       .map((result) => ({ result, payload: result.data ? this.validatedProviderPayload(result.data) : null }))
       .filter(
         ({ result, payload }) =>
-          this.canMergeFundCorePayload(result) && !result.is_demo && Boolean(payload) && (payload?.current_nav !== undefined || Boolean(payload?.nav_history?.length))
+          this.canMergeFundCorePayload(result) &&
+          !result.is_demo &&
+          this.matchesRequestedFund(fundCode, payload) &&
+          Boolean(payload) &&
+          (payload?.current_nav !== undefined || Boolean(payload?.nav_history?.length))
       )
       .map(({ result, payload }) => ({
         source_id: result.source_id,
@@ -857,6 +874,13 @@ export class ArgusAgent extends BaseAgent {
     ];
   }
 
+  private fundCodeMismatchWarnings(fundCode: string, result: DataProviderResult<ProviderFundPayload>): string[] {
+    if (!result.data || this.matchesRequestedFund(fundCode, result.data)) return [];
+    return [
+      `${result.source_name} 返回 fund_code=${result.data.fund_code}，与请求 fund_code=${fundCode} 不一致；Argus 已忽略该 provider 的业务数据和官方覆盖。`
+    ];
+  }
+
   private navConsistencyNotCheckedReasons(
     comparedSources: Array<{ current_nav: number | null; latest_date: string | null }>,
     navSources: Array<{ current_nav: number | null; latest_date: string | null }>,
@@ -872,13 +896,15 @@ export class ArgusAgent extends BaseAgent {
   }
 
   private buildSourceComposition(
+    fundCode: string,
     successful: Array<DataProviderResult<ProviderFundPayload>>,
     failed: Array<DataProviderResult<ProviderFundPayload>>
   ): DataQualityReport["source_composition"] {
-    const authoritative = successful
+    const matchedSuccessful = successful.filter((result) => this.matchesRequestedFund(fundCode, result.data));
+    const authoritative = matchedSuccessful
       .filter((result) => this.isAuthoritative(result) && !COORDINATOR_SOURCE_IDS.has(result.source_id))
       .map((result) => result.source_id);
-    const aggregator = successful
+    const aggregator = matchedSuccessful
       .filter(
         (result) =>
           !result.is_demo &&
@@ -887,9 +913,9 @@ export class ArgusAgent extends BaseAgent {
           !this.isAuthoritative(result)
       )
       .map((result) => result.source_id);
-    const manual = successful.filter((result) => result.source_type === "manual_import").map((result) => result.source_id);
-    const macro = successful.filter((result) => result.source_type === "macro_data").map((result) => result.source_id);
-    const demo = successful.filter((result) => result.is_demo).map((result) => result.source_id);
+    const manual = matchedSuccessful.filter((result) => result.source_type === "manual_import").map((result) => result.source_id);
+    const macro = matchedSuccessful.filter((result) => result.source_type === "macro_data").map((result) => result.source_id);
+    const demo = matchedSuccessful.filter((result) => result.is_demo).map((result) => result.source_id);
 
     return {
       authoritative: [...new Set(authoritative)],
@@ -899,14 +925,14 @@ export class ArgusAgent extends BaseAgent {
       demo: [...new Set(demo)],
       failed: [...new Set(failed.map((result) => result.source_id))],
       official_core_coverage: {
-        fund_meta: this.hasAuthoritativeFundMeta(successful),
-        current_nav: this.hasAuthoritativeCoreField(successful, "current_nav"),
-        nav_history: successful.some((result) => {
+        fund_meta: this.hasAuthoritativeFundMeta(fundCode, matchedSuccessful),
+        current_nav: this.hasAuthoritativeCoreField(fundCode, matchedSuccessful, "current_nav"),
+        nav_history: matchedSuccessful.some((result) => {
           const payload = result.data ? this.validatedProviderPayload(result.data) : null;
           return this.isAuthoritativeCoreFundSource(result) && Boolean(payload?.nav_history?.length);
         }),
-        holdings: successful.some((result) => this.isAuthoritativeCoreFundSource(result) && Boolean(result.data?.portfolio_holdings?.length)),
-        fund_reports: this.hasAuthoritativeFundReportDocument(successful)
+        holdings: matchedSuccessful.some((result) => this.isAuthoritativeCoreFundSource(result) && Boolean(result.data?.portfolio_holdings?.length)),
+        fund_reports: this.hasAuthoritativeFundReportDocument(fundCode, matchedSuccessful)
       }
     };
   }
@@ -1007,8 +1033,8 @@ export class ArgusAgent extends BaseAgent {
     }));
   }
 
-  private officialReportGapWarnings(results: Array<DataProviderResult<ProviderFundPayload>>): string[] {
-    const documents = results.filter((result) => this.canUseFundReportEvidence(result)).flatMap((result) =>
+  private officialReportGapWarnings(fundCode: string, results: Array<DataProviderResult<ProviderFundPayload>>): string[] {
+    const documents = results.filter((result) => this.matchesRequestedFund(fundCode, result.data) && this.canUseFundReportEvidence(result)).flatMap((result) =>
       (result.data?.fund_report_documents ?? []).map((document) => ({
         sourceId: result.source_id,
         sourceName: result.source_name,
@@ -1046,14 +1072,22 @@ export class ArgusAgent extends BaseAgent {
     return [...new Set(warnings)];
   }
 
-  private hasAuthoritativeFundMeta(results: Array<DataProviderResult<ProviderFundPayload>>): boolean {
+  private hasAuthoritativeFundMeta(fundCode: string, results: Array<DataProviderResult<ProviderFundPayload>>): boolean {
     return results.some(
-      (result) => this.isAuthoritativeCoreFundSource(result) && Boolean(result.data?.fund_code?.trim()) && Boolean(result.data?.fund_name?.trim())
+      (result) =>
+        this.isAuthoritativeCoreFundSource(result) &&
+        this.matchesRequestedFund(fundCode, result.data) &&
+        Boolean(result.data?.fund_code?.trim()) &&
+        Boolean(result.data?.fund_name?.trim())
     );
   }
 
-  private hasFundReportEvidence(result: DataProviderResult<ProviderFundPayload>): boolean {
-    return this.canUseFundReportEvidence(result) && Boolean(result.data?.fund_report_refs?.length || result.data?.fund_report_documents?.length);
+  private hasFundReportEvidence(fundCode: string, result: DataProviderResult<ProviderFundPayload>): boolean {
+    return (
+      this.matchesRequestedFund(fundCode, result.data) &&
+      this.canUseFundReportEvidence(result) &&
+      Boolean(result.data?.fund_report_refs?.length || result.data?.fund_report_documents?.length)
+    );
   }
 
   private canUseFundReportEvidence(result: DataProviderResult<ProviderFundPayload>): boolean {
@@ -1061,10 +1095,14 @@ export class ArgusAgent extends BaseAgent {
     return ["fund_report", "regulatory_disclosure", "fund_company", "manual_import"].includes(result.source_type);
   }
 
-  private hasAuthoritativeCoreField<K extends keyof ProviderFundPayload>(results: Array<DataProviderResult<ProviderFundPayload>>, field: K): boolean {
+  private hasAuthoritativeCoreField<K extends keyof ProviderFundPayload>(
+    fundCode: string,
+    results: Array<DataProviderResult<ProviderFundPayload>>,
+    field: K
+  ): boolean {
     return results.some((result) => {
       const payload = result.data ? this.validatedProviderPayload(result.data) : null;
-      return this.isAuthoritativeCoreFundSource(result) && payload?.[field] !== undefined && payload?.[field] !== null;
+      return this.isAuthoritativeCoreFundSource(result) && this.matchesRequestedFund(fundCode, payload) && payload?.[field] !== undefined && payload?.[field] !== null;
     });
   }
 
@@ -1128,9 +1166,10 @@ export class ArgusAgent extends BaseAgent {
     return `Argus 未能获取足够真实数据，data_status=${quality.data_status}，缺失=${missing}${placeholders}，允许后续分析=${quality.allow_downstream_analysis}，允许强结论=${quality.allow_strong_conclusion}。`;
   }
 
-  private hasAuthoritativeFundReportDocument(results: Array<DataProviderResult<ProviderFundPayload>>): boolean {
+  private hasAuthoritativeFundReportDocument(fundCode: string, results: Array<DataProviderResult<ProviderFundPayload>>): boolean {
     return results.some((result) =>
       this.isAuthoritativeCoreFundSource(result) &&
+      this.matchesRequestedFund(fundCode, result.data) &&
       result.data?.fund_report_documents?.some(
         (document) =>
           document.source_type === "official_disclosure" &&

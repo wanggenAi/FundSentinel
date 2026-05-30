@@ -747,6 +747,100 @@ class InvalidOfficialNavProvider implements DataProvider<FundDataSourceInput, Pr
   }
 }
 
+class MismatchedOfficialCoreProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      source_id: "mismatched-official-core-test",
+      source_name: "Mismatched Official Core Test Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      enabled: true,
+      priority: 0,
+      access_method: "test provider",
+      requires_auth: false,
+      is_demo: false,
+      last_success_at: null,
+      last_failed_at: null,
+      failure_count: 0,
+      consecutive_failure_count: 0,
+      last_latency_ms: null,
+      last_attempt_count: 0,
+      cache_hit_count: 0,
+      last_cache_hit_at: null,
+      circuit_open_until: null,
+      circuit_open_count: 0,
+      freshness_policy: "test",
+      notes: "test"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "mismatched-official-core-test",
+      source_name: "Mismatched Official Core Test Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "ready",
+      success: true,
+      data: {
+        fund_code: "000001",
+        fund_name: "错配官方基金",
+        fund_type: "债券型",
+        current_nav: 2.3456,
+        daily_return: 0.01,
+        nav_history: [2.3, 2.3456],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        portfolio_holdings: ["错配持仓"],
+        fund_report_refs: ["错配官方报告引用"],
+        fund_report_documents: [
+          {
+            title: "错配基金2026年第1季度报告",
+            announcement_id: "mismatched-2026q1",
+            published_at: "2026-04-22",
+            category: null,
+            document_kind: "periodic_report",
+            detail_url: "https://official.example.test/mismatched-detail",
+            pdf_url: "https://official.example.test/mismatched-report.pdf",
+            pdf_verified: true,
+            pdf_content_type: "application/pdf",
+            pdf_content_length: 2048,
+            source_name: "错配官方披露测试源",
+            source_type: "official_disclosure",
+            trust_level: "A"
+          }
+        ],
+        policy_signals: ["错配政策"],
+        macro_indicators: [
+          {
+            country_code: "CN",
+            country_name: "China",
+            indicator_id: "MISMATCHED.MACRO",
+            indicator_name: "Mismatched macro",
+            value: 5.1,
+            date: "2025",
+            unit: "percent",
+            source_url: "https://macro.example.test/mismatched",
+            source_name: "Mismatched Macro",
+            fetched_at: "2026-05-28T00:00:00.000Z"
+          }
+        ],
+        news_summaries: ["错配新闻"],
+        social_sentiment_score: 0.9
+      },
+      raw_reference: "https://official.example.test/mismatched",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
 class LowTrustAggregatorHoldingsProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
   sourceInfo(): DataSourceInfo {
     return {
@@ -1125,6 +1219,56 @@ test("Argus ignores invalid official NAV values instead of counting them as core
         warning.includes("nav_history") &&
         warning.includes("stage_returns") &&
         warning.includes("daily_return")
+    )
+  );
+});
+
+test("Argus ignores successful provider payloads whose fund_code does not match the request", async () => {
+  const registry = new SourceRegistry({
+    providers: [new MismatchedOfficialCoreProvider()],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("mismatched-official-core", "007951");
+  const composition = dataPack.data_quality_report.source_composition;
+
+  assert.equal(dataPack.fund_code, "007951");
+  assert.equal(dataPack.fund_name, "Unknown fund");
+  assert.equal(dataPack.current_nav, 0);
+  assert.equal(dataPack.daily_return, 0);
+  assert.deepEqual(dataPack.nav_history, []);
+  assert.deepEqual(dataPack.portfolio_holdings, []);
+  assert.deepEqual(dataPack.fund_report_refs, []);
+  assert.deepEqual(dataPack.fund_report_documents, []);
+  assert.deepEqual(dataPack.policy_signals, []);
+  assert.deepEqual(dataPack.macro_indicators, []);
+  assert.deepEqual(dataPack.news_summaries, []);
+  assert.equal(dataPack.social_sentiment_score, 0);
+  assert.deepEqual(composition.authoritative, []);
+  assert.deepEqual(composition.aggregator, []);
+  assert.equal(composition.official_core_coverage.fund_meta, false);
+  assert.equal(composition.official_core_coverage.current_nav, false);
+  assert.equal(composition.official_core_coverage.nav_history, false);
+  assert.equal(composition.official_core_coverage.holdings, false);
+  assert.equal(composition.official_core_coverage.fund_reports, false);
+  assert.equal(dataPack.data_quality_report.real_source_count, 0);
+  assert.equal(dataPack.data_quality_report.successful_source_count, 0);
+  assert.equal(dataPack.data_quality_report.data_status, "unavailable");
+  assert.equal(dataPack.allow_downstream_analysis, false);
+  assert.equal(dataPack.allow_strong_conclusion, false);
+  assert.deepEqual(dataPack.data_quality_report.placeholder_fields, ["fund_name", "fund_type", "current_nav", "daily_return", "social_sentiment_score"]);
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("fund_reports"));
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"));
+  assert.deepEqual(dataPack.data_quality_report.nav_consistency_report.compared_sources, []);
+  assert.ok(dataPack.data_quality_report.nav_consistency_report.not_checked_reasons.includes("no_real_nav_sources"));
+  assert.ok(
+    dataPack.data_quality_report.warnings.some(
+      (warning) =>
+        warning.includes("Mismatched Official Core Test Provider") &&
+        warning.includes("fund_code=000001") &&
+        warning.includes("fund_code=007951") &&
+        warning.includes("已忽略")
     )
   );
 });
