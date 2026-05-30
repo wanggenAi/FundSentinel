@@ -152,22 +152,22 @@ export class SourceRegistry {
   }
 
   listSources(): DataSourceInfo[] {
-    return [...this.sourceStates.values()].sort((a, b) => a.priority - b.priority);
+    return sanitizePublicStructure(this.rawListSources());
   }
 
   health(): Array<
     DataSourceInfo & { health_status: "healthy" | "disabled" | "failing" | "demo_only" | "cooldown"; cache_entries: number; cooldown_remaining_ms: number }
   > {
-    return this.listSources().map((source) => ({
+    return sanitizePublicStructure(this.rawListSources().map((source) => ({
       ...source,
       health_status: this.healthStatusFor(source),
       cache_entries: this.cacheEntryCountFor(source.source_id),
       cooldown_remaining_ms: this.cooldownRemainingMs(source)
-    }));
+    })));
   }
 
   catalog() {
-    return listDataSourceCatalog();
+    return sanitizePublicStructure(listDataSourceCatalog());
   }
 
   coverageMatrix(): Array<{
@@ -187,7 +187,7 @@ export class SourceRegistry {
     coverage_status: "covered" | "partial" | "missing" | "licensed_only";
     notes: string;
   }> {
-    const catalog = this.catalog();
+    const catalog = listDataSourceCatalog();
     const requirements: CoverageRequirement[] = [
       "fund_meta",
       "current_nav",
@@ -204,7 +204,7 @@ export class SourceRegistry {
       "macro_data"
     ];
 
-    return requirements.map((requirement) => {
+    return sanitizePublicStructure(requirements.map((requirement) => {
       const matching = catalog.filter(
         (source) =>
           source.recommended_for.includes(requirement) ||
@@ -256,11 +256,11 @@ export class SourceRegistry {
         coverage_status: gapLevel === "requires_license" ? "licensed_only" : gapLevel,
         notes: this.coverageNoteFor(requirement, gapLevel)
       };
-    });
+    }));
   }
 
   providerCandidates(): Array<{ source_id: string; source_name: string; source_type: string; priority: number; is_demo: boolean; enabled: boolean }> {
-    return sanitizePublicStructure(this.listSources().map((source) => ({
+    return sanitizePublicStructure(this.rawListSources().map((source) => ({
       source_id: source.source_id,
       source_name: source.source_name,
       source_type: source.source_type,
@@ -268,6 +268,10 @@ export class SourceRegistry {
       is_demo: source.is_demo,
       enabled: source.enabled
     })));
+  }
+
+  private rawListSources(): DataSourceInfo[] {
+    return [...this.sourceStates.values()].sort((a, b) => a.priority - b.priority);
   }
 
   async fetchAll(input: FundDataSourceInput): Promise<Array<DataProviderResult<ProviderFundPayload>>> {

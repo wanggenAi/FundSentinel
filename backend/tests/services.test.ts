@@ -1309,15 +1309,19 @@ test("DataSourceService sanitizes provider text across public source endpoints",
   const registry = new SourceRegistry({ providers: [new PublicTextPollutedProvider()], cacheTtlMs: 0, retryCount: 0 });
   const service = new DataSourceService(registry);
 
+  const directSources = registry.listSources();
+  const directHealth = registry.health();
+  const directCandidates = registry.providerCandidates();
   const sources = service.listSources();
   const health = service.health();
+  const coverage = service.coverage();
   const gap = await service.gaps("007951");
   const candidateNames = gap.acquisition_solutions.length
     ? (await new ArgusAgent(registry).prepareDataPack("candidate-sanitize", "007951")).dataPack.data_acquisition_plan.provider_candidates.map(
         (candidate) => candidate.source_name
       )
     : registry.providerCandidates().map((candidate) => candidate.source_name);
-  const payload = JSON.stringify({ sources, health, gap, candidateNames });
+  const payload = JSON.stringify({ directSources, directHealth, directCandidates, sources, health, coverage, gap, candidateNames });
 
   assert.doesNotMatch(payload, /must buy|guaranteed|risk[-\s]?free|保证收益|无风险|必须买入|list-secret|raw-secret|warning-secret|gap-secret/iu);
   assert.match(payload, /must review/u);
