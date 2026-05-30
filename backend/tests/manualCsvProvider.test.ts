@@ -80,6 +80,31 @@ test("ManualCsvProvider rejects invalid calendar dates and numeric fields", asyn
   );
 });
 
+test("ManualCsvProvider rejects same-date NAV conflicts and deduplicates identical rows", async () => {
+  const rows = ManualCsvProvider.parseCsv([
+    "fund_code,date,nav,fund_name,fund_type,daily_return",
+    "007951,2026-05-28,1.018,招商信用增强债券C,债券型,0.29",
+    "007951,2026-05-28,1.018,招商信用增强债券C,债券型,0.29",
+    "007951,2026-05-29,1.019,招商信用增强债券C,债券型,0.10"
+  ].join("\n"));
+
+  assert.deepEqual(
+    ManualCsvProvider.deduplicateRowsByDate(rows).map((row) => row.date),
+    ["2026-05-28", "2026-05-29"]
+  );
+  assert.throws(
+    () =>
+      ManualCsvProvider.deduplicateRowsByDate(
+        ManualCsvProvider.parseCsv([
+          "fund_code,date,nav,fund_name,fund_type,daily_return",
+          "007951,2026-05-28,1.018,招商信用增强债券C,债券型,0.29",
+          "007951,2026-05-28,1.028,招商信用增强债券C,债券型,0.29"
+        ].join("\n"))
+      ),
+    /conflicting rows/
+  );
+});
+
 test("Argus can use manual CSV as explicit real-data fallback", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "fundsentinel-argus-csv-"));
   try {

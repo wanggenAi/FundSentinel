@@ -67,7 +67,7 @@ export class ManualCsvProvider implements DataProvider<FundDataSourceInput, Prov
       const rows = ManualCsvProvider.parseCsv(fileText).filter((row) => row.fund_code === input.fund_code);
       if (!rows.length) return this.failure(info, `No rows found for fund ${input.fund_code}`, ["CSV 文件存在，但没有匹配该基金代码的记录。"], filePath);
 
-      const sortedRows = [...rows].sort((a, b) => a.date.localeCompare(b.date));
+      const sortedRows = ManualCsvProvider.deduplicateRowsByDate(rows);
       const latest = sortedRows.at(-1)!;
       const earliest = sortedRows[0]!;
       const navHistory = sortedRows.map((row) => row.nav);
@@ -163,6 +163,34 @@ export class ManualCsvProvider implements DataProvider<FundDataSourceInput, Prov
         theme: record.theme || undefined
       };
     });
+  }
+
+  static deduplicateRowsByDate(rows: ManualCsvRow[]): ManualCsvRow[] {
+    const byDate = new Map<string, ManualCsvRow>();
+    for (const row of rows) {
+      const existing = byDate.get(row.date);
+      if (!existing) {
+        byDate.set(row.date, row);
+        continue;
+      }
+      if (!this.rowsEquivalent(existing, row)) {
+        throw new Error(`CSV has conflicting rows for fund ${row.fund_code} on ${row.date}.`);
+      }
+    }
+    return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  private static rowsEquivalent(left: ManualCsvRow, right: ManualCsvRow): boolean {
+    return (
+      left.fund_code === right.fund_code &&
+      left.date === right.date &&
+      left.nav === right.nav &&
+      left.daily_return === right.daily_return &&
+      (left.fund_name ?? "") === (right.fund_name ?? "") &&
+      (left.fund_type ?? "") === (right.fund_type ?? "") &&
+      (left.holding ?? "") === (right.holding ?? "") &&
+      (left.theme ?? "") === (right.theme ?? "")
+    );
   }
 
   private static splitCsvLine(line: string): string[] {
