@@ -85,7 +85,11 @@ export class FundCompanyReportProvider implements DataProvider<FundDataSourceInp
           document.trust_level === "A" &&
           document.document_kind === "periodic_report" &&
           document.pdf_verified === true &&
-          Boolean(document.pdf_url)
+          Boolean(document.pdf_url?.trim()) &&
+          document.pdf_content_type === "application/pdf" &&
+          typeof document.pdf_content_length === "number" &&
+          Number.isFinite(document.pdf_content_length) &&
+          document.pdf_content_length > 0
       )
       .sort((left, right) => (right.published_at ?? "").localeCompare(left.published_at ?? ""));
   }

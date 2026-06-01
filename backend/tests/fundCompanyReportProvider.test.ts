@@ -34,6 +34,12 @@ test("FundCompanyReportProvider filters verified official periodic reports", () 
     unverifiedOfficialReport,
     {
       ...verifiedOfficialReport,
+      announcement_id: "official-missing-pdf-metadata",
+      pdf_content_type: null,
+      pdf_content_length: null
+    },
+    {
+      ...verifiedOfficialReport,
       announcement_id: "aggregator-2026q1",
       source_type: "aggregator_index",
       source_name: "东方财富"

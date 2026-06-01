@@ -1676,6 +1676,39 @@ test("Argus prefers verified official report documents over aggregator duplicate
   assert.equal(dataPack.allow_strong_conclusion, true);
 });
 
+test("Argus does not clear official report gaps when verified PDFs lack metadata", async () => {
+  const incompleteReportProvider = new ReadyOfficialCoreProvider();
+  const originalFetch = incompleteReportProvider.fetch.bind(incompleteReportProvider);
+  incompleteReportProvider.fetch = async (input) => {
+    const result = await originalFetch(input);
+    return {
+      ...result,
+      data: result.data
+        ? {
+            ...result.data,
+            fund_report_documents: result.data.fund_report_documents?.map((document) => ({
+              ...document,
+              pdf_content_type: null,
+              pdf_content_length: null
+            }))
+          }
+        : result.data
+    };
+  };
+  const registry = new SourceRegistry({
+    providers: [incompleteReportProvider],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("official-report-missing-pdf-metadata", "007951");
+
+  assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.fund_reports, false);
+  assert.equal(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"), true);
+  assert.equal(dataPack.allow_strong_conclusion, false);
+  assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("已发现官方定期报告 PDF 但未通过元数据校验")));
+});
+
 test("Argus surfaces stale successful providers as data freshness gaps", async () => {
   const registry = new SourceRegistry({
     providers: [new ReadyOfficialCoreProvider("stale")],

@@ -1,5 +1,5 @@
 import { BaseAgent } from "./base.js";
-import { SourceRegistry, type DataProviderResult, type ProviderFundPayload } from "../dataSources/index.js";
+import { SourceRegistry, type DataProviderResult, type Freshness, type ProviderFundPayload } from "../dataSources/index.js";
 import type {
   AgentResult,
   DataAcquisitionPlan,
@@ -27,6 +27,8 @@ const FUND_CORE_SOURCE_TYPES = new Set<string>([
   "manual_import"
 ]);
 const THIRD_PARTY_FUND_CORE_SOURCE_TYPES = new Set<string>(["fund_meta", "current_nav", "nav_history", "holdings", "fund_report"]);
+const DATA_STATUSES = new Set<DataStatus>(["ready", "partial", "insufficient", "unavailable", "demo"]);
+const FRESHNESS_VALUES = new Set<Freshness>(["fresh", "acceptable", "stale", "unknown"]);
 type PreferredCoreField = "fund_code" | "fund_name" | "fund_type" | "current_nav" | "daily_return";
 type DerivedDailyReturn = {
   daily_return: number;
@@ -59,7 +61,8 @@ export class ArgusAgent extends BaseAgent {
       required_data: [...plan.required_data, ...plan.optional_data],
       demo_mode: this.sourceRegistry.isDemoMode()
     });
-    const dataPack = this.sanitizePublic(this.buildFundDataPack(fundCode, plan, providerResults));
+    const normalizedProviderResults = this.normalizeProviderResults(providerResults);
+    const dataPack = this.sanitizePublic(this.buildFundDataPack(fundCode, plan, normalizedProviderResults));
     const quality = dataPack.data_quality_report;
     const status: AgentStatus = quality.data_status === "ready" ? "success" : quality.allow_downstream_analysis ? "warning" : "failed";
     const evidence = dataPack.evidence_items;
@@ -119,6 +122,62 @@ export class ArgusAgent extends BaseAgent {
       fallback_strategy: "主数据源失败后尝试备用真实 provider；自动源全部失败时提出 CSV/第三方 API/定时同步等解决方案。Demo fixture 仅在显式 demo mode 下启用。",
       created_by: "Argus",
       created_at: nowIso()
+    };
+  }
+
+  private normalizeProviderResults(results: Array<DataProviderResult<ProviderFundPayload>>): Array<DataProviderResult<ProviderFundPayload>> {
+    return results.map((result) => this.normalizeProviderResult(result));
+  }
+
+  private normalizeProviderResult(result: DataProviderResult<ProviderFundPayload>): DataProviderResult<ProviderFundPayload> {
+    const warnings = Array.isArray(result.warnings) && result.warnings.every((warning) => typeof warning === "string")
+      ? [...result.warnings]
+      : ["Argus replaced malformed provider warnings with a valid warning list."];
+    let dataStatus: DataStatus = DATA_STATUSES.has(result.data_status) ? result.data_status : "unavailable";
+    let freshness: Freshness = FRESHNESS_VALUES.has(result.freshness) ? result.freshness : "unknown";
+    let fetchedAt = this.isValidIsoTimestamp(result.fetched_at) ? result.fetched_at : nowIso();
+    let success = typeof (result.success as unknown) === "boolean" ? result.success : false;
+    let data = result.data;
+    let rawReference = this.hasTraceableRawReference(result.raw_reference) ? result.raw_reference.trim() : null;
+    let error = typeof result.error === "string" || result.error === null ? result.error : "Provider returned non-string error field.";
+    const isDemo = typeof (result.is_demo as unknown) === "boolean" ? result.is_demo : false;
+
+    if (!DATA_STATUSES.has(result.data_status)) warnings.push(`Argus normalized invalid data_status=${String(result.data_status)} to unavailable.`);
+    if (!FRESHNESS_VALUES.has(result.freshness)) warnings.push(`Argus normalized invalid freshness=${String(result.freshness)} to unknown.`);
+    if (!this.isValidIsoTimestamp(result.fetched_at)) warnings.push("Argus replaced invalid fetched_at timestamp with data-pack build time.");
+    if (typeof (result.success as unknown) !== "boolean") warnings.push(`Argus normalized invalid success=${String(result.success)} to false.`);
+    if (typeof (result.is_demo as unknown) !== "boolean") warnings.push(`Argus normalized invalid is_demo=${String(result.is_demo)} to false.`);
+    if (success && !data) {
+      warnings.push("Provider reported success without data; Argus converted it to explicit failure.");
+      success = false;
+      dataStatus = "unavailable";
+      freshness = "unknown";
+      error = error ?? "Provider reported success without data.";
+    }
+    if (success && !isDemo && !rawReference) {
+      warnings.push("Provider reported real-data success without traceable raw_reference; Argus converted it to explicit failure.");
+      success = false;
+      dataStatus = "unavailable";
+      freshness = "unknown";
+      error = error ?? "Provider reported real-data success without traceable raw_reference.";
+    }
+    if (!success && data) {
+      warnings.push("Provider reported failure with data; Argus discarded the payload.");
+      data = null;
+    }
+    if (!success) dataStatus = "unavailable";
+
+    return {
+      ...result,
+      data_status: dataStatus,
+      success,
+      data,
+      raw_reference: rawReference,
+      fetched_at: fetchedAt,
+      freshness,
+      warnings,
+      error,
+      is_demo: isDemo
     };
   }
 
@@ -381,6 +440,10 @@ export class ArgusAgent extends BaseAgent {
     if (typeof value !== "string") return false;
     const parsed = Date.parse(value);
     return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
+  }
+
+  private hasTraceableRawReference(value: string | null): value is string {
+    return typeof value === "string" && value.trim().length > 0;
   }
 
   private deriveDailyReturnFromNavHistory(payload: ProviderFundPayload): DerivedDailyReturn | null {
@@ -1115,7 +1178,7 @@ export class ArgusAgent extends BaseAgent {
     );
     const officialDocuments = documents.filter(({ document }) => document.source_type === "official_disclosure");
     const officialPeriodicDocuments = officialDocuments.filter(({ document }) => document.document_kind === "periodic_report");
-    const unverifiedOfficialPdfs = officialPeriodicDocuments.filter(({ document }) => Boolean(document.pdf_url) && !document.pdf_verified);
+    const unverifiedOfficialPdfs = officialPeriodicDocuments.filter(({ document }) => Boolean(document.pdf_url) && !this.isVerifiedOfficialPeriodicReport(document));
     const reportNotices = officialDocuments.filter(({ document }) => document.document_kind === "report_notice");
     const aggregatorDocuments = documents.filter(({ document }) => document.source_type === "aggregator_index");
     const warnings: string[] = [];
@@ -1243,12 +1306,24 @@ export class ArgusAgent extends BaseAgent {
       this.canUseProviderPayloadForFund(fundCode, result, result.data) &&
       result.data?.fund_report_documents?.some(
         (document) =>
-          document.source_type === "official_disclosure" &&
-          document.trust_level === "A" &&
-          document.document_kind === "periodic_report" &&
-          document.pdf_verified === true &&
-          Boolean(document.pdf_url)
+          this.isVerifiedOfficialPeriodicReport(document)
       )
     );
+  }
+
+  private isVerifiedOfficialPeriodicReport(document: NonNullable<ProviderFundPayload["fund_report_documents"]>[number]): boolean {
+    return (
+      document.source_type === "official_disclosure" &&
+      document.trust_level === "A" &&
+      document.document_kind === "periodic_report" &&
+      document.pdf_verified === true &&
+      Boolean(document.pdf_url?.trim()) &&
+      document.pdf_content_type === "application/pdf" &&
+      this.isPositiveFiniteNumber(document.pdf_content_length ?? undefined)
+    );
+  }
+
+  private isPositiveFiniteNumber(value: number | undefined): value is number {
+    return typeof value === "number" && Number.isFinite(value) && value > 0;
   }
 }

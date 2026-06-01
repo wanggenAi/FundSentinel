@@ -124,6 +124,48 @@ test("Argus sanitizes direct dataPack and AgentResult provider text", async () =
   assert.match(payload, /\[REDACTED\]/u);
 });
 
+test("Argus rejects direct real provider success when traceability is missing", async () => {
+  const registry = new UnsanitizedRegistry([
+    {
+      source_id: "direct-untraceable-success",
+      source_name: "Direct Untraceable Success Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "ready",
+      success: true,
+      data: {
+        fund_code: "007951",
+        fund_name: "招商信用增强债券C",
+        fund_type: "债券型",
+        current_nav: 1.0799,
+        daily_return: -0.02,
+        nav_history: [1.0801, 1.0799],
+        nav_history_dates: ["2026-05-27", "2026-05-28"]
+      },
+      raw_reference: "  ",
+      fetched_at: "not-an-iso-timestamp" as never,
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    }
+  ]);
+
+  const { dataPack, result } = await new ArgusAgent(registry).prepareDataPack("argus-traceability-boundary", "007951");
+  const source = dataPack.data_sources.find((item) => item.source_id === "direct-untraceable-success");
+
+  assert.equal(dataPack.data_status, "unavailable");
+  assert.equal(dataPack.current_nav, 0);
+  assert.equal(dataPack.data_quality_report.real_source_count, 0);
+  assert.equal(source?.success, false);
+  assert.equal(source?.data_status, "unavailable");
+  assert.equal(source?.record_count, null);
+  assert.equal(source?.raw_reference, null);
+  assert.match(String(source?.error), /traceable raw_reference/);
+  assert.ok((source?.warnings as string[]).some((warning) => warning.includes("without traceable raw_reference")));
+  assert.equal(result.evidence[0]?.url, null);
+});
+
 test("Atlas uses explicit dataPack mock marker instead of status inference", async () => {
   const dataPack = new MockDataService().getFundDataPack("007951");
   dataPack.data_status = "partial";
