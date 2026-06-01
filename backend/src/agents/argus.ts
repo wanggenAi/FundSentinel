@@ -133,8 +133,10 @@ export class ArgusAgent extends BaseAgent {
     const warnings = Array.isArray(result.warnings) && result.warnings.every((warning) => typeof warning === "string")
       ? [...result.warnings]
       : ["Argus replaced malformed provider warnings with a valid warning list."];
-    let dataStatus: DataStatus = DATA_STATUSES.has(result.data_status) ? result.data_status : "unavailable";
-    let freshness: Freshness = FRESHNESS_VALUES.has(result.freshness) ? result.freshness : "unknown";
+    const hasValidDataStatus = DATA_STATUSES.has(result.data_status);
+    const hasValidFreshness = FRESHNESS_VALUES.has(result.freshness);
+    let dataStatus: DataStatus = hasValidDataStatus ? result.data_status : "unavailable";
+    let freshness: Freshness = hasValidFreshness ? result.freshness : "unknown";
     let fetchedAt = this.isValidIsoTimestamp(result.fetched_at) ? result.fetched_at : nowIso();
     let success = typeof (result.success as unknown) === "boolean" ? result.success : false;
     let data = result.data;
@@ -142,8 +144,13 @@ export class ArgusAgent extends BaseAgent {
     let error = typeof result.error === "string" || result.error === null ? result.error : "Provider returned non-string error field.";
     const isDemo = typeof (result.is_demo as unknown) === "boolean" ? result.is_demo : false;
 
-    if (!DATA_STATUSES.has(result.data_status)) warnings.push(`Argus normalized invalid data_status=${String(result.data_status)} to unavailable.`);
-    if (!FRESHNESS_VALUES.has(result.freshness)) warnings.push(`Argus normalized invalid freshness=${String(result.freshness)} to unknown.`);
+    if (!hasValidDataStatus) {
+      warnings.push(`Argus normalized invalid data_status=${String(result.data_status)} to unavailable and converted the result to explicit failure.`);
+      success = false;
+      freshness = "unknown";
+      error = error ?? "Provider returned invalid data_status.";
+    }
+    if (!hasValidFreshness) warnings.push(`Argus normalized invalid freshness=${String(result.freshness)} to unknown.`);
     if (!this.isValidIsoTimestamp(result.fetched_at)) warnings.push("Argus replaced invalid fetched_at timestamp with data-pack build time.");
     if (typeof (result.success as unknown) !== "boolean") warnings.push(`Argus normalized invalid success=${String(result.success)} to false.`);
     if (typeof (result.is_demo as unknown) !== "boolean") warnings.push(`Argus normalized invalid is_demo=${String(result.is_demo)} to false.`);
@@ -498,7 +505,15 @@ export class ArgusAgent extends BaseAgent {
       merged.social_sentiment_score === undefined ? "social_sentiment" : null
     ].filter(Boolean) as string[];
     const placeholderFields = this.placeholderFieldsFor(merged, missingCoreFields, missingAuxiliaryFields);
-    const staleSources = providerResults.filter((result) => result.freshness === "stale").map((result) => result.source_name);
+    const freshnessGapResults = providerResults.filter(
+      (result) =>
+        result.success &&
+        !result.is_demo &&
+        this.canUseProviderPayloadForFund(fundCode, result, result.data) &&
+        (result.freshness === "stale" || result.freshness === "unknown")
+    );
+    const staleSources = freshnessGapResults.filter((result) => result.freshness === "stale").map((result) => result.source_name);
+    const unknownFreshnessSources = freshnessGapResults.filter((result) => result.freshness === "unknown").map((result) => result.source_name);
     const ignoredCoreFieldWarnings = successful.flatMap((result) => this.ignoredFundCoreFieldWarnings(result));
     const ignoredSocialSentimentWarnings = successful.flatMap((result) => this.ignoredSocialSentimentWarnings(result));
     const invalidNumericWarnings = successful.flatMap((result) => this.invalidFundNumericWarnings(result));
@@ -510,7 +525,7 @@ export class ArgusAgent extends BaseAgent {
       ...invalidNumericWarnings,
       ...fundCodeMismatchWarnings
     ];
-    const freshnessGapFields = staleSources.length > 0 ? ["data_freshness"] : [];
+    const freshnessGapFields = freshnessGapResults.length > 0 ? ["data_freshness"] : [];
     const blockingIssues: string[] = [];
     let dataStatus: DataStatus = "ready";
     let allowDownstreamAnalysis = true;
@@ -543,9 +558,13 @@ export class ArgusAgent extends BaseAgent {
       warnings.push(`辅助证据不完整：${missingAuxiliaryFields.join(", ")}。Logos 必须降级，Atlas 不允许强结论。`);
     }
 
-    if (staleSources.length > 0) {
+    if (freshnessGapResults.length > 0) {
       allowStrongConclusion = false;
-      warnings.push(`存在过期数据源：${staleSources.join(", ")}。`);
+      const freshnessParts = [
+        staleSources.length ? `freshness=stale: ${staleSources.join(", ")}` : null,
+        unknownFreshnessSources.length ? `freshness=unknown: ${unknownFreshnessSources.join(", ")}` : null
+      ].filter(Boolean);
+      warnings.push(`存在数据新鲜度缺口：${freshnessParts.join("；")}。`);
       if (dataStatus === "ready") dataStatus = "partial";
     }
     if (navConsistencyReport.status === "conflict") {
@@ -658,10 +677,12 @@ export class ArgusAgent extends BaseAgent {
           "若官网/证监会站点防护阻断自动校验，改用运营导入官方 PDF 或授权披露 API，并保留导入审计记录。"
         ]
       : [];
-    const freshnessGapSolutions = quality.stale_sources.length
+    const freshnessGapSolutions = quality.missing_auxiliary_fields.includes("data_freshness")
       ? [
-          `data_freshness 缺口：以下数据源 freshness=stale：${quality.stale_sources.join(", ")}；强结论必须降级，直到重新获取新鲜官方/授权数据或记录人工审计来源。`,
-          "修复 stale provider 的 freshness_policy、parser 或定时同步任务；补充 freshness 回归测试，并在恢复前持续保留 DataGapReport。"
+          quality.stale_sources.length
+            ? `data_freshness 缺口：以下数据源 freshness=stale：${quality.stale_sources.join(", ")}；强结论必须降级，直到重新获取新鲜官方/授权数据或记录人工审计来源。`
+            : "data_freshness 缺口：存在 freshness=unknown 的成功数据源；强结论必须降级，直到 provider 能记录可校验的新鲜度策略、日期字段或人工审计来源。",
+          "修复 stale/unknown provider 的 freshness_policy、parser 或定时同步任务；补充 freshness 回归测试，并在恢复前持续保留 DataGapReport。"
         ]
       : [];
     const navConsistencyGapSolutions =
@@ -744,15 +765,17 @@ export class ArgusAgent extends BaseAgent {
         }
       ];
     }
-    const freshnessActions = quality.stale_sources.length
-      ? ["重新获取 stale 数据源或配置新鲜的官方/授权替代源；刷新前保持强结论关闭。"]
+    const freshnessActions = quality.missing_auxiliary_fields.includes("data_freshness")
+      ? ["重新获取 stale/unknown 数据源或配置新鲜的官方/授权替代源；新鲜度可审计前保持强结论关闭。"]
       : [];
     const navConsistencyActions =
       quality.nav_consistency_report.status === "conflict"
         ? ["复核同日净值跨源冲突，确认日期、单位净值字段和来源优先级；冲突解决前不得放行强结论。"]
         : [];
     const focusedEngineeringTasks = [
-      ...(quality.stale_sources.length ? ["为 stale provider 增加 freshness fixture、边界日期测试和定时同步/告警检查。"] : []),
+      ...(quality.missing_auxiliary_fields.includes("data_freshness")
+        ? ["为 stale/unknown provider 增加 freshness fixture、边界日期测试和定时同步/告警检查。"]
+        : []),
       ...(quality.nav_consistency_report.status === "conflict"
         ? ["为冲突 provider 增加同日 NAV 交叉校验测试，并记录解析字段、日期和 provenance 差异。"]
         : [])

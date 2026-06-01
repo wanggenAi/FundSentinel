@@ -1731,6 +1731,28 @@ test("Argus surfaces stale successful providers as data freshness gaps", async (
   assert.ok(dataPack.acquisition_solutions[0]?.engineering_tasks.some((task) => task.includes("freshness fixture")));
 });
 
+test("Argus blocks strong conclusions when successful real provider freshness is unknown", async () => {
+  const registry = new SourceRegistry({
+    providers: [new ReadyOfficialCoreProvider("unknown")],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("unknown-freshness-ready-core", "007951");
+  const gapReport = dataPack.data_gap_report;
+
+  assert.equal(dataPack.data_quality_report.data_status, "partial");
+  assert.equal(dataPack.allow_downstream_analysis, true);
+  assert.equal(dataPack.allow_strong_conclusion, false);
+  assert.deepEqual(dataPack.data_quality_report.stale_sources, []);
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("data_freshness"));
+  assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("freshness=unknown")));
+  assert.ok(gapReport?.missing_data.includes("data_freshness"));
+  assert.ok(gapReport?.recommended_solutions.some((solution) => solution.includes("freshness=unknown")));
+  assert.ok(dataPack.acquisition_solutions[0]?.problem.includes("data_freshness"));
+  assert.ok(dataPack.acquisition_solutions[0]?.proposed_actions.some((action) => action.includes("stale/unknown")));
+});
+
 test("Argus requires actual report evidence before clearing fund report gaps", async () => {
   const registry = new SourceRegistry({
     providers: [new EmptyFundReportProvider()],

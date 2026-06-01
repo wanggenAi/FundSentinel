@@ -166,6 +166,46 @@ test("Argus rejects direct real provider success when traceability is missing", 
   assert.equal(result.evidence[0]?.url, null);
 });
 
+test("Argus rejects direct provider success with invalid data status", async () => {
+  const registry = new UnsanitizedRegistry([
+    {
+      source_id: "direct-invalid-status-success",
+      source_name: "Direct Invalid Status Success Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "done" as never,
+      success: true,
+      data: {
+        fund_code: "007951",
+        fund_name: "招商信用增强债券C",
+        fund_type: "债券型",
+        current_nav: 1.0799,
+        daily_return: -0.02,
+        nav_history: [1.0801, 1.0799],
+        nav_history_dates: ["2026-05-27", "2026-05-28"]
+      },
+      raw_reference: "https://official.example.test/detail",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    }
+  ]);
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("argus-invalid-status-boundary", "007951");
+  const source = dataPack.data_sources.find((item) => item.source_id === "direct-invalid-status-success");
+
+  assert.equal(dataPack.data_status, "unavailable");
+  assert.equal(dataPack.current_nav, 0);
+  assert.equal(dataPack.data_quality_report.real_source_count, 0);
+  assert.equal(source?.success, false);
+  assert.equal(source?.data_status, "unavailable");
+  assert.equal(source?.record_count, null);
+  assert.match(String(source?.error), /invalid data_status/);
+  assert.ok((source?.warnings as string[]).some((warning) => warning.includes("invalid data_status")));
+});
+
 test("Atlas uses explicit dataPack mock marker instead of status inference", async () => {
   const dataPack = new MockDataService().getFundDataPack("007951");
   dataPack.data_status = "partial";
