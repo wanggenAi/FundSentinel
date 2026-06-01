@@ -520,6 +520,13 @@ export class SourceRegistry {
       freshness = "unknown";
       error = error ?? "Provider reported success without data.";
     }
+    if (success && !result.is_demo && !this.hasTraceableRawReference(result.raw_reference)) {
+      warnings.push("Provider reported real-data success without raw_reference; SourceRegistry converted it to explicit failure.");
+      success = false;
+      dataStatus = "unavailable";
+      freshness = "unknown";
+      error = error ?? "Provider reported real-data success without traceable raw_reference.";
+    }
     if (!success && data) {
       warnings.push("Provider reported failure with data; SourceRegistry discarded the payload.");
       data = null;
@@ -541,6 +548,10 @@ export class SourceRegistry {
   private isValidIsoTimestamp(value: string): boolean {
     const parsed = Date.parse(value);
     return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
+  }
+
+  private hasTraceableRawReference(value: string | null): boolean {
+    return typeof value === "string" && value.trim().length > 0;
   }
 
   private rejectUnidentifiedFundResult(

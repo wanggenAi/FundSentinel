@@ -1167,6 +1167,25 @@ test("SourceRegistry converts provider success without data into explicit failur
   assert.equal(health?.cache_entries, 0);
 });
 
+test("SourceRegistry rejects real provider success without traceable raw reference", async () => {
+  const provider = new SuccessWithoutRawReferenceProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
+  const input = { fund_code: "007951", required_data: ["fund_meta"], demo_mode: false };
+
+  const result = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "success-without-raw-reference-provider");
+
+  assert.equal(provider.callCount, 1);
+  assert.equal(result.success, false);
+  assert.equal(result.data_status, "unavailable");
+  assert.equal(result.data, null);
+  assert.equal(result.freshness, "unknown");
+  assert.match(result.error ?? "", /raw_reference/);
+  assert.ok(result.warnings.some((warning) => warning.includes("without raw_reference")));
+  assert.equal(health?.failure_count, 1);
+  assert.equal(health?.cache_entries, 0);
+});
+
 test("SourceRegistry health counts only live cache entries for the exact provider", async () => {
   const registry = new SourceRegistry({
     providers: [new CountingProvider("cache-provider"), new CountingProvider("cache-provider-extra")],
@@ -1937,6 +1956,26 @@ class SuccessWithoutDataProvider implements DataProvider<FundDataSourceInput, Pr
       data_status: "ready",
       data: null,
       freshness: "fresh"
+    };
+  }
+}
+
+class SuccessWithoutRawReferenceProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return sourceInfo("success-without-raw-reference-provider");
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return {
+      ...providerResult("success-without-raw-reference-provider", true),
+      raw_reference: "  "
     };
   }
 }
