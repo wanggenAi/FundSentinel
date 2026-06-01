@@ -154,6 +154,24 @@ export class ArgusAgent extends BaseAgent {
     if (!this.isValidIsoTimestamp(result.fetched_at)) warnings.push("Argus replaced invalid fetched_at timestamp with data-pack build time.");
     if (typeof (result.success as unknown) !== "boolean") warnings.push(`Argus normalized invalid success=${String(result.success)} to false.`);
     if (typeof (result.is_demo as unknown) !== "boolean") warnings.push(`Argus normalized invalid is_demo=${String(result.is_demo)} to false.`);
+    if (success && dataStatus === "demo" && !isDemo) {
+      warnings.push("Provider reported data_status=demo without is_demo=true; Argus converted it to explicit failure to protect real-data coverage.");
+      success = false;
+      dataStatus = "unavailable";
+      freshness = "unknown";
+      error = error ?? "Provider returned demo data_status without demo marker.";
+    }
+    if (success && isDemo && !this.sourceRegistry.isDemoMode()) {
+      warnings.push("Provider reported demo-marked data while demo mode is disabled; Argus converted it to explicit failure.");
+      success = false;
+      dataStatus = "unavailable";
+      freshness = "unknown";
+      error = error ?? "Provider returned demo-marked data while demo mode is disabled.";
+    }
+    if (success && isDemo && dataStatus !== "demo") {
+      warnings.push(`Argus normalized demo-marked provider data_status=${dataStatus} to demo.`);
+      dataStatus = "demo";
+    }
     if (success && !data) {
       warnings.push("Provider reported success without data; Argus converted it to explicit failure.");
       success = false;

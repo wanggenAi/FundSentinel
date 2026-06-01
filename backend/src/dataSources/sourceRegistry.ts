@@ -568,6 +568,24 @@ export class SourceRegistry {
       freshness = "unknown";
       error = error ?? "Provider returned non-boolean success flag.";
     }
+    if (success && dataStatus === "demo" && !result.is_demo) {
+      warnings.push("Provider reported data_status=demo without is_demo=true; SourceRegistry converted it to explicit failure.");
+      success = false;
+      dataStatus = "unavailable";
+      freshness = "unknown";
+      error = error ?? "Provider returned demo data_status without demo marker.";
+    }
+    if (success && result.is_demo && !this.demoMode) {
+      warnings.push("Provider reported demo-marked data while demo mode is disabled; SourceRegistry converted it to explicit failure.");
+      success = false;
+      dataStatus = "unavailable";
+      freshness = "unknown";
+      error = error ?? "Provider returned demo-marked data while demo mode is disabled.";
+    }
+    if (success && result.is_demo && dataStatus !== "demo") {
+      warnings.push(`SourceRegistry normalized demo-marked provider data_status=${dataStatus} to demo.`);
+      dataStatus = "demo";
+    }
     if (success && !data) {
       warnings.push("Provider reported success without data; SourceRegistry converted it to explicit failure.");
       success = false;

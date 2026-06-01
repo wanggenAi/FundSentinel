@@ -1148,6 +1148,28 @@ test("SourceRegistry normalizes invalid provider runtime metadata before health 
   assert.equal(health?.cache_hit_count, 0);
 });
 
+test("SourceRegistry rejects unmarked demo status from real provider output", async () => {
+  const provider = new UnmarkedDemoStatusProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
+  const input = { fund_code: "007951", required_data: ["fund_meta"], demo_mode: false };
+
+  const result = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "unmarked-demo-status-provider");
+
+  assert.equal(provider.callCount, 1);
+  assert.equal(result.source_id, "unmarked-demo-status-provider");
+  assert.equal(result.is_demo, false);
+  assert.equal(result.success, false);
+  assert.equal(result.data_status, "unavailable");
+  assert.equal(result.data, null);
+  assert.equal(result.freshness, "unknown");
+  assert.match(result.error ?? "", /demo data_status without demo marker/);
+  assert.ok(result.warnings.some((warning) => warning.includes("data_status=demo without is_demo=true")));
+  assert.equal(health?.failure_count, 1);
+  assert.equal(health?.last_success_at, null);
+  assert.equal(health?.cache_entries, 0);
+});
+
 test("SourceRegistry converts provider success without data into explicit failure", async () => {
   const provider = new SuccessWithoutDataProvider();
   const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
@@ -2014,6 +2036,41 @@ class InvalidRuntimeMetadataProvider implements DataProvider<FundDataSourceInput
       },
       fetched_at: "not-a-date",
       freshness: "fresh-ish" as never
+    };
+  }
+}
+
+class UnmarkedDemoStatusProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("unmarked-demo-status-provider"),
+      source_name: "Unmarked Demo Status Provider",
+      source_type: "fund_company",
+      trust_level: "A"
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return {
+      ...providerResult("unmarked-demo-status-provider", true),
+      source_name: "Unmarked Demo Status Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "demo",
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "Unmarked Demo Fund",
+        fund_type: "mixed",
+        current_nav: 1.234,
+        nav_history: [1.2, 1.234]
+      }
     };
   }
 }
