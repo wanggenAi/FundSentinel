@@ -1186,6 +1186,46 @@ test("SourceRegistry rejects real provider success without traceable raw referen
   assert.equal(health?.cache_entries, 0);
 });
 
+test("SourceRegistry converts non-object provider returns into explicit failure", async () => {
+  const provider = new UndefinedResultProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
+  const input = { fund_code: "007951", required_data: ["fund_meta"], demo_mode: false };
+
+  const result = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "undefined-result-provider");
+
+  assert.equal(provider.callCount, 1);
+  assert.equal(result.source_id, "undefined-result-provider");
+  assert.equal(result.success, false);
+  assert.equal(result.data_status, "unavailable");
+  assert.equal(result.data, null);
+  assert.match(result.error ?? "", /non-object result/);
+  assert.ok(result.warnings.some((warning) => warning.includes("non-object result")));
+  assert.equal(health?.failure_count, 1);
+  assert.equal(health?.cache_entries, 0);
+});
+
+test("SourceRegistry converts malformed provider result fields into explicit failure", async () => {
+  const provider = new MalformedResultFieldsProvider();
+  const registry = new SourceRegistry({ providers: [provider], cacheTtlMs: 60_000, retryCount: 0 });
+  const input = { fund_code: "007951", required_data: ["fund_meta"], demo_mode: false };
+
+  const result = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "malformed-result-fields-provider");
+
+  assert.equal(provider.callCount, 1);
+  assert.equal(result.source_id, "malformed-result-fields-provider");
+  assert.equal(result.success, false);
+  assert.equal(result.data_status, "unavailable");
+  assert.equal(result.data, null);
+  assert.equal(result.raw_reference, "https://provider.example.test/malformed");
+  assert.match(result.error ?? "", /malformed result fields: data/);
+  assert.ok(result.warnings.some((warning) => warning.includes("upstream warning preserved")));
+  assert.ok(result.warnings.some((warning) => warning.includes("malformed result fields")));
+  assert.equal(health?.failure_count, 1);
+  assert.equal(health?.cache_entries, 0);
+});
+
 test("SourceRegistry health counts only live cache entries for the exact provider", async () => {
   const registry = new SourceRegistry({
     providers: [new CountingProvider("cache-provider"), new CountingProvider("cache-provider-extra")],
@@ -1977,6 +2017,53 @@ class SuccessWithoutRawReferenceProvider implements DataProvider<FundDataSourceI
       ...providerResult("success-without-raw-reference-provider", true),
       raw_reference: "  "
     };
+  }
+}
+
+class UndefinedResultProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return sourceInfo("undefined-result-provider");
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return undefined as never;
+  }
+}
+
+class MalformedResultFieldsProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return sourceInfo("malformed-result-fields-provider");
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return {
+      source_id: "malformed-result-fields-provider",
+      source_name: "Malformed Result Fields Provider",
+      source_type: "fund_meta",
+      trust_level: "B",
+      data_status: "partial",
+      success: true,
+      raw_reference: "https://provider.example.test/malformed",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: ["upstream warning preserved"],
+      error: null,
+      is_demo: false
+    } as unknown as DataProviderResult<ProviderFundPayload>;
   }
 }
 

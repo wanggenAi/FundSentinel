@@ -388,10 +388,11 @@ export class SourceRegistry {
     provider: DataProvider<FundDataSourceInput, ProviderFundPayload>,
     input: FundDataSourceInput
   ): Promise<DataProviderResult<ProviderFundPayload>> {
+    const info = provider.sourceInfo();
     try {
-      return await provider.fetch(input);
+      const result = await provider.fetch(input);
+      return this.normalizeProviderResultShape(result as unknown, info);
     } catch (error) {
-      const info = provider.sourceInfo();
       return {
         source_id: info.source_id,
         source_name: info.source_name,
@@ -408,6 +409,60 @@ export class SourceRegistry {
         is_demo: info.is_demo
       };
     }
+  }
+
+  private normalizeProviderResultShape(result: unknown, info: DataSourceInfo): DataProviderResult<ProviderFundPayload> {
+    if (!this.isRecord(result)) {
+      return this.malformedProviderResult(info, "Provider returned a non-object result.", null, []);
+    }
+
+    const warnings = Array.isArray(result.warnings) && result.warnings.every((warning) => typeof warning === "string")
+      ? result.warnings
+      : [];
+    const invalidFields = [
+      !Array.isArray(result.warnings) || !result.warnings.every((warning) => typeof warning === "string") ? "warnings" : null,
+      !("data" in result) ? "data" : null,
+      !this.isStringOrNull(result.raw_reference) ? "raw_reference" : null,
+      !this.isStringOrNull(result.error) ? "error" : null,
+      typeof result.is_demo !== "boolean" ? "is_demo" : null
+    ].filter(Boolean) as string[];
+
+    if (invalidFields.length) {
+      return this.malformedProviderResult(
+        info,
+        `Provider returned malformed result fields: ${invalidFields.join(", ")}.`,
+        this.isStringOrNull(result.raw_reference) ? result.raw_reference : null,
+        warnings
+      );
+    }
+
+    return result as unknown as DataProviderResult<ProviderFundPayload>;
+  }
+
+  private malformedProviderResult(info: DataSourceInfo, error: string, rawReference: string | null, warnings: string[]): DataProviderResult<ProviderFundPayload> {
+    return {
+      source_id: info.source_id,
+      source_name: info.source_name,
+      source_type: info.source_type,
+      trust_level: info.trust_level,
+      data_status: "unavailable",
+      success: false,
+      data: null,
+      raw_reference: rawReference,
+      fetched_at: nowIso(),
+      freshness: "unknown",
+      warnings: [...warnings, `${error} SourceRegistry converted it to explicit failure.`],
+      error,
+      is_demo: info.is_demo
+    };
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+  }
+
+  private isStringOrNull(value: unknown): value is string | null {
+    return typeof value === "string" || value === null;
   }
 
   private readCache(cacheKey: string): DataProviderResult<ProviderFundPayload> | null {
