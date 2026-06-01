@@ -1,5 +1,6 @@
 import { BaseAgent } from "./base.js";
 import { SourceRegistry, type DataProviderResult, type Freshness, type ProviderFundPayload } from "../dataSources/index.js";
+import { isValidFundReportDocument, validFundReportDocuments } from "../dataSources/fundReportDocumentValidation.js";
 import type {
   AgentResult,
   DataAcquisitionPlan,
@@ -385,6 +386,7 @@ export class ArgusAgent extends BaseAgent {
     validated.stage_returns = this.validStageReturns(validated.stage_returns);
     validated.portfolio_holdings = this.validStringList(validated.portfolio_holdings);
     validated.fund_report_refs = this.validStringList(validated.fund_report_refs);
+    validated.fund_report_documents = validFundReportDocuments(validated.fund_report_documents);
     validated.themes = this.validStringList(validated.themes);
     validated.policy_signals = this.validStringList(validated.policy_signals);
     validated.news_summaries = this.validStringList(validated.news_summaries);
@@ -1118,7 +1120,10 @@ export class ArgusAgent extends BaseAgent {
           const payload = result.data ? this.validatedProviderPayload(result.data) : null;
           return this.isAuthoritativeCoreFundSource(result) && Boolean(payload?.nav_history?.length);
         }),
-        holdings: matchedSuccessful.some((result) => this.isAuthoritativeCoreFundSource(result) && Boolean(result.data?.portfolio_holdings?.length)),
+        holdings: matchedSuccessful.some((result) => {
+          const payload = result.data ? this.validatedProviderPayload(result.data) : null;
+          return this.isAuthoritativeCoreFundSource(result) && Boolean(payload?.portfolio_holdings?.length);
+        }),
         fund_reports: this.hasAuthoritativeFundReportDocument(fundCode, matchedSuccessful)
       }
     };
@@ -1249,14 +1254,16 @@ export class ArgusAgent extends BaseAgent {
   }
 
   private officialReportGapWarnings(fundCode: string, results: Array<DataProviderResult<ProviderFundPayload>>): string[] {
-    const documents = results.filter((result) => this.canUseProviderPayloadForFund(fundCode, result, result.data) && this.canUseFundReportEvidence(result)).flatMap((result) =>
-      (result.data?.fund_report_documents ?? []).map((document) => ({
+    const documents = results.flatMap((result) => {
+      const payload = result.data ? this.validatedProviderPayload(result.data) : null;
+      if (!payload || !this.canUseProviderPayloadForFund(fundCode, result, payload) || !this.canUseFundReportEvidence(result)) return [];
+      return (payload.fund_report_documents ?? []).map((document) => ({
         sourceId: result.source_id,
         sourceName: result.source_name,
         trustLevel: result.trust_level,
         document
-      }))
-    );
+      }));
+    });
     const officialDocuments = documents.filter(({ document }) => document.source_type === "official_disclosure");
     const officialPeriodicDocuments = officialDocuments.filter(({ document }) => document.document_kind === "periodic_report");
     const unverifiedOfficialPdfs = officialPeriodicDocuments.filter(({ document }) => Boolean(document.pdf_url) && !this.isVerifiedOfficialPeriodicReport(document));
@@ -1298,10 +1305,11 @@ export class ArgusAgent extends BaseAgent {
   }
 
   private hasFundReportEvidence(fundCode: string, result: DataProviderResult<ProviderFundPayload>): boolean {
+    const payload = result.data ? this.validatedProviderPayload(result.data) : null;
     return (
-      this.canUseProviderPayloadForFund(fundCode, result, result.data) &&
+      this.canUseProviderPayloadForFund(fundCode, result, payload) &&
       this.canUseFundReportEvidence(result) &&
-      Boolean(result.data?.fund_report_refs?.length || result.data?.fund_report_documents?.length)
+      Boolean(payload?.fund_report_refs?.length || payload?.fund_report_documents?.length)
     );
   }
 
@@ -1382,18 +1390,19 @@ export class ArgusAgent extends BaseAgent {
   }
 
   private hasAuthoritativeFundReportDocument(fundCode: string, results: Array<DataProviderResult<ProviderFundPayload>>): boolean {
-    return results.some((result) =>
-      this.isAuthoritativeCoreFundSource(result) &&
-      this.canUseProviderPayloadForFund(fundCode, result, result.data) &&
-      result.data?.fund_report_documents?.some(
-        (document) =>
-          this.isVerifiedOfficialPeriodicReport(document)
-      )
-    );
+    return results.some((result) => {
+      const payload = result.data ? this.validatedProviderPayload(result.data) : null;
+      return (
+        this.isAuthoritativeCoreFundSource(result) &&
+        this.canUseProviderPayloadForFund(fundCode, result, payload) &&
+        payload?.fund_report_documents?.some((document) => this.isVerifiedOfficialPeriodicReport(document))
+      );
+    });
   }
 
   private isVerifiedOfficialPeriodicReport(document: NonNullable<ProviderFundPayload["fund_report_documents"]>[number]): boolean {
     return (
+      isValidFundReportDocument(document) &&
       document.source_type === "official_disclosure" &&
       document.trust_level === "A" &&
       document.document_kind === "periodic_report" &&

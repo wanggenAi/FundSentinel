@@ -1586,6 +1586,36 @@ test("SourceRegistry rejects and does not cache success without usable business 
   assert.ok(health?.last_failed_at);
 });
 
+test("SourceRegistry rejects and does not cache malformed report-document-only successes", async () => {
+  const provider = new MalformedReportDocumentOnlyProvider();
+  const registry = new SourceRegistry({
+    providers: [provider],
+    cacheTtlMs: 60_000,
+    retryCount: 0
+  });
+  const input = { fund_code: "007951", required_data: ["fund_reports"], demo_mode: false };
+
+  const first = (await registry.fetchAll(input))[0];
+  const second = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "malformed-report-document-only-provider");
+
+  assert.equal(first.success, false);
+  assert.equal(first.data_status, "unavailable");
+  assert.equal(first.data, null);
+  assert.equal(first.freshness, "unknown");
+  assert.equal(first.cache_hit, false);
+  assert.match(first.error ?? "", /without usable business payload fields/u);
+  assert.ok(first.warnings.some((warning) => warning.includes("without any usable business payload fields")));
+  assert.equal(second.success, false);
+  assert.equal(second.cache_hit, false);
+  assert.equal(provider.callCount, 2);
+  assert.equal(health?.failure_count, 2);
+  assert.equal(health?.consecutive_failure_count, 2);
+  assert.equal(health?.cache_entries, 0);
+  assert.equal(health?.last_success_at, null);
+  assert.ok(health?.last_failed_at);
+});
+
 test("SourceRegistry filters invalid core NAV values before sharing provider context", async () => {
   const captureProvider = new ContextCaptureProvider();
   const registry = new SourceRegistry({
@@ -2950,6 +2980,62 @@ class EmptyBusinessPayloadProvider implements DataProvider<FundDataSourceInput, 
         macro_indicators: []
       } as unknown as ProviderFundPayload,
       raw_reference: "https://official.example.test/empty-business-payload",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class MalformedReportDocumentOnlyProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("malformed-report-document-only-provider"),
+      source_name: "Malformed Report Document Only Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      priority: 1
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return {
+      source_id: "malformed-report-document-only-provider",
+      source_name: "Malformed Report Document Only Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_report_documents: [
+          {
+            title: "招商信用增强债券型证券投资基金2026年第1季度报告",
+            announcement_id: "",
+            published_at: "2026-04-22",
+            category: null,
+            document_kind: "periodic_report",
+            detail_url: "https://official.example.test/malformed-report",
+            pdf_url: "https://official.example.test/malformed-report.pdf",
+            pdf_verified: true,
+            pdf_content_type: "application/pdf",
+            pdf_content_length: 1024,
+            source_name: "Malformed Report Document Only Provider",
+            source_type: "official_disclosure",
+            trust_level: "A"
+          }
+        ]
+      } as unknown as ProviderFundPayload,
+      raw_reference: "https://official.example.test/malformed-report-document-only",
       fetched_at: "2026-05-28T00:00:00.000Z",
       freshness: "fresh",
       warnings: [],

@@ -36,6 +36,7 @@ import { WorldBankMacroProvider } from "./providers/worldBankMacroProvider.js";
 import type { DataProvider } from "./providers/baseProvider.js";
 import type { DataProviderResult, DataSourceCatalogEntry, DataSourceInfo, DataSourceType, FundDataSourceInput, ProviderFundPayload } from "./sourceTypes.js";
 import { listDataSourceCatalog } from "./sourceCatalog.js";
+import { validFundReportDocuments } from "./fundReportDocumentValidation.js";
 import { nowIso, type DataStatus } from "../schemas/index.js";
 import type { DataRequirement } from "../schemas/index.js";
 import { sanitizePublicStructure, sanitizePublicText } from "../utils/publicText.js";
@@ -1045,6 +1046,7 @@ export class SourceRegistry {
     validated.stage_returns = this.validStageReturns(validated.stage_returns);
     validated.portfolio_holdings = this.validStringList(validated.portfolio_holdings);
     validated.fund_report_refs = this.validStringList(validated.fund_report_refs);
+    validated.fund_report_documents = validFundReportDocuments(validated.fund_report_documents);
     validated.themes = this.validStringList(validated.themes);
     validated.policy_signals = this.validStringList(validated.policy_signals);
     validated.news_summaries = this.validStringList(validated.news_summaries);

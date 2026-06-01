@@ -291,6 +291,111 @@ test("Argus rejects direct provider success without usable business payload fiel
   assert.ok((source?.warnings as string[]).some((warning) => warning.includes("without any usable business payload fields")));
 });
 
+test("Argus rejects direct provider success when only malformed report documents are present", async () => {
+  const registry = new UnsanitizedRegistry([
+    {
+      source_id: "direct-malformed-report-only-success",
+      source_name: "Direct Malformed Report Only Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: "007951",
+        fund_report_documents: [
+          {
+            title: "招商信用增强债券型证券投资基金2026年第1季度报告",
+            announcement_id: "",
+            published_at: "2026-04-22",
+            category: null,
+            document_kind: "periodic_report",
+            detail_url: "https://official.example.test/report-detail",
+            pdf_url: "https://official.example.test/report.pdf",
+            pdf_verified: true,
+            pdf_content_type: "application/pdf",
+            pdf_content_length: 1024,
+            source_name: "Malformed Official Report Provider",
+            source_type: "official_disclosure",
+            trust_level: "A"
+          }
+        ]
+      } as unknown as ProviderFundPayload,
+      raw_reference: "https://official.example.test/malformed-report-only",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    }
+  ]);
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("argus-malformed-report-only-boundary", "007951");
+  const source = dataPack.data_sources.find((item) => item.source_id === "direct-malformed-report-only-success");
+
+  assert.equal(dataPack.data_status, "unavailable");
+  assert.equal(dataPack.data_quality_report.real_source_count, 0);
+  assert.equal(source?.success, false);
+  assert.equal(source?.data_status, "unavailable");
+  assert.equal(source?.record_count, null);
+  assert.match(String(source?.error), /without usable business payload fields/);
+});
+
+test("Argus keeps unverified report documents for gap diagnostics without official coverage", async () => {
+  const registry = new UnsanitizedRegistry([
+    {
+      source_id: "direct-malformed-report-with-core",
+      source_name: "Direct Malformed Report With Core Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: "007951",
+        fund_name: "招商信用增强债券C",
+        fund_type: "债券型",
+        current_nav: 1.0799,
+        daily_return: -0.0002,
+        nav_history: [1.0801, 1.0799],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        fund_report_documents: [
+          {
+            title: "招商信用增强债券型证券投资基金2026年第1季度报告",
+            announcement_id: "malformed-2026q1",
+            published_at: "2026-04-22",
+            category: null,
+            document_kind: "periodic_report",
+            detail_url: "https://official.example.test/report-detail",
+            pdf_url: "https://official.example.test/report.pdf",
+            pdf_verified: true,
+            pdf_content_type: "text/html",
+            pdf_content_length: 1024,
+            source_name: "Malformed Official Report Provider",
+            source_type: "official_disclosure",
+            trust_level: "A"
+          }
+        ]
+      } as unknown as ProviderFundPayload,
+      raw_reference: "https://official.example.test/malformed-report-with-core",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    }
+  ]);
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("argus-malformed-report-coverage-boundary", "007951");
+  const source = dataPack.data_sources.find((item) => item.source_id === "direct-malformed-report-with-core");
+
+  assert.equal(source?.success, true);
+  assert.equal(source?.record_count, 2);
+  assert.equal(dataPack.fund_report_documents.length, 1);
+  assert.equal(dataPack.fund_report_documents[0]?.pdf_verified, false);
+  assert.equal(dataPack.data_quality_report.source_composition.official_core_coverage.fund_reports, false);
+  assert.ok(dataPack.data_quality_report.missing_auxiliary_fields.includes("official_fund_reports"));
+  assert.ok(dataPack.data_quality_report.warnings.some((warning) => warning.includes("已发现官方定期报告 PDF 但未通过元数据校验")));
+});
+
 test("Argus rejects direct provider demo status that is not explicitly demo-marked", async () => {
   const registry = new UnsanitizedRegistry([
     {
