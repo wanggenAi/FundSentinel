@@ -286,16 +286,61 @@ export class ArgusAgent extends BaseAgent {
     if (validated.daily_return !== undefined && !this.isFiniteNumber(validated.daily_return)) validated.daily_return = undefined;
     if (validated.social_sentiment_score !== undefined && !this.isFiniteNumber(validated.social_sentiment_score)) validated.social_sentiment_score = undefined;
     validated.stage_returns = this.validStageReturns(validated.stage_returns);
+    validated.portfolio_holdings = this.validStringList(validated.portfolio_holdings);
+    validated.fund_report_refs = this.validStringList(validated.fund_report_refs);
+    validated.themes = this.validStringList(validated.themes);
+    validated.policy_signals = this.validStringList(validated.policy_signals);
+    validated.news_summaries = this.validStringList(validated.news_summaries);
+    validated.macro_indicators = this.validMacroIndicators(validated.macro_indicators);
     const sanitizedHistory = this.validNavHistory(validated.nav_history, validated.nav_history_dates);
     validated.nav_history = sanitizedHistory.navHistory;
     validated.nav_history_dates = sanitizedHistory.navHistoryDates;
     return validated;
   }
 
+  private validStringList(values: string[] | undefined): string[] | undefined {
+    if (!Array.isArray(values)) return undefined;
+    const cleaned = values.flatMap((value) => {
+      if (typeof value !== "string") return [];
+      const trimmed = value.trim();
+      return trimmed.length ? [trimmed] : [];
+    });
+    return cleaned.length ? [...new Set(cleaned)] : undefined;
+  }
+
   private validStageReturns(stageReturns: ProviderFundPayload["stage_returns"]): ProviderFundPayload["stage_returns"] {
     if (!stageReturns) return stageReturns;
     const entries = Object.entries(stageReturns).filter(([, value]) => this.isFiniteNumber(value));
     return entries.length ? Object.fromEntries(entries) : undefined;
+  }
+
+  private validMacroIndicators(indicators: ProviderFundPayload["macro_indicators"]): ProviderFundPayload["macro_indicators"] {
+    if (!Array.isArray(indicators)) return undefined;
+    const valid = indicators.filter((indicator) => this.isValidMacroIndicator(indicator));
+    return valid.length ? valid : undefined;
+  }
+
+  private isValidMacroIndicator(indicator: unknown): indicator is NonNullable<ProviderFundPayload["macro_indicators"]>[number] {
+    if (!this.isRecord(indicator)) return false;
+    return (
+      typeof indicator.country_code === "string" &&
+      indicator.country_code.trim().length > 0 &&
+      typeof indicator.country_name === "string" &&
+      indicator.country_name.trim().length > 0 &&
+      typeof indicator.indicator_id === "string" &&
+      indicator.indicator_id.trim().length > 0 &&
+      typeof indicator.indicator_name === "string" &&
+      indicator.indicator_name.trim().length > 0 &&
+      this.isFiniteNumber(indicator.value as number | undefined) &&
+      typeof indicator.date === "string" &&
+      indicator.date.trim().length > 0 &&
+      (typeof indicator.unit === "string" || indicator.unit === null) &&
+      typeof indicator.source_url === "string" &&
+      indicator.source_url.trim().length > 0 &&
+      typeof indicator.source_name === "string" &&
+      indicator.source_name.trim().length > 0 &&
+      this.isValidIsoTimestamp(indicator.fetched_at as string)
+    );
   }
 
   private validNavHistory(
@@ -326,6 +371,16 @@ export class ArgusAgent extends BaseAgent {
 
   private isFiniteNumber(value: number | undefined): value is number {
     return typeof value === "number" && Number.isFinite(value);
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+  }
+
+  private isValidIsoTimestamp(value: string | undefined): value is string {
+    if (typeof value !== "string") return false;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
   }
 
   private deriveDailyReturnFromNavHistory(payload: ProviderFundPayload): DerivedDailyReturn | null {
@@ -1017,13 +1072,14 @@ export class ArgusAgent extends BaseAgent {
 
   private recordCountFor(data: ProviderFundPayload | null): number | null {
     if (!data) return null;
-    if (data.nav_history?.length) return data.nav_history.length;
-    if (data.macro_indicators?.length) return data.macro_indicators.length;
-    if (data.portfolio_holdings?.length) return data.portfolio_holdings.length;
-    if (data.fund_report_documents?.length) return data.fund_report_documents.length;
-    if (data.fund_report_refs?.length) return data.fund_report_refs.length;
-    if (data.policy_signals?.length) return data.policy_signals.length;
-    if (data.news_summaries?.length) return data.news_summaries.length;
+    const validated = this.validatedProviderPayload(data);
+    if (validated.nav_history?.length) return validated.nav_history.length;
+    if (validated.macro_indicators?.length) return validated.macro_indicators.length;
+    if (validated.portfolio_holdings?.length) return validated.portfolio_holdings.length;
+    if (validated.fund_report_documents?.length) return validated.fund_report_documents.length;
+    if (validated.fund_report_refs?.length) return validated.fund_report_refs.length;
+    if (validated.policy_signals?.length) return validated.policy_signals.length;
+    if (validated.news_summaries?.length) return validated.news_summaries.length;
     return null;
   }
 

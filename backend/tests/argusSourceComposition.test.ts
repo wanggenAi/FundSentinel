@@ -1465,6 +1465,67 @@ test("Argus ignores fund core fields accidentally returned by macro providers", 
   assert.ok(dataPack.data_quality_report.nav_consistency_report.not_checked_reasons.includes("no_real_nav_sources"));
 });
 
+test("Argus sanitizes malformed auxiliary provider payloads before final DataPack merge", async () => {
+  const registry = new StaticResultRegistry([
+    {
+      source_id: "malformed-argus-auxiliary-test",
+      source_name: "Malformed Argus Auxiliary Test Provider",
+      source_type: "macro_data",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        themes: ["合法主题", 123, "", "合法主题"] as never,
+        policy_signals: ["合法政策", null] as never,
+        news_summaries: ["合法新闻", { bad: true }] as never,
+        macro_indicators: [
+          {
+            country_code: "CN",
+            country_name: "China",
+            indicator_id: "VALID.MACRO",
+            indicator_name: "Valid macro",
+            value: 2,
+            date: "2026",
+            unit: null,
+            source_url: "https://macro.example.test/valid",
+            source_name: "Malformed Argus Auxiliary Test Provider",
+            fetched_at: "2026-05-28T00:00:00.000Z"
+          },
+          {
+            country_code: "CN",
+            country_name: "China",
+            indicator_id: "INVALID.MACRO",
+            indicator_name: "Invalid macro",
+            value: Number.NaN,
+            date: "2026",
+            unit: null,
+            source_url: "https://macro.example.test/invalid",
+            source_name: "Malformed Argus Auxiliary Test Provider",
+            fetched_at: "2026-05-28T00:00:00.000Z"
+          }
+        ]
+      } as unknown as ProviderFundPayload,
+      raw_reference: "https://macro.example.test/malformed-argus",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    }
+  ]);
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("malformed-argus-auxiliary", "007951");
+  const source = dataPack.data_sources.find((item) => item.source_id === "malformed-argus-auxiliary-test");
+
+  assert.deepEqual(dataPack.themes, ["合法主题"]);
+  assert.deepEqual(dataPack.policy_signals, ["合法政策"]);
+  assert.deepEqual(dataPack.news_summaries, ["合法新闻"]);
+  assert.equal(dataPack.macro_indicators.length, 1);
+  assert.equal(dataPack.macro_indicators[0]?.indicator_id, "VALID.MACRO");
+  assert.equal(dataPack.macro_indicators[0]?.value, 2);
+  assert.equal(source?.record_count, 1);
+});
+
 test("Argus records structured failed provider details in DataGapReport", async () => {
   const registry = new SourceRegistry({
     providers: [new FailingOfficialReportProvider()],
