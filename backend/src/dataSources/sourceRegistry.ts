@@ -949,12 +949,12 @@ export class SourceRegistry {
     if (!this.matchesRequestedFund(fundCode, payload)) return {};
     if (result.source_type === "manual_import" && !result.is_demo) return this.validatedContextPayload(this.manualImportContextPayload(payload), fundCode);
     if (this.canMergeFundCoreContext(result)) return this.validatedContextPayload(payload, fundCode);
-    return {
+    return this.validatedContextPayload({
       themes: payload.themes,
       policy_signals: payload.policy_signals,
       macro_indicators: payload.macro_indicators,
       news_summaries: payload.news_summaries
-    };
+    }, fundCode);
   }
 
   private manualImportContextPayload(payload: ProviderFundPayload): ProviderFundPayload {
@@ -985,16 +985,57 @@ export class SourceRegistry {
     if (validated.daily_return !== undefined && !this.isFiniteNumber(validated.daily_return)) validated.daily_return = undefined;
     if (validated.social_sentiment_score !== undefined && !this.isFiniteNumber(validated.social_sentiment_score)) validated.social_sentiment_score = undefined;
     validated.stage_returns = this.validStageReturns(validated.stage_returns);
+    validated.portfolio_holdings = this.validStringList(validated.portfolio_holdings);
+    validated.fund_report_refs = this.validStringList(validated.fund_report_refs);
+    validated.themes = this.validStringList(validated.themes);
+    validated.policy_signals = this.validStringList(validated.policy_signals);
+    validated.news_summaries = this.validStringList(validated.news_summaries);
+    validated.macro_indicators = this.validMacroIndicators(validated.macro_indicators);
     const navHistory = this.validNavHistory(validated.nav_history, validated.nav_history_dates);
     validated.nav_history = navHistory.navHistory;
     validated.nav_history_dates = navHistory.navHistoryDates;
     return validated;
   }
 
+  private validStringList(values: string[] | undefined): string[] | undefined {
+    if (!Array.isArray(values)) return undefined;
+    const cleaned = values.filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+    return cleaned.length ? [...new Set(cleaned)] : undefined;
+  }
+
   private validStageReturns(stageReturns: ProviderFundPayload["stage_returns"]): ProviderFundPayload["stage_returns"] {
     if (!stageReturns) return stageReturns;
     const entries = Object.entries(stageReturns).filter(([, value]) => this.isFiniteNumber(value));
     return entries.length ? Object.fromEntries(entries) : undefined;
+  }
+
+  private validMacroIndicators(indicators: ProviderFundPayload["macro_indicators"]): ProviderFundPayload["macro_indicators"] {
+    if (!Array.isArray(indicators)) return undefined;
+    const valid = indicators.filter((indicator) => this.isValidMacroIndicator(indicator));
+    return valid.length ? valid : undefined;
+  }
+
+  private isValidMacroIndicator(indicator: unknown): indicator is NonNullable<ProviderFundPayload["macro_indicators"]>[number] {
+    if (!this.isRecord(indicator)) return false;
+    return (
+      typeof indicator.country_code === "string" &&
+      indicator.country_code.trim().length > 0 &&
+      typeof indicator.country_name === "string" &&
+      indicator.country_name.trim().length > 0 &&
+      typeof indicator.indicator_id === "string" &&
+      indicator.indicator_id.trim().length > 0 &&
+      typeof indicator.indicator_name === "string" &&
+      indicator.indicator_name.trim().length > 0 &&
+      this.isFiniteNumber(indicator.value as number | undefined) &&
+      typeof indicator.date === "string" &&
+      indicator.date.trim().length > 0 &&
+      (typeof indicator.unit === "string" || indicator.unit === null) &&
+      typeof indicator.source_url === "string" &&
+      indicator.source_url.trim().length > 0 &&
+      typeof indicator.source_name === "string" &&
+      indicator.source_name.trim().length > 0 &&
+      this.isValidIsoTimestamp(indicator.fetched_at as string)
+    );
   }
 
   private validNavHistory(

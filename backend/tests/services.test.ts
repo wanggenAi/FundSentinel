@@ -1361,6 +1361,46 @@ test("SourceRegistry does not let non-core provider payloads seed fund-core cont
   assert.equal(capturedContext.macro_indicators?.[0]?.indicator_id, "TEST.MACRO.CONTEXT");
 });
 
+test("SourceRegistry sanitizes malformed auxiliary context before sharing it", async () => {
+  const captureProvider = new ContextCaptureProvider();
+  const registry = new SourceRegistry({
+    providers: [new MalformedAuxiliaryContextProvider(), captureProvider],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  await registry.fetchAll({ fund_code: "007951", required_data: ["macro_data", "policy_evidence"], demo_mode: false });
+  const capturedContext = captureProvider.capturedContext;
+
+  assert.ok(capturedContext);
+  assert.deepEqual(capturedContext.themes, ["合法主题"]);
+  assert.deepEqual(capturedContext.policy_signals, ["合法政策"]);
+  assert.deepEqual(capturedContext.news_summaries, ["合法新闻"]);
+  assert.equal(capturedContext.macro_indicators?.length, 1);
+  assert.equal(capturedContext.macro_indicators?.[0]?.indicator_id, "VALID.MACRO");
+  assert.equal(capturedContext.macro_indicators?.[0]?.value, 2);
+});
+
+test("SourceRegistry sanitizes malformed core context arrays before sharing them", async () => {
+  const captureProvider = new ContextCaptureProvider();
+  const registry = new SourceRegistry({
+    providers: [new MalformedCoreContextProvider(), captureProvider],
+    cacheTtlMs: 0,
+    retryCount: 0
+  });
+
+  await registry.fetchAll({ fund_code: "007951", required_data: ["fund_meta", "current_nav", "nav_history", "policy_evidence"], demo_mode: false });
+  const capturedContext = captureProvider.capturedContext;
+
+  assert.ok(capturedContext);
+  assert.deepEqual(capturedContext.portfolio_holdings, ["合法持仓"]);
+  assert.deepEqual(capturedContext.fund_report_refs, ["合法报告"]);
+  assert.deepEqual(capturedContext.themes, ["核心主题"]);
+  assert.deepEqual(capturedContext.policy_signals, ["核心政策"]);
+  assert.deepEqual(capturedContext.news_summaries, ["核心新闻"]);
+  assert.equal(capturedContext.macro_indicators, undefined);
+});
+
 test("SourceRegistry keeps core provider payloads available to later context-aware providers", async () => {
   const captureProvider = new ContextCaptureProvider();
   const registry = new SourceRegistry({
@@ -2351,6 +2391,116 @@ class ContextPollutingMacroProvider implements DataProvider<FundDataSourceInput,
         ]
       },
       raw_reference: "https://macro.example.test",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class MalformedAuxiliaryContextProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("malformed-auxiliary-context-provider"),
+      source_name: "Malformed Auxiliary Context Provider",
+      source_type: "macro_data",
+      trust_level: "A",
+      priority: 1
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "malformed-auxiliary-context-provider",
+      source_name: "Malformed Auxiliary Context Provider",
+      source_type: "macro_data",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        themes: ["合法主题", 123, "", "合法主题"] as never,
+        policy_signals: ["合法政策", null] as never,
+        news_summaries: ["合法新闻", { bad: true }] as never,
+        macro_indicators: [
+          {
+            country_code: "CN",
+            country_name: "China",
+            indicator_id: "VALID.MACRO",
+            indicator_name: "Valid macro",
+            value: 2,
+            date: "2026",
+            unit: null,
+            source_url: "https://macro.example.test/valid",
+            source_name: "Malformed Auxiliary Context Provider",
+            fetched_at: "2026-05-28T00:00:00.000Z"
+          },
+          {
+            country_code: "CN",
+            country_name: "China",
+            indicator_id: "INVALID.MACRO",
+            indicator_name: "Invalid macro",
+            value: Number.NaN,
+            date: "2026",
+            unit: null,
+            source_url: "https://macro.example.test/invalid",
+            source_name: "Malformed Auxiliary Context Provider",
+            fetched_at: "2026-05-28T00:00:00.000Z"
+          }
+        ]
+      } as unknown as ProviderFundPayload,
+      raw_reference: "https://macro.example.test/malformed-auxiliary",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class MalformedCoreContextProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("malformed-core-context-provider"),
+      source_name: "Malformed Core Context Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      priority: 1
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    return {
+      source_id: "malformed-core-context-provider",
+      source_name: "Malformed Core Context Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        fund_name: "Malformed Core Context Fund",
+        current_nav: 1.01,
+        nav_history: [1, 1.01],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        portfolio_holdings: ["合法持仓", 42, ""] as never,
+        fund_report_refs: ["合法报告", undefined] as never,
+        themes: ["核心主题", false] as never,
+        policy_signals: ["核心政策", 7] as never,
+        news_summaries: ["核心新闻", null] as never,
+        macro_indicators: "not-an-array" as never
+      },
+      raw_reference: "https://official.example.test/malformed-core",
       fetched_at: "2026-05-28T00:00:00.000Z",
       freshness: "fresh",
       warnings: [],
