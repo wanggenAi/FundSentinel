@@ -1556,6 +1556,36 @@ test("SourceRegistry rejects and does not cache core results without fund_code",
   assert.ok(health?.last_failed_at);
 });
 
+test("SourceRegistry rejects and does not cache success without usable business payload fields", async () => {
+  const provider = new EmptyBusinessPayloadProvider();
+  const registry = new SourceRegistry({
+    providers: [provider],
+    cacheTtlMs: 60_000,
+    retryCount: 0
+  });
+  const input = { fund_code: "007951", required_data: ["fund_meta", "current_nav", "nav_history"], demo_mode: false };
+
+  const first = (await registry.fetchAll(input))[0];
+  const second = (await registry.fetchAll(input))[0];
+  const health = registry.health().find((source) => source.source_id === "empty-business-payload-provider");
+
+  assert.equal(first.success, false);
+  assert.equal(first.data_status, "unavailable");
+  assert.equal(first.data, null);
+  assert.equal(first.freshness, "unknown");
+  assert.equal(first.cache_hit, false);
+  assert.match(first.error ?? "", /without usable business payload fields/u);
+  assert.ok(first.warnings.some((warning) => warning.includes("without any usable business payload fields")));
+  assert.equal(second.success, false);
+  assert.equal(second.cache_hit, false);
+  assert.equal(provider.callCount, 2);
+  assert.equal(health?.failure_count, 2);
+  assert.equal(health?.consecutive_failure_count, 2);
+  assert.equal(health?.cache_entries, 0);
+  assert.equal(health?.last_success_at, null);
+  assert.ok(health?.last_failed_at);
+});
+
 test("SourceRegistry filters invalid core NAV values before sharing provider context", async () => {
   const captureProvider = new ContextCaptureProvider();
   const registry = new SourceRegistry({
@@ -2870,6 +2900,56 @@ class UnidentifiedContextCoreProvider implements DataProvider<FundDataSourceInpu
         fund_report_refs: ["unidentified official report ref"]
       },
       raw_reference: "https://official.example.test/unidentified-context-core",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    };
+  }
+}
+
+class EmptyBusinessPayloadProvider implements DataProvider<FundDataSourceInput, ProviderFundPayload> {
+  callCount = 0;
+
+  sourceInfo(): DataSourceInfo {
+    return {
+      ...sourceInfo("empty-business-payload-provider"),
+      source_name: "Empty Business Payload Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      priority: 1
+    };
+  }
+
+  canHandle(): boolean {
+    return true;
+  }
+
+  async fetch(input: FundDataSourceInput): Promise<DataProviderResult<ProviderFundPayload>> {
+    this.callCount += 1;
+    return {
+      source_id: "empty-business-payload-provider",
+      source_name: "Empty Business Payload Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: input.fund_code,
+        current_nav: 0,
+        daily_return: Number.NaN,
+        nav_history: [-1, 0],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        stage_returns: { one_month: Number.POSITIVE_INFINITY },
+        portfolio_holdings: ["", "  "],
+        fund_report_refs: [],
+        themes: [""],
+        policy_signals: [],
+        news_summaries: [],
+        macro_indicators: []
+      } as unknown as ProviderFundPayload,
+      raw_reference: "https://official.example.test/empty-business-payload",
       fetched_at: "2026-05-28T00:00:00.000Z",
       freshness: "fresh",
       warnings: [],

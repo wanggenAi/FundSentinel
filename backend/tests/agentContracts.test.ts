@@ -246,6 +246,51 @@ test("Argus rejects direct provider success with unavailable data status", async
   assert.ok((source?.warnings as string[]).some((warning) => warning.includes("success with data_status=unavailable")));
 });
 
+test("Argus rejects direct provider success without usable business payload fields", async () => {
+  const registry = new UnsanitizedRegistry([
+    {
+      source_id: "direct-empty-payload-success",
+      source_name: "Direct Empty Payload Success Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "partial",
+      success: true,
+      data: {
+        fund_code: "007951",
+        current_nav: 0,
+        daily_return: Number.NaN,
+        nav_history: [-1, 0],
+        nav_history_dates: ["2026-05-27", "2026-05-28"],
+        stage_returns: { one_month: Number.POSITIVE_INFINITY },
+        portfolio_holdings: ["", "   "],
+        fund_report_refs: [],
+        themes: [""],
+        policy_signals: [],
+        news_summaries: [],
+        macro_indicators: []
+      } as unknown as ProviderFundPayload,
+      raw_reference: "https://official.example.test/empty-payload",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    }
+  ]);
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("argus-empty-payload-boundary", "007951");
+  const source = dataPack.data_sources.find((item) => item.source_id === "direct-empty-payload-success");
+
+  assert.equal(dataPack.data_status, "unavailable");
+  assert.equal(dataPack.current_nav, 0);
+  assert.equal(dataPack.data_quality_report.real_source_count, 0);
+  assert.equal(source?.success, false);
+  assert.equal(source?.data_status, "unavailable");
+  assert.equal(source?.record_count, null);
+  assert.match(String(source?.error), /without usable business payload fields/);
+  assert.ok((source?.warnings as string[]).some((warning) => warning.includes("without any usable business payload fields")));
+});
+
 test("Argus rejects direct provider demo status that is not explicitly demo-marked", async () => {
   const registry = new UnsanitizedRegistry([
     {

@@ -192,6 +192,13 @@ export class ArgusAgent extends BaseAgent {
       freshness = "unknown";
       error = error ?? "Provider reported real-data success without traceable raw_reference.";
     }
+    if (success && !this.hasUsableProviderPayload(data)) {
+      warnings.push("Provider reported success without any usable business payload fields; Argus converted it to explicit failure.");
+      success = false;
+      dataStatus = "unavailable";
+      freshness = "unknown";
+      error = error ?? "Provider reported success without usable business payload fields.";
+    }
     if (!success && data) {
       warnings.push("Provider reported failure with data; Argus discarded the payload.");
       data = null;
@@ -1191,6 +1198,33 @@ export class ArgusAgent extends BaseAgent {
     if (validated.policy_signals?.length) return validated.policy_signals.length;
     if (validated.news_summaries?.length) return validated.news_summaries.length;
     return null;
+  }
+
+  private hasUsableProviderPayload(payload: ProviderFundPayload | null | undefined): boolean {
+    if (!payload) return false;
+    const validated = this.validatedProviderPayload(payload);
+    return (
+      this.hasNonEmptyString(validated.fund_name) ||
+      this.hasNonEmptyString(validated.fund_type) ||
+      validated.current_nav !== undefined ||
+      validated.daily_return !== undefined ||
+      Boolean(validated.nav_history?.length) ||
+      Boolean(Object.keys(validated.stage_returns ?? {}).length) ||
+      Boolean(validated.portfolio_holdings?.length) ||
+      this.hasNonEmptyString(validated.holdings_as_of) ||
+      this.hasNonEmptyString(validated.holdings_source) ||
+      Boolean(validated.fund_report_refs?.length) ||
+      Boolean(validated.fund_report_documents?.length) ||
+      Boolean(validated.themes?.length) ||
+      Boolean(validated.policy_signals?.length) ||
+      Boolean(validated.macro_indicators?.length) ||
+      Boolean(validated.news_summaries?.length) ||
+      validated.social_sentiment_score !== undefined
+    );
+  }
+
+  private hasNonEmptyString(value: string | undefined | null): boolean {
+    return typeof value === "string" && value.trim().length > 0;
   }
 
   private latestDateFor(dates: Array<string | null>): string | null {
