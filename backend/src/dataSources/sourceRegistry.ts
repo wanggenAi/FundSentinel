@@ -568,6 +568,12 @@ export class SourceRegistry {
       freshness = "unknown";
       error = error ?? "Provider returned non-boolean success flag.";
     }
+    if (success && dataStatus === "unavailable") {
+      warnings.push("Provider reported success with data_status=unavailable; SourceRegistry converted it to explicit failure.");
+      success = false;
+      freshness = "unknown";
+      error = error ?? "Provider returned success with unavailable data_status.";
+    }
     if (success && dataStatus === "demo" && !result.is_demo) {
       warnings.push("Provider reported data_status=demo without is_demo=true; SourceRegistry converted it to explicit failure.");
       success = false;

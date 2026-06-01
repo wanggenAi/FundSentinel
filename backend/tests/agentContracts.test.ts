@@ -206,6 +206,46 @@ test("Argus rejects direct provider success with invalid data status", async () 
   assert.ok((source?.warnings as string[]).some((warning) => warning.includes("invalid data_status")));
 });
 
+test("Argus rejects direct provider success with unavailable data status", async () => {
+  const registry = new UnsanitizedRegistry([
+    {
+      source_id: "direct-unavailable-status-success",
+      source_name: "Direct Unavailable Status Success Provider",
+      source_type: "fund_company",
+      trust_level: "A",
+      data_status: "unavailable",
+      success: true,
+      data: {
+        fund_code: "007951",
+        fund_name: "招商信用增强债券C",
+        fund_type: "债券型",
+        current_nav: 1.0799,
+        daily_return: -0.02,
+        nav_history: [1.0801, 1.0799],
+        nav_history_dates: ["2026-05-27", "2026-05-28"]
+      },
+      raw_reference: "https://official.example.test/detail",
+      fetched_at: "2026-05-28T00:00:00.000Z",
+      freshness: "fresh",
+      warnings: [],
+      error: null,
+      is_demo: false
+    }
+  ]);
+
+  const { dataPack } = await new ArgusAgent(registry).prepareDataPack("argus-unavailable-status-boundary", "007951");
+  const source = dataPack.data_sources.find((item) => item.source_id === "direct-unavailable-status-success");
+
+  assert.equal(dataPack.data_status, "unavailable");
+  assert.equal(dataPack.current_nav, 0);
+  assert.equal(dataPack.data_quality_report.real_source_count, 0);
+  assert.equal(source?.success, false);
+  assert.equal(source?.data_status, "unavailable");
+  assert.equal(source?.record_count, null);
+  assert.match(String(source?.error), /success with unavailable data_status/);
+  assert.ok((source?.warnings as string[]).some((warning) => warning.includes("success with data_status=unavailable")));
+});
+
 test("Argus rejects direct provider demo status that is not explicitly demo-marked", async () => {
   const registry = new UnsanitizedRegistry([
     {

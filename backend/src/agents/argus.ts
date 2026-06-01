@@ -154,6 +154,12 @@ export class ArgusAgent extends BaseAgent {
     if (!this.isValidIsoTimestamp(result.fetched_at)) warnings.push("Argus replaced invalid fetched_at timestamp with data-pack build time.");
     if (typeof (result.success as unknown) !== "boolean") warnings.push(`Argus normalized invalid success=${String(result.success)} to false.`);
     if (typeof (result.is_demo as unknown) !== "boolean") warnings.push(`Argus normalized invalid is_demo=${String(result.is_demo)} to false.`);
+    if (success && dataStatus === "unavailable") {
+      warnings.push("Provider reported success with data_status=unavailable; Argus converted it to explicit failure.");
+      success = false;
+      freshness = "unknown";
+      error = error ?? "Provider returned success with unavailable data_status.";
+    }
     if (success && dataStatus === "demo" && !isDemo) {
       warnings.push("Provider reported data_status=demo without is_demo=true; Argus converted it to explicit failure to protect real-data coverage.");
       success = false;
